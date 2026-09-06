@@ -1,4 +1,4 @@
-# AccesoUni — Control de Acceso Peatonal RFID con Validación Visual
+# Acceso — Control de Acceso Peatonal RFID con Validación Visual
 
 <p>
   <img src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white" alt="HTML5">
@@ -48,18 +48,14 @@ El ingreso peatonal actual depende de autenticación biométrica por huella, que
 ```
 ├── index.html                              # Panel principal (escáner, personas, tarjetas, torniquetes, historial)
 ├── landing.html                            # Landing page de presentación del proyecto
-├── esquema_bd_acceso_rfid_postgresql.sql   # Esquema completo de base de datos (PostgreSQL)
-├── diagrama_clases_acceso_rfid.puml        # Diagrama de clases UML (código PlantUML)
 └── README.md
 ```
 
 ## Puesta en marcha
 
-1. Crea un proyecto en [Supabase](https://supabase.com) y ejecuta `esquema_bd_acceso_rfid_postgresql.sql` en el editor SQL.
-2. Copia la URL de tu proyecto y la `anon key` en las constantes `SUPABASE_URL` y `SUPABASE_ANON_KEY` dentro de `index.html`.
-3. Abre `index.html` en el navegador — no requiere instalación ni servidor, es un archivo estático.
-4. Para simular lecturas sin un lector físico conectado, usa el panel "Simular lectura" dentro de la pestaña Escáner.
-5. Si tienes un lector RFID USB tipo teclado conectado, simplemente acerca una tarjeta con la pestaña Escáner abierta: el UID se captura automáticamente.
+1. Abre `index.html` en el navegador — no requiere instalación ni servidor, es un archivo estático.
+2. Para simular lecturas sin un lector físico conectado, usa el panel "Simular lectura" dentro de la pestaña Escáner.
+3. Si tienes un lector RFID USB tipo teclado conectado, simplemente acerca una tarjeta con la pestaña Escáner abierta: el UID se captura automáticamente.
 
 ## Contexto académico
 
