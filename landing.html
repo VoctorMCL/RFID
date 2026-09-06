@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AccesoUni — Control de acceso RFID con validación visual</title>
+<style>
+  :root{
+    --ink:#0d1b2a;
+    --ink-2:#15283c;
+    --line:#2a3d52;
+    --paper:#eef1f5;
+    --paper-2:#ffffff;
+    --accent:#e8a53d;
+    --accent-ink:#241705;
+    --text-soft:#a9b6c6;
+    --text-dark:#1c2430;
+    --text-dark-soft:#5a6472;
+    --ok:#3fb27f;
+    --danger:#d9564f;
+    --serif:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    --sans:-apple-system,"Segoe UI",system-ui,sans-serif;
+    --mono:"JetBrains Mono","SF Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;font-family:var(--sans);color:var(--text-dark);background:var(--paper);}
+  h1,h2,h3{font-family:var(--serif);margin:0;font-weight:400;}
+  p{line-height:1.6;}
+  a{color:inherit;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px;}
+  .mono-tag{font-family:var(--mono);font-size:11.5px;letter-spacing:.5px;}
+
+  /* ---------------- NAV ---------------- */
+  nav{position:sticky;top:0;z-index:20;background:var(--ink);border-bottom:1px solid var(--line);}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;}
+  .nav-brand{display:flex;align-items:center;gap:10px;color:#fff;}
+  .nav-brand-mark{width:30px;height:30px;border-radius:7px;background:rgba(232,165,61,.15);border:1px solid var(--accent);
+    display:flex;align-items:center;justify-content:center;color:var(--accent);}
+  .nav-brand-mark svg{width:16px;height:16px;}
+  .nav-brand span{font-family:var(--serif);font-size:17px;}
+  .nav-links{display:flex;gap:26px;font-size:13.5px;color:var(--text-soft);}
+  .nav-links a:hover{color:#fff;}
+  .nav-cta{background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:13px;padding:8px 16px;
+    border-radius:6px;text-decoration:none;}
+  @media (max-width:760px){.nav-links{display:none;}}
+
+  /* ---------------- HERO ---------------- */
+  .hero{background:var(--ink);color:#fff;padding:70px 0 90px;position:relative;overflow:hidden;}
+  .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:50px;align-items:center;}
+  @media (max-width:880px){.hero-grid{grid-template-columns:1fr;}}
+  .hero-eyebrow{font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:16px;}
+  .hero h1{font-size:44px;line-height:1.18;color:#fff;max-width:520px;}
+  .hero p.lede{color:var(--text-soft);font-size:16.5px;max-width:460px;margin:22px 0 30px;}
+  .hero-actions{display:flex;gap:14px;flex-wrap:wrap;}
+  .btn{display:inline-block;padding:12px 22px;border-radius:7px;font-size:14px;font-weight:600;
+    text-decoration:none;border:1px solid transparent;}
+  .btn-accent{background:var(--accent);color:var(--accent-ink);}
+  .btn-outline{border-color:var(--line);color:#fff;}
+  .btn-outline:hover{border-color:var(--text-soft);}
+
+  /* ---------------- BADGE VISUAL ---------------- */
+  .badge-stage{display:flex;justify-content:center;position:relative;}
+  .badge-ring{position:absolute;width:280px;height:280px;border-radius:50%;border:1px solid rgba(232,165,61,.35);
+    animation:ring 2.6s ease-out infinite;}
+  @keyframes ring{0%{transform:scale(.8);opacity:.9;}100%{transform:scale(1.35);opacity:0;}}
+  .badge-card{width:250px;background:var(--paper-2);border-radius:16px;padding:22px 20px;position:relative;z-index:2;
+    box-shadow:0 30px 60px rgba(0,0,0,.35);}
+  .badge-stripe{height:7px;border-radius:4px;background:linear-gradient(90deg,var(--accent),#c98a1f);margin-bottom:18px;}
+  .badge-avatar{width:64px;height:64px;border-radius:50%;background:var(--ink-2);border:2px solid var(--accent);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:var(--accent);}
+  .badge-avatar svg{width:28px;height:28px;}
+  .badge-line{height:9px;background:#e4e7ec;border-radius:4px;margin:0 auto 8px;}
+  .badge-name{width:70%;}
+  .badge-role{width:45%;height:7px;}
+  .badge-foot{margin-top:18px;padding-top:14px;border-top:1px dashed #d6dae1;display:flex;
+    align-items:center;justify-content:space-between;}
+  .badge-uid{font-family:var(--mono);font-size:10.5px;color:var(--text-dark-soft);}
+  .badge-status{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.4px;color:var(--ok);
+    background:rgba(63,178,127,.12);padding:3px 8px;border-radius:5px;}
+
+  /* ---------------- SECTION SHELL ---------------- */
+  section{padding:76px 0;}
+  .section-label{font-family:var(--mono);font-size:12px;color:var(--accent-ink);background:rgba(232,165,61,.18);
+    display:inline-block;padding:3px 10px;border-radius:5px;margin-bottom:18px;}
+  section h2{font-size:32px;color:var(--text-dark);max-width:620px;}
+
+  /* ---------------- PROBLEMA / SOLUCIÓN (editorial, no tarjetas) ---------------- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:56px;margin-top:34px;}
+  @media (max-width:820px){.split{grid-template-columns:1fr;}}
+  .split h3{font-size:19px;color:var(--text-dark);margin-bottom:10px;}
+  .split p{color:var(--text-dark-soft);font-size:15px;max-width:60ch;}
+  .split .divider-v{border-left:1px solid #d9dee5;padding-left:56px;}
+  @media (max-width:820px){.split .divider-v{border-left:none;padding-left:0;border-top:1px solid #d9dee5;padding-top:34px;}}
+
+  /* ---------------- CÓMO FUNCIONA (secuencia real → numerada) ---------------- */
+  .steps{counter-reset:step;margin-top:40px;}
+  .step{display:grid;grid-template-columns:64px 1fr;gap:22px;padding:26px 0;border-top:1px solid #d9dee5;}
+  .step:last-child{border-bottom:1px solid #d9dee5;}
+  .step-num{counter-increment:step;font-family:var(--serif);font-size:30px;color:var(--accent-ink);opacity:.55;}
+  .step-num::before{content:counter(step, decimal-leading-zero);}
+  .step h3{font-size:18px;margin-bottom:6px;color:var(--text-dark);}
+  .step p{color:var(--text-dark-soft);font-size:14.5px;max-width:64ch;margin:0;}
+
+  /* ---------------- STACK (pills, no shields genéricos) ---------------- */
+  .stack-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px;}
+  .stack-pill{display:flex;align-items:center;gap:8px;background:var(--paper-2);border:1px solid #dde1e7;
+    border-radius:8px;padding:9px 14px;font-size:13.5px;color:var(--text-dark);}
+  .stack-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);}
+
+  /* ---------------- INSTITUCIONAL / FOOTER ---------------- */
+  footer{background:var(--ink);color:var(--text-soft);padding:46px 0 34px;}
+  .foot-grid{display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;border-bottom:1px solid var(--line);
+    padding-bottom:28px;margin-bottom:20px;}
+  footer h3{color:#fff;font-size:16px;margin-bottom:8px;}
+  footer p{font-size:13px;margin:0;max-width:340px;}
+  .foot-fine{font-family:var(--mono);font-size:11px;color:#66748a;}
+
+  @media (prefers-reduced-motion:reduce){.badge-ring{animation:none;display:none;}}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="nav-brand">
+      <div class="nav-brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/></svg>
+      </div>
+      <span>AccesoUni</span>
+    </div>
+    <div class="nav-links">
+      <a href="#problema">El problema</a>
+      <a href="#funciona">Cómo funciona</a>
+      <a href="#stack">Tecnología</a>
+    </div>
+    <a class="nav-cta" href="index.html">Ver panel en vivo</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="hero-eyebrow">Corporación Universitaria Lasallista</div>
+      <h1>Tu carnet abre la puerta. Una persona confirma que eres tú.</h1>
+      <p class="lede">Un prototipo de control de acceso peatonal que reemplaza la huella dactilar por lectura RFID instantánea, sin renunciar a la seguridad: cada tarjeta muestra en pantalla la foto de su dueño para que el celador verifique la coincidencia sin detener la fila.</p>
+      <div class="hero-actions">
+        <a class="btn btn-accent" href="index.html">Ver el panel en vivo</a>
+        <a class="btn btn-outline" href="#funciona">Cómo funciona</a>
+      </div>
+    </div>
+    <div class="badge-stage">
+      <div class="badge-ring"></div>
+      <div class="badge-card">
+        <div class="badge-stripe"></div>
+        <div class="badge-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/></svg></div>
+        <div class="badge-line badge-name" style="margin-left:auto;margin-right:auto;"></div>
+        <div class="badge-line badge-role" style="margin-left:auto;margin-right:auto;"></div>
+        <div class="badge-foot">
+          <span class="badge-uid">UID E0:04:01:50</span>
+          <span class="badge-status">VERIFICADO</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="problema">
+  <div class="wrap">
+    <span class="section-label">El problema</span>
+    <h2>La huella es segura, pero no da abasto en hora pico.</h2>
+    <div class="split">
+      <div>
+        <h3>Lo que pasa hoy</h3>
+        <p>El ingreso peatonal depende de lectores biométricos que capturan y validan una huella por persona. En las horas de mayor afluencia, eso se traduce en filas largas y congestión en las porterías.</p>
+      </div>
+      <div class="divider-v">
+        <h3>Por qué no basta con cambiar a RFID</h3>
+        <p>Una tarjeta se puede prestar o clonar. Reemplazar la huella por un carnet sin más solo cambia el tipo de riesgo: de "lector lento" pasaríamos a "identidad sin verificar". Por eso el sistema no confía únicamente en el chip.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="funciona" style="background:var(--paper-2);">
+  <div class="wrap">
+    <span class="section-label">Cómo funciona</span>
+    <h2>Cuatro pasos, pensados para no detener la fila.</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Se acerca el carnet</h3>
+          <p>El estudiante, docente o visitante acerca su tarjeta al lector RFID instalado en el torniquete. La lectura toma una fracción de segundo, igual que una tarjeta de transporte público.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>El sistema valida el UID</h3>
+          <p>El identificador único de la tarjeta se compara contra la base de datos en tiempo real: ¿existe? ¿está activa? ¿su acceso sigue vigente?</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>El celador confirma visualmente</h3>
+          <p>La pantalla del torniquete muestra la foto y el nombre asociados a esa tarjeta. El personal de seguridad solo tiene que comparar la cara frente a él con la de la pantalla — sin detener a nadie para pedir explicaciones.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div>
+          <h3>Queda registrado</h3>
+          <p>Cada intento, exitoso o no, se guarda con fecha, hora y torniquete. Esto permite auditar patrones de acceso y detectar intentos irregulares después del hecho.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <span class="section-label">Tecnología</span>
+    <h2>Construido para probarse en un banco de pruebas real antes de instalarse.</h2>
+    <p style="color:var(--text-dark-soft);max-width:60ch;margin-top:14px;">El prototipo corre completo en una Raspberry Pi (CrowPi 3) con un lector RFID MFRC522, y usa Supabase como base de datos en la nube para que el panel de administración y los torniquetes compartan la misma información en tiempo real.</p>
+    <div class="stack-row">
+      <div class="stack-pill"><span class="dot"></span>Raspberry Pi / CrowPi 3</div>
+      <div class="stack-pill"><span class="dot"></span>Lector RFID MFRC522</div>
+      <div class="stack-pill"><span class="dot"></span>PostgreSQL</div>
+      <div class="stack-pill"><span class="dot"></span>Supabase</div>
+      <div class="stack-pill"><span class="dot"></span>HTML / CSS / JavaScript</div>
+      <div class="stack-pill"><span class="dot"></span>Diagramas UML con PlantUML</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <h3>AccesoUni</h3>
+        <p>Prototipo académico de control de acceso peatonal con RFID y validación visual, desarrollado para la Corporación Universitaria Lasallista.</p>
+      </div>
+      <div>
+        <h3>Proyecto</h3>
+        <p>Victor Manuel Cordoba Larez<br>Docente: Feibert Alirio Guzmán Pérez<br>Caldas, Antioquia — 2026-2</p>
+      </div>
+    </div>
+    <div class="foot-fine">Prototipo académico — no es una instalación de seguridad certificada para producción.</div>
+  </div>
+</footer>
+
+</body>
+</html>
