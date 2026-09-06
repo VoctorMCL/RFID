@@ -1,455 +1,1377 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
-<meta charset="UTF-8">
-<title>Control de Acceso RFID/NFC</title>
-<style>
-  :root{
-    --font-ui:"Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
-    --font-mono:"JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
-    --sidebar-w:230px;
-  }
-  html[data-theme="dark"]{
-    --bg:#0f131a;
-    --panel:#171d27;
-    --panel-alt:#1e2632;
-    --border:#2a3241;
-    --border-soft:#242c39;
-    --text:#e9edf3;
-    --text-muted:#8b93a3;
-    --text-dim:#5c6577;
-    --accent:#ffb020;
-    --accent-soft:rgba(255,176,32,.13);
-    --on-accent:#1a1204;
-    --ok:#33d17a;
-    --ok-soft:rgba(51,209,122,.13);
-    --danger:#ff5a5f;
-    --danger-soft:rgba(255,90,95,.13);
-    --info:#4fb2ff;
-    --info-soft:rgba(79,178,255,.13);
-    --shadow:0 1px 2px rgba(0,0,0,.4);
-  }
-  html[data-theme="light"]{
-    --bg:#f2f4f7;
-    --panel:#ffffff;
-    --panel-alt:#f7f8fa;
-    --border:#e4e7ec;
-    --border-soft:#edf0f3;
-    --text:#1c2130;
-    --text-muted:#6b7280;
-    --text-dim:#9aa1ac;
-    --accent:#3b6fed;
-    --accent-soft:rgba(59,111,237,.1);
-    --on-accent:#ffffff;
-    --ok:#17a35a;
-    --ok-soft:rgba(23,163,90,.1);
-    --danger:#e0393f;
-    --danger-soft:rgba(224,57,63,.09);
-    --info:#3b82f6;
-    --info-soft:rgba(59,130,246,.1);
-    --shadow:0 1px 3px rgba(20,25,40,.06);
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);}
-  body{min-height:100vh;}
-  #app{display:flex;min-height:100vh;}
-
-  /* ---------- SIDEBAR ---------- */
-  .sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
-    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
-  .sidebar-brand{display:flex;align-items:center;gap:10px;padding:18px 16px;border-bottom:1px solid var(--border-soft);}
-  .brand-mark{width:36px;height:36px;border-radius:9px;background:var(--accent-soft);border:1px solid var(--accent);
-    display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);}
-  .brand-mark svg{width:19px;height:19px;}
-  .brand-text h1{font-size:14.5px;margin:0;font-weight:700;letter-spacing:.1px;line-height:1.25;}
-  .brand-text p{font-size:11px;margin:1px 0 0;color:var(--text-muted);}
-  .sidebar-nav{flex:1;padding:14px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
-  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:none;background:transparent;
-    color:var(--text-muted);font-family:var(--font-ui);font-size:13px;font-weight:500;border-radius:8px;
-    cursor:pointer;text-align:left;width:100%;transition:background .12s,color .12s;}
-  .nav-item svg{width:17px;height:17px;flex-shrink:0;}
-  .nav-item:hover{background:var(--panel-alt);color:var(--text);}
-  .nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600;}
-  .sidebar-footer{padding:12px 10px;border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:8px;}
-  .conn-pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono);padding:0 4px;}
-  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex-shrink:0;}
-  .conn-dot.err{background:var(--danger);}
-  .reset-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);
-    font-size:11.5px;padding:7px 10px;border-radius:7px;cursor:pointer;font-family:var(--font-ui);width:100%;}
-  .reset-btn:hover{color:var(--text);border-color:var(--text-dim);}
-  .theme-toggle{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--panel-alt);
-    border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:500;padding:8px 10px;
-    border-radius:8px;cursor:pointer;font-family:var(--font-ui);width:100%;}
-  .theme-toggle:hover{border-color:var(--text-dim);}
-  .theme-toggle svg{width:15px;height:15px;}
-
-  /* ---------- MAIN / TOPBAR ---------- */
-  .main{flex:1;min-width:0;padding:18px 24px 50px;}
-  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
-  .breadcrumb{font-size:13px;color:var(--text-muted);}
-  .breadcrumb b{color:var(--text);font-weight:600;}
-  .topbar-right{display:flex;align-items:center;gap:14px;}
-  .clock{font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);}
-  .search-box{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);
-    border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--text-dim);min-width:220px;}
-  .search-box svg{width:15px;height:15px;flex-shrink:0;}
-
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:22px;}
-  .panel + .panel{margin-top:14px;}
-  h2.section-title{font-size:14px;font-weight:600;margin:0 0 4px;}
-  p.section-sub{font-size:12.5px;color:var(--text-muted);margin:0 0 18px;}
-
-  .error-banner{background:var(--danger-soft);border:1px solid rgba(255,90,95,.35);color:var(--danger);
-    padding:14px 16px;border-radius:9px;font-size:12.5px;margin-bottom:14px;line-height:1.5;}
-  .error-banner code{font-family:var(--font-mono);background:rgba(0,0,0,.25);padding:1px 5px;border-radius:4px;}
-
-  .scanner-layout{display:grid;grid-template-columns:1fr 320px;gap:16px;}
-  @media (max-width:820px){.scanner-layout{grid-template-columns:1fr;}}
-
-  .scan-stage{border:1px solid var(--border);border-radius:10px;background:var(--panel-alt);
-    padding:28px;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;position:relative;overflow:hidden;transition:border-color .2s;}
-  .scan-stage.state-ok{border-color:rgba(51,209,122,.5);}
-  .scan-stage.state-fail{border-color:rgba(255,90,95,.5);}
-
-  .idle-pulse{width:72px;height:72px;border-radius:50%;border:2px solid var(--accent);display:flex;
-    align-items:center;justify-content:center;margin-bottom:16px;animation:pulse 1.8s ease-in-out infinite;}
-  .idle-pulse svg{width:30px;height:30px;color:var(--accent);}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,176,32,.35);}70%{box-shadow:0 0 0 16px rgba(255,176,32,0);}100%{box-shadow:0 0 0 0 rgba(255,176,32,0);}}
-  .idle-title{font-size:15px;font-weight:600;margin:0 0 4px;}
-  .idle-sub{font-size:12.5px;color:var(--text-muted);max-width:340px;line-height:1.5;}
-
-  .result-row{display:flex;align-items:center;gap:20px;width:100%;text-align:left;}
-  .avatar{width:84px;height:84px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-    font-size:26px;font-weight:700;color:#fff;font-family:var(--font-ui);}
-  .avatar.avatar-generic{background:var(--panel);border:2px dashed var(--danger);color:var(--danger);}
-  .result-info{flex:1;min-width:0;}
-  .result-name{font-size:19px;font-weight:700;margin:0 0 2px;}
-  .result-meta{font-size:12.5px;color:var(--text-muted);margin:0 0 10px;}
-  .status-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;font-size:12px;
-    font-weight:700;letter-spacing:.4px;}
-  .status-chip.ok{background:var(--ok-soft);color:var(--ok);}
-  .status-chip.fail{background:var(--danger-soft);color:var(--danger);}
-  .result-extra{margin-top:12px;font-size:12px;color:var(--text-dim);font-family:var(--font-mono);}
-
-  .scan-controls{display:flex;flex-direction:column;gap:12px;}
-  .card-box{border:1px solid var(--border);border-radius:10px;padding:16px;}
-  .card-box h3{font-size:12.5px;margin:0 0 10px;color:var(--text-muted);font-weight:600;}
-  .field-label{font-size:11.5px;color:var(--text-muted);display:block;margin-bottom:5px;}
-  select,input,textarea{width:100%;background:var(--panel-alt);border:1px solid var(--border);color:var(--text);
-    font-family:var(--font-ui);font-size:13px;padding:9px 10px;border-radius:7px;outline:none;}
-  select:focus,input:focus,textarea:focus{border-color:var(--accent);}
-  .btn{border:none;border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;
-    font-family:var(--font-ui);}
-  .btn:disabled{opacity:.5;cursor:not-allowed;}
-  .btn-primary{background:var(--accent);color:var(--on-accent);}
-  .btn-primary:hover{filter:brightness(1.08);}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
-  .btn-ghost:hover{border-color:var(--text-dim);}
-  .btn-danger{background:var(--danger-soft);color:var(--danger);border:1px solid rgba(255,90,95,.3);}
-  .btn-ok{background:var(--ok-soft);color:var(--ok);border:1px solid rgba(51,209,122,.3);}
-  .btn-sm{padding:5px 10px;font-size:11.5px;border-radius:6px;}
-  .listener-pill{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-muted);}
-  .listener-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:blink 1.4s infinite;}
-  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.25;}}
-  .uid-buffer{font-family:var(--font-mono);font-size:12px;color:var(--accent);min-height:16px;}
-
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);
-    font-weight:600;padding:0 10px 10px;border-bottom:1px solid var(--border);}
-  tbody td{padding:11px 10px;border-bottom:1px solid var(--border-soft);vertical-align:middle;}
-  tbody tr:last-child td{border-bottom:none;}
-  .mono{font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted);}
-  .pill{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;letter-spacing:.3px;}
-  .pill-ok{background:var(--ok-soft);color:var(--ok);}
-  .pill-fail{background:var(--danger-soft);color:var(--danger);}
-  .pill-neutral{background:var(--panel-alt);color:var(--text-muted);border:1px solid var(--border);}
-  .pill-info{background:var(--info-soft);color:var(--info);}
-  .empty-row td{text-align:center;color:var(--text-dim);padding:26px 10px;font-size:13px;}
-  .table-scroll{overflow-x:auto;}
-
-  .form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;}
-  @media (max-width:760px){.form-grid{grid-template-columns:1fr 1fr;}}
-  .form-row-actions{display:flex;justify-content:flex-end;margin-bottom:18px;}
-  .toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
-  .toolbar select,.toolbar input{width:auto;min-width:160px;}
-  .hint{font-size:11.5px;color:var(--text-dim);margin-top:6px;}
-  .divider{height:1px;background:var(--border-soft);margin:18px 0;}
-
-  /* ---------- STAT CARDS (dashboard) ---------- */
-  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
-  @media (max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr);}}
-  .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:var(--shadow);}
-  .stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .stat-label{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim);}
-  .stat-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .stat-icon svg{width:14px;height:14px;}
-  .stat-icon.blue{background:var(--info-soft);color:var(--info);}
-  .stat-icon.green{background:var(--ok-soft);color:var(--ok);}
-  .stat-icon.red{background:var(--danger-soft);color:var(--danger);}
-  .stat-value{font-size:24px;font-weight:700;}
-
-  /* ---------- PILLS w/ icon (VERIFIED / DENIED style) ---------- */
-  .pill-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:6px;
-    font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;}
-  .pill-badge svg{width:11px;height:11px;}
-  .pill-badge.ok{background:var(--ok-soft);color:var(--ok);}
-  .pill-badge.fail{background:var(--danger-soft);color:var(--danger);}
-  .row-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    color:#fff;font-size:12px;font-weight:700;flex-shrink:0;}
-  .row-with-avatar{display:flex;align-items:center;gap:10px;}
-  .row-sub{font-size:11px;color:var(--text-dim);}
-
-  /* ---------- SCAN RESULT — MOCKUP STYLE ---------- */
-  .scan-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;width:100%;align-self:stretch;}
-  .scan-header-left{display:flex;align-items:center;gap:10px;}
-  .scan-header-left .brand-mark{width:34px;height:34px;}
-  .scan-header-title{font-size:12px;font-weight:700;letter-spacing:.3px;}
-  .scan-header-sub{font-size:10.5px;color:var(--text-muted);}
-  .online-pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ok);font-weight:600;}
-  .online-pill svg{width:14px;height:14px;}
-
-  .result-ok-icon{width:88px;height:88px;border-radius:50%;background:var(--ok-soft);border:2px solid var(--ok);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 18px;}
-  .result-ok-icon svg{width:38px;height:38px;color:var(--ok);}
-  .big-avatar{width:110px;height:110px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    color:#fff;font-size:34px;font-weight:700;margin:0 auto 18px;box-shadow:0 0 0 4px var(--panel),0 0 0 6px var(--border);}
-  .success-name{font-size:26px;font-weight:800;text-align:center;letter-spacing:.5px;margin:0 0 4px;}
-  .success-id{font-size:14px;color:var(--text-muted);text-align:center;margin:0 0 12px;font-family:var(--font-mono);}
-  .success-tag{display:block;text-align:center;margin:0 auto 20px;background:var(--info-soft);color:var(--info);
-    font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:6px 14px;border-radius:20px;
-    width:fit-content;}
-  .status-banner{width:100%;padding:16px;border-radius:9px;text-align:center;font-size:16px;font-weight:800;
-    letter-spacing:2px;text-transform:uppercase;color:#fff;margin-bottom:20px;}
-  .status-banner.ok{background:var(--ok);}
-  .status-banner.fail{background:var(--danger);}
-  .success-footer{display:flex;justify-content:space-between;gap:20px;padding-top:16px;border-top:1px solid var(--border-soft);}
-  .footer-block{flex:1;}
-  .footer-block-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.4px;
-    text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
-  .footer-block-label svg{width:12px;height:12px;}
-  .footer-block-value{font-family:var(--font-mono);font-size:14px;font-weight:600;}
-
-  .denied-icon-wrap{width:96px;height:96px;border-radius:50%;background:var(--danger-soft);border:2px solid var(--danger);
-    display:flex;align-items:center;justify-content:center;margin:0 auto 16px;position:relative;}
-  .denied-icon-wrap svg{width:42px;height:42px;color:var(--danger);}
-  .denied-title{font-size:22px;font-weight:800;color:var(--danger);text-align:center;letter-spacing:.5px;margin:0 0 20px;}
-  .denied-layout{display:grid;grid-template-columns:1fr 260px;gap:18px;margin-bottom:20px;}
-  @media (max-width:760px){.denied-layout{grid-template-columns:1fr;}}
-  .photo-placeholder{border:1px dashed var(--border);border-radius:10px;background:var(--panel-alt);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:220px;
-    color:var(--text-dim);font-size:12px;text-align:center;padding:16px;}
-  .photo-placeholder svg{width:40px;height:40px;}
-  .denied-info-box{background:var(--panel-alt);border:1px solid var(--border-soft);border-radius:9px;padding:12px 14px;margin-bottom:10px;}
-  .denied-info-label{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:700;letter-spacing:.4px;
-    text-transform:uppercase;color:var(--text-dim);margin-bottom:5px;}
-  .denied-info-label svg{width:12px;height:12px;}
-  .denied-info-value{font-family:var(--font-mono);font-size:14px;font-weight:600;}
-  .alert-box{background:var(--danger-soft);border-left:3px solid var(--danger);border-radius:6px;padding:12px 14px;}
-  .alert-box b{color:var(--danger);font-size:12px;display:block;margin-bottom:4px;}
-  .alert-box p{font-size:12px;color:var(--text);margin:0;line-height:1.5;}
-</style>
-</head>
-<body>
-<div id="app"></div>
-
-<script>
-/* ============================ CONEXIÓN A SUPABASE ============================ */
-const SUPABASE_URL = 'https://rebvmpptmwltrovsxqjb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYnZtcHB0bXdsdHJvdnN4cWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3Mjg1MjgsImV4cCI6MjEwNDMwNDUyOH0.ZZ54_0qYxxgSiF3GcWaNE2jsljRJWHYdvr4GL7YFEyY';
-
-function sbHeaders(extra){
-  return Object.assign({
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-    'Content-Type': 'application/json'
-  }, extra || {});
-}
-async function sbGet(table, params){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${params||''}`, {headers: sbHeaders()});
-  if(!res.ok) throw new Error(`GET ${table}: ${res.status} ${await res.text()}`);
-  return res.json();
-}
-async function sbInsert(table, obj){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: sbHeaders({'Prefer':'return=representation'}),
-    body: JSON.stringify(obj)
-  });
-  if(!res.ok) throw new Error(`POST ${table}: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return data[0];
-}
-async function sbUpdate(table, matchCol, matchVal, patch){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${matchCol}=eq.${encodeURIComponent(matchVal)}`, {
-    method: 'PATCH',
-    headers: sbHeaders({'Prefer':'return=representation'}),
-    body: JSON.stringify(patch)
-  });
-  if(!res.ok) throw new Error(`PATCH ${table}: ${res.status} ${await res.text()}`);
-  return res.json();
-}
-async function sbDelete(table, matchCol, matchVal){
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${matchCol}=eq.${encodeURIComponent(matchVal)}`, {
-    method: 'DELETE',
-    headers: sbHeaders()
-  });
-  if(!res.ok) throw new Error(`DELETE ${table}: ${res.status} ${await res.text()}`);
-}
-
-/* ============================ ESTADO ============================ */
-let state = {
-  theme: 'light',
-  tab: 'scanner',
-  personas: [],
-  tarjetas: [],
-  torniquetes: [],
-  accesos: [],
-  currentTorniquete: null,
-  lastScan: null,
-  historialFiltro: 'todos',
-  loaded: false,
-  connError: null
-};
-
-async function loadState(){
-  state.connError = null;
-  try{
-    const [personas, tarjetas, torniquetes, accesos] = await Promise.all([
-      sbGet('personas', '&order=id_persona.asc'),
-      sbGet('tarjetas_rfid', '&order=id_tarjeta.asc'),
-      sbGet('torniquetes', '&order=id_torniquete.asc'),
-      sbGet('accesos', '&order=fecha_hora.desc&limit=300')
-    ]);
-    state.personas = personas;
-    state.tarjetas = tarjetas;
-    state.torniquetes = torniquetes;
-    state.accesos = accesos;
-    if(state.currentTorniquete === null && torniquetes[0]) state.currentTorniquete = torniquetes[0].id_torniquete;
-  }catch(e){
-    console.error(e);
-    state.connError = e.message;
-  }
-  state.loaded = true;
-}
-
-function esc(str){
-  return String(str==null?'':str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function fmtDate(iso){
-  if(!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-CO') + ' ' + d.toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-}
-function initials(nombre, apellido){
-  return ((nombre||'?')[0] + (apellido||'')[0]).toUpperCase();
-}
-function colorFromString(str){
-  let hash = 0;
-  for(let i=0;i<str.length;i++){ hash = str.charCodeAt(i) + ((hash<<5)-hash); }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 46%, 42%)`;
-}
-
-/* ============================ VALIDACIÓN DE ACCESO ============================ */
-async function validarUID(uidRaw){
-  const uid = (uidRaw||'').trim();
-  if(!uid) return;
-  const torniqueteId = state.currentTorniquete;
-  const tarjeta = state.tarjetas.find(t => t.uid.toUpperCase() === uid.toUpperCase());
-  let resultado, persona = null;
-
-  if(!tarjeta){
-    resultado = 'denegado_no_registrado';
-  } else {
-    persona = state.personas.find(p => p.id_persona === tarjeta.id_persona) || null;
-    if(!tarjeta.activa){
-      resultado = 'denegado_revocado';
-    } else if(persona && persona.fecha_expiracion && new Date(persona.fecha_expiracion) < new Date(new Date().toDateString())){
-      resultado = 'denegado_expirado';
-    } else {
-      resultado = 'permitido';
+  <meta charset="UTF-8">
+  <title>Control de Acceso RFID/NFC</title>
+  <style>
+    :root {
+      --font-ui: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+      --sidebar-w: 230px;
     }
-  }
 
-  try{
-    const nuevoAcceso = await sbInsert('accesos', {
-      uid_leido: uid,
-      id_tarjeta: tarjeta ? tarjeta.id_tarjeta : null,
-      id_torniquete: torniqueteId,
-      resultado
+    html[data-theme="dark"] {
+      --bg: #0f131a;
+      --panel: #171d27;
+      --panel-alt: #1e2632;
+      --border: #2a3241;
+      --border-soft: #242c39;
+      --text: #e9edf3;
+      --text-muted: #8b93a3;
+      --text-dim: #5c6577;
+      --accent: #ffb020;
+      --accent-soft: rgba(255, 176, 32, .13);
+      --on-accent: #1a1204;
+      --ok: #33d17a;
+      --ok-soft: rgba(51, 209, 122, .13);
+      --danger: #ff5a5f;
+      --danger-soft: rgba(255, 90, 95, .13);
+      --info: #4fb2ff;
+      --info-soft: rgba(79, 178, 255, .13);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    }
+
+    html[data-theme="light"] {
+      --bg: #f2f4f7;
+      --panel: #ffffff;
+      --panel-alt: #f7f8fa;
+      --border: #e4e7ec;
+      --border-soft: #edf0f3;
+      --text: #1c2130;
+      --text-muted: #6b7280;
+      --text-dim: #9aa1ac;
+      --accent: #3b6fed;
+      --accent-soft: rgba(59, 111, 237, .1);
+      --on-accent: #ffffff;
+      --ok: #17a35a;
+      --ok-soft: rgba(23, 163, 90, .1);
+      --danger: #e0393f;
+      --danger-soft: rgba(224, 57, 63, .09);
+      --info: #3b82f6;
+      --info-soft: rgba(59, 130, 246, .1);
+      --shadow: 0 1px 3px rgba(20, 25, 40, .06);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    #app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---------- SIDEBAR ---------- */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 16px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+
+    .brand-mark svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    .brand-text h1 {
+      font-size: 14.5px;
+      margin: 0;
+      font-weight: 700;
+      letter-spacing: .1px;
+      line-height: 1.25;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      margin: 1px 0 0;
+      color: var(--text-muted);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: background .12s, color .12s;
+    }
+
+    .nav-item svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+    }
+
+    .nav-item:hover {
+      background: var(--panel-alt);
+      color: var(--text);
+    }
+
+    .nav-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding: 12px 10px;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .conn-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      padding: 0 4px;
+    }
+
+    .conn-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+
+    .conn-dot.err {
+      background: var(--danger);
+    }
+
+    .reset-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11.5px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      width: 100%;
+    }
+
+    .reset-btn:hover {
+      color: var(--text);
+      border-color: var(--text-dim);
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      width: 100%;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--text-dim);
+    }
+
+    .theme-toggle svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* ---------- MAIN / TOPBAR ---------- */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 18px 24px 50px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .breadcrumb {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .breadcrumb b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .clock {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      color: var(--text-dim);
+      min-width: 220px;
+    }
+
+    .search-box svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+    }
+
+    .panel+.panel {
+      margin-top: 14px;
+    }
+
+    h2.section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    p.section-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin: 0 0 18px;
+    }
+
+    .error-banner {
+      background: var(--danger-soft);
+      border: 1px solid rgba(255, 90, 95, .35);
+      color: var(--danger);
+      padding: 14px 16px;
+      border-radius: 9px;
+      font-size: 12.5px;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .error-banner code {
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, .25);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .scanner-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+
+    @media (max-width:820px) {
+      .scanner-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .scan-stage {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-alt);
+      padding: 28px;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+
+    .scan-stage.state-ok {
+      border-color: rgba(51, 209, 122, .5);
+    }
+
+    .scan-stage.state-fail {
+      border-color: rgba(255, 90, 95, .5);
+    }
+
+    .idle-pulse {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    .idle-pulse svg {
+      width: 30px;
+      height: 30px;
+      color: var(--accent);
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 176, 32, .35);
+      }
+
+      70% {
+        box-shadow: 0 0 0 16px rgba(255, 176, 32, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 176, 32, 0);
+      }
+    }
+
+    .idle-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .idle-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      max-width: 340px;
+      line-height: 1.5;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      text-align: left;
+    }
+
+    .avatar {
+      width: 84px;
+      height: 84px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      font-family: var(--font-ui);
+    }
+
+    .avatar.avatar-generic {
+      background: var(--panel);
+      border: 2px dashed var(--danger);
+      color: var(--danger);
+    }
+
+    .result-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .result-name {
+      font-size: 19px;
+      font-weight: 700;
+      margin: 0 0 2px;
+    }
+
+    .result-meta {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin: 0 0 10px;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .4px;
+    }
+
+    .status-chip.ok {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .status-chip.fail {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .result-extra {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    .scan-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .card-box h3 {
+      font-size: 12.5px;
+      margin: 0 0 10px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .field-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    select,
+    input,
+    textarea {
+      width: 100%;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      padding: 9px 10px;
+      border-radius: 7px;
+      outline: none;
+    }
+
+    select:focus,
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .btn {
+      border: none;
+      border-radius: 7px;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-ui);
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--on-accent);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.08);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--text-dim);
+    }
+
+    .btn-danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid rgba(255, 90, 95, .3);
+    }
+
+    .btn-ok {
+      background: var(--ok-soft);
+      color: var(--ok);
+      border: 1px solid rgba(51, 209, 122, .3);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 11.5px;
+      border-radius: 6px;
+    }
+
+    .listener-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .listener-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 1.4s infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .25;
+      }
+    }
+
+    .uid-buffer {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      min-height: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-dim);
+      font-weight: 600;
+      padding: 0 10px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border-soft);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .pill-ok {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .pill-fail {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .pill-neutral {
+      background: var(--panel-alt);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .pill-info {
+      background: var(--info-soft);
+      color: var(--info);
+    }
+
+    .empty-row td {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 26px 10px;
+      font-size: 13px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width:760px) {
+      .form-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .form-row-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 18px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .toolbar select,
+    .toolbar input {
+      width: auto;
+      min-width: 160px;
+    }
+
+    .hint {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border-soft);
+      margin: 18px 0;
+    }
+
+    /* ---------- STAT CARDS (dashboard) ---------- */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width:900px) {
+      .stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .stat-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .stat-icon svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .stat-icon.blue {
+      background: var(--info-soft);
+      color: var(--info);
+    }
+
+    .stat-icon.green {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .stat-icon.red {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    /* ---------- PILLS w/ icon (VERIFIED / DENIED style) ---------- */
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 6px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+    }
+
+    .pill-badge svg {
+      width: 11px;
+      height: 11px;
+    }
+
+    .pill-badge.ok {
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+
+    .pill-badge.fail {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .row-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .row-with-avatar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .row-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* ---------- SCAN RESULT — MOCKUP STYLE ---------- */
+    .scan-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+      width: 100%;
+      align-self: stretch;
+    }
+
+    .scan-header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scan-header-left .brand-mark {
+      width: 34px;
+      height: 34px;
+    }
+
+    .scan-header-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .3px;
+    }
+
+    .scan-header-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .online-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--ok);
+      font-weight: 600;
+    }
+
+    .online-pill svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .result-ok-icon {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: var(--ok-soft);
+      border: 2px solid var(--ok);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+    }
+
+    .result-ok-icon svg {
+      width: 38px;
+      height: 38px;
+      color: var(--ok);
+    }
+
+    .big-avatar {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 34px;
+      font-weight: 700;
+      margin: 0 auto 18px;
+      box-shadow: 0 0 0 4px var(--panel), 0 0 0 6px var(--border);
+    }
+
+    .success-name {
+      font-size: 26px;
+      font-weight: 800;
+      text-align: center;
+      letter-spacing: .5px;
+      margin: 0 0 4px;
+    }
+
+    .success-id {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-align: center;
+      margin: 0 0 12px;
+      font-family: var(--font-mono);
+    }
+
+    .success-tag {
+      display: block;
+      text-align: center;
+      margin: 0 auto 20px;
+      background: var(--info-soft);
+      color: var(--info);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 20px;
+      width: fit-content;
+    }
+
+    .status-banner {
+      width: 100%;
+      padding: 16px;
+      border-radius: 9px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    .status-banner.ok {
+      background: var(--ok);
+    }
+
+    .status-banner.fail {
+      background: var(--danger);
+    }
+
+    .success-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-soft);
+    }
+
+    .footer-block {
+      flex: 1;
+    }
+
+    .footer-block-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .footer-block-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .footer-block-value {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .denied-icon-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: var(--danger-soft);
+      border: 2px solid var(--danger);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      position: relative;
+    }
+
+    .denied-icon-wrap svg {
+      width: 42px;
+      height: 42px;
+      color: var(--danger);
+    }
+
+    .denied-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--danger);
+      text-align: center;
+      letter-spacing: .5px;
+      margin: 0 0 20px;
+    }
+
+    .denied-layout {
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width:760px) {
+      .denied-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .photo-placeholder {
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      background: var(--panel-alt);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 220px;
+      color: var(--text-dim);
+      font-size: 12px;
+      text-align: center;
+      padding: 16px;
+    }
+
+    .photo-placeholder svg {
+      width: 40px;
+      height: 40px;
+    }
+
+    .denied-info-box {
+      background: var(--panel-alt);
+      border: 1px solid var(--border-soft);
+      border-radius: 9px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+
+    .denied-info-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+    }
+
+    .denied-info-label svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .denied-info-value {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .alert-box {
+      background: var(--danger-soft);
+      border-left: 3px solid var(--danger);
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .alert-box b {
+      color: var(--danger);
+      font-size: 12px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .alert-box p {
+      font-size: 12px;
+      color: var(--text);
+      margin: 0;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <script>
+    /* ============================ CONEXIÓN A SUPABASE ============================ */
+    const SUPABASE_URL = 'https://rebvmpptmwltrovsxqjb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYnZtcHB0bXdsdHJvdnN4cWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3Mjg1MjgsImV4cCI6MjEwNDMwNDUyOH0.ZZ54_0qYxxgSiF3GcWaNE2jsljRJWHYdvr4GL7YFEyY';
+
+    function sbHeaders(extra) {
+      return Object.assign({
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      }, extra || {});
+    }
+    async function sbGet(table, params) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${params || ''}`, { headers: sbHeaders() });
+      if (!res.ok) throw new Error(`GET ${table}: ${res.status} ${await res.text()}`);
+      return res.json();
+    }
+    async function sbInsert(table, obj) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+        method: 'POST',
+        headers: sbHeaders({ 'Prefer': 'return=representation' }),
+        body: JSON.stringify(obj)
+      });
+      if (!res.ok) throw new Error(`POST ${table}: ${res.status} ${await res.text()}`);
+      const data = await res.json();
+      return data[0];
+    }
+    async function sbUpdate(table, matchCol, matchVal, patch) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${matchCol}=eq.${encodeURIComponent(matchVal)}`, {
+        method: 'PATCH',
+        headers: sbHeaders({ 'Prefer': 'return=representation' }),
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) throw new Error(`PATCH ${table}: ${res.status} ${await res.text()}`);
+      return res.json();
+    }
+    async function sbDelete(table, matchCol, matchVal) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${matchCol}=eq.${encodeURIComponent(matchVal)}`, {
+        method: 'DELETE',
+        headers: sbHeaders()
+      });
+      if (!res.ok) throw new Error(`DELETE ${table}: ${res.status} ${await res.text()}`);
+    }
+
+    /* ============================ ESTADO ============================ */
+    let state = {
+      theme: 'light',
+      tab: 'scanner',
+      personas: [],
+      tarjetas: [],
+      torniquetes: [],
+      accesos: [],
+      currentTorniquete: null,
+      lastScan: null,
+      historialFiltro: 'todos',
+      loaded: false,
+      connError: null
+    };
+
+    async function loadState() {
+      state.connError = null;
+      try {
+        const [personas, tarjetas, torniquetes, accesos] = await Promise.all([
+          sbGet('personas', '&order=id_persona.asc'),
+          sbGet('tarjetas_rfid', '&order=id_tarjeta.asc'),
+          sbGet('torniquetes', '&order=id_torniquete.asc'),
+          sbGet('accesos', '&order=fecha_hora.desc&limit=300')
+        ]);
+        state.personas = personas;
+        state.tarjetas = tarjetas;
+        state.torniquetes = torniquetes;
+        state.accesos = accesos;
+        if (state.currentTorniquete === null && torniquetes[0]) state.currentTorniquete = torniquetes[0].id_torniquete;
+      } catch (e) {
+        console.error(e);
+        state.connError = e.message;
+      }
+      state.loaded = true;
+    }
+
+    function esc(str) {
+      return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function fmtDate(iso) {
+      if (!iso) return '—';
+
+      // Normalizar el ISO string para asegurar formato UTC correcto
+      let str = String(iso);
+      if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-')) {
+        str += 'Z';
+      }
+
+      const d = new Date(str);
+
+      // Formato de 24 horas para evitar errores visuales con 'a. m. / p. m.'
+      const fecha = d.toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+      const hora = d.toLocaleTimeString('es-CO', {
+        timeZone: 'America/Bogota',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+
+      return `${fecha} ${hora}`;
+    }
+    function initials(nombre, apellido) {
+      return ((nombre || '?')[0] + (apellido || '')[0]).toUpperCase();
+    }
+    function colorFromString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+      const hue = Math.abs(hash) % 360;
+      return `hsl(${hue}, 46%, 42%)`;
+    }
+
+    /* ============================ VALIDACIÓN DE ACCESO ============================ */
+    async function validarUID(uidRaw) {
+      const uid = (uidRaw || '').trim();
+      if (!uid) return;
+      const torniqueteId = state.currentTorniquete;
+      const tarjeta = state.tarjetas.find(t => t.uid.toUpperCase() === uid.toUpperCase());
+      let resultado, persona = null;
+
+      if (!tarjeta) {
+        resultado = 'denegado_no_registrado';
+      } else {
+        persona = state.personas.find(p => p.id_persona === tarjeta.id_persona) || null;
+        if (!tarjeta.activa) {
+          resultado = 'denegado_revocado';
+        } else if (persona && persona.fecha_expiracion && new Date(persona.fecha_expiracion) < new Date(new Date().toDateString())) {
+          resultado = 'denegado_expirado';
+        } else {
+          resultado = 'permitido';
+        }
+      }
+
+      try {
+        const nuevoAcceso = await sbInsert('accesos', {
+          uid_leido: uid,
+          id_tarjeta: tarjeta ? tarjeta.id_tarjeta : null,
+          id_torniquete: torniqueteId,
+          resultado
+        });
+        state.accesos.unshift(nuevoAcceso);
+        state.lastScan = { resultado, persona, tarjeta, acceso: nuevoAcceso };
+      } catch (e) {
+        console.error(e);
+        state.lastScan = null;
+        alert('No se pudo registrar el acceso en Supabase: ' + e.message);
+      }
+      render();
+    }
+
+    /* ============================ LECTOR FÍSICO (USB HID) ============================ */
+    let scanBuffer = '';
+    let scanTimer = null;
+    document.addEventListener('keydown', (e) => {
+      if (state.tab !== 'scanner') return;
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.key === 'Enter') {
+        if (scanBuffer.length > 0) { validarUID(scanBuffer); }
+        scanBuffer = '';
+        updateBufferDisplay();
+        return;
+      }
+      if (e.key.length === 1) {
+        scanBuffer += e.key;
+        updateBufferDisplay();
+        clearTimeout(scanTimer);
+        scanTimer = setTimeout(() => { scanBuffer = ''; updateBufferDisplay(); }, 700);
+      }
     });
-    state.accesos.unshift(nuevoAcceso);
-    state.lastScan = {resultado, persona, tarjeta, acceso: nuevoAcceso};
-  }catch(e){
-    console.error(e);
-    state.lastScan = null;
-    alert('No se pudo registrar el acceso en Supabase: ' + e.message);
-  }
-  render();
-}
+    function updateBufferDisplay() {
+      const el = document.getElementById('uid-buffer-display');
+      if (el) el.textContent = scanBuffer ? 'Leyendo: ' + scanBuffer : '';
+    }
 
-/* ============================ LECTOR FÍSICO (USB HID) ============================ */
-let scanBuffer = '';
-let scanTimer = null;
-document.addEventListener('keydown', (e) => {
-  if(state.tab !== 'scanner') return;
-  const tag = document.activeElement.tagName;
-  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    /* ============================ RENDER: LAYOUT ============================ */
+    const TABS = [
+      { id: 'scanner', label: 'Escáner', icon: 'scan' },
+      { id: 'personas', label: 'Personas', icon: 'user' },
+      { id: 'tarjetas', label: 'Tarjetas RFID', icon: 'card' },
+      { id: 'torniquetes', label: 'Torniquetes', icon: 'gate' },
+      { id: 'historial', label: 'Historial', icon: 'clock' }
+    ];
 
-  if(e.key === 'Enter'){
-    if(scanBuffer.length > 0){ validarUID(scanBuffer); }
-    scanBuffer = '';
-    updateBufferDisplay();
-    return;
-  }
-  if(e.key.length === 1){
-    scanBuffer += e.key;
-    updateBufferDisplay();
-    clearTimeout(scanTimer);
-    scanTimer = setTimeout(() => { scanBuffer=''; updateBufferDisplay(); }, 700);
-  }
-});
-function updateBufferDisplay(){
-  const el = document.getElementById('uid-buffer-display');
-  if(el) el.textContent = scanBuffer ? 'Leyendo: ' + scanBuffer : '';
-}
+    const ICONS = {
+      scan: '<path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/>',
+      user: '<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/>',
+      card: '<rect x="2.5" y="5.5" width="19" height="13" rx="2.4"/><path d="M8 15.5h4M16 9.5v.01M18.4 8a3 3 0 0 1 0 4"/>',
+      gate: '<path d="M4 21V6a1 1 0 0 1 1-1h3v16M9 21V5h6v16M15 21V5h3a1 1 0 0 1 1 1v15M2 21h20"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
+      sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19v2.5M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19 12h2.5M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/>',
+      moon: '<path d="M20 14.3A8.3 8.3 0 1 1 9.7 4a6.6 6.6 0 0 0 10.3 10.3Z"/>',
+      check: '<path d="M20 6L9 17l-5-5"/>',
+      x: '<path d="M18 6 6 18M6 6l12 12"/>',
+      wifi: '<path d="M2 8.5a15.5 15.5 0 0 1 20 0M5.5 12.4a10.5 10.5 0 0 1 13 0M9 16.2a5.3 5.3 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none"/>',
+      id: '<path d="M4 5.5h16v13H4z"/><circle cx="9" cy="11" r="2"/><path d="M6 17c.6-1.7 1.8-2.5 3-2.5s2.4.8 3 2.5M14 9.5h4M14 12.5h4"/>',
+      alertShield: '<path d="M12 3l7 3v6c0 4.6-3 8-7 9-4-1-7-4.4-7-9V6l7-3Z"/><path d="M12 8v5M12 16.2v.01"/>',
+      photo: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10.5" r="2"/><path d="M3 16l5-4 4 3 3-2 6 5"/>',
+      search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/>'
+    };
+    function icon(name, extra) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ${extra || ''}>${ICONS[name] || ''}</svg>`; }
 
-/* ============================ RENDER: LAYOUT ============================ */
-const TABS = [
-  {id:'scanner', label:'Escáner', icon:'scan'},
-  {id:'personas', label:'Personas', icon:'user'},
-  {id:'tarjetas', label:'Tarjetas RFID', icon:'card'},
-  {id:'torniquetes', label:'Torniquetes', icon:'gate'},
-  {id:'historial', label:'Historial', icon:'clock'}
-];
+    function applyTheme() {
+      document.documentElement.setAttribute('data-theme', state.theme);
+    }
 
-const ICONS = {
-  scan:'<path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"/>',
-  user:'<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/>',
-  card:'<rect x="2.5" y="5.5" width="19" height="13" rx="2.4"/><path d="M8 15.5h4M16 9.5v.01M18.4 8a3 3 0 0 1 0 4"/>',
-  gate:'<path d="M4 21V6a1 1 0 0 1 1-1h3v16M9 21V5h6v16M15 21V5h3a1 1 0 0 1 1 1v15M2 21h20"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/>',
-  sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19v2.5M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19 12h2.5M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/>',
-  moon:'<path d="M20 14.3A8.3 8.3 0 1 1 9.7 4a6.6 6.6 0 0 0 10.3 10.3Z"/>',
-  check:'<path d="M20 6L9 17l-5-5"/>',
-  x:'<path d="M18 6 6 18M6 6l12 12"/>',
-  wifi:'<path d="M2 8.5a15.5 15.5 0 0 1 20 0M5.5 12.4a10.5 10.5 0 0 1 13 0M9 16.2a5.3 5.3 0 0 1 6 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none"/>',
-  id:'<path d="M4 5.5h16v13H4z"/><circle cx="9" cy="11" r="2"/><path d="M6 17c.6-1.7 1.8-2.5 3-2.5s2.4.8 3 2.5M14 9.5h4M14 12.5h4"/>',
-  alertShield:'<path d="M12 3l7 3v6c0 4.6-3 8-7 9-4-1-7-4.4-7-9V6l7-3Z"/><path d="M12 8v5M12 16.2v.01"/>',
-  photo:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10.5" r="2"/><path d="M3 16l5-4 4 3 3-2 6 5"/>',
-  search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/>'
-};
-function icon(name, extra){ return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ${extra||''}>${ICONS[name]||''}</svg>`; }
-
-function applyTheme(){
-  document.documentElement.setAttribute('data-theme', state.theme);
-}
-
-function render(){
-  applyTheme();
-  const app = document.getElementById('app');
-  app.innerHTML = `
+    function render() {
+      applyTheme();
+      const app = document.getElementById('app');
+      app.innerHTML = `
     ${renderSidebar()}
     <div class="main">
       ${renderTopbarBreadcrumb()}
@@ -457,20 +1379,20 @@ function render(){
       <div id="tab-content">${state.connError ? '' : renderTabContent()}</div>
     </div>
   `;
-  bindGlobalEvents();
-  if(!state.connError) bindTabEvents();
-}
+      bindGlobalEvents();
+      if (!state.connError) bindTabEvents();
+    }
 
-function renderErrorBanner(){
-  return `<div class="error-banner">
+    function renderErrorBanner() {
+      return `<div class="error-banner">
     No se pudo conectar con Supabase.<br>
     <code>${esc(state.connError)}</code><br>
     Revisa que la URL y la anon key sean correctas, que el script SQL se haya ejecutado, y que las tablas tengan permisos de lectura para el rol <code>anon</code> (si activaste RLS, necesitas políticas). Dale a "Reintentar" cuando lo corrijas.
   </div>`;
-}
+    }
 
-function renderSidebar(){
-  return `
+    function renderSidebar() {
+      return `
   <aside class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-mark">${icon('scan')}</div>
@@ -480,23 +1402,23 @@ function renderSidebar(){
       </div>
     </div>
     <nav class="sidebar-nav">
-      ${TABS.map(t => `<button class="nav-item ${state.tab===t.id?'active':''}" data-tab="${t.id}">${icon(t.icon)}<span>${t.label}</span></button>`).join('')}
+      ${TABS.map(t => `<button class="nav-item ${state.tab === t.id ? 'active' : ''}" data-tab="${t.id}">${icon(t.icon)}<span>${t.label}</span></button>`).join('')}
     </nav>
     <div class="sidebar-footer">
-      <span class="conn-pill"><span class="conn-dot ${state.connError?'err':''}"></span>${state.connError?'Sin conexión':'Supabase conectado'}</span>
+      <span class="conn-pill"><span class="conn-dot ${state.connError ? 'err' : ''}"></span>${state.connError ? 'Sin conexión' : 'Supabase conectado'}</span>
       <button class="theme-toggle" id="btn-theme-toggle">
-        ${state.theme==='dark' ? icon('sun') : icon('moon')}
-        <span>Modo ${state.theme==='dark' ? 'claro' : 'oscuro'}</span>
+        ${state.theme === 'dark' ? icon('sun') : icon('moon')}
+        <span>Modo ${state.theme === 'dark' ? 'claro' : 'oscuro'}</span>
       </button>
-      <button class="reset-btn" id="btn-reset">${state.connError?'Reintentar':'Recargar datos'}</button>
+      <button class="reset-btn" id="btn-reset">${state.connError ? 'Reintentar' : 'Recargar datos'}</button>
     </div>
   </aside>`;
-}
+    }
 
-function renderTopbarBreadcrumb(){
-  const now = new Date();
-  const activeLabel = (TABS.find(t=>t.id===state.tab)||{}).label || '';
-  return `
+    function renderTopbarBreadcrumb() {
+      const now = new Date();
+      const activeLabel = (TABS.find(t => t.id === state.tab) || {}).label || '';
+      return `
   <div class="topbar">
     <div class="breadcrumb">Sistema &nbsp;›&nbsp; Dashboard &nbsp;›&nbsp; <b>${esc(activeLabel)}</b></div>
     <div class="topbar-right">
@@ -504,27 +1426,27 @@ function renderTopbarBreadcrumb(){
       <span class="clock" id="clock">${now.toLocaleTimeString('es-CO')}</span>
     </div>
   </div>`;
-}
+    }
 
-function renderTabContent(){
-  switch(state.tab){
-    case 'scanner': return renderScanner();
-    case 'personas': return renderPersonas();
-    case 'tarjetas': return renderTarjetas();
-    case 'torniquetes': return renderTorniquetes();
-    case 'historial': return renderHistorial();
-    default: return '';
-  }
-}
+    function renderTabContent() {
+      switch (state.tab) {
+        case 'scanner': return renderScanner();
+        case 'personas': return renderPersonas();
+        case 'tarjetas': return renderTarjetas();
+        case 'torniquetes': return renderTorniquetes();
+        case 'historial': return renderHistorial();
+        default: return '';
+      }
+    }
 
-/* ============================ TAB: ESCÁNER ============================ */
-function renderScanner(){
-  const ls = state.lastScan;
-  let stageClass = '';
-  let stageInner = '';
+    /* ============================ TAB: ESCÁNER ============================ */
+    function renderScanner() {
+      const ls = state.lastScan;
+      let stageClass = '';
+      let stageInner = '';
 
-  const torniqueteActual = torniqueteName(state.currentTorniquete);
-  const scanHeader = `
+      const torniqueteActual = torniqueteName(state.currentTorniquete);
+      const scanHeader = `
     <div class="scan-header">
       <div class="scan-header-left">
         <div class="brand-mark">${icon('scan')}</div>
@@ -536,31 +1458,31 @@ function renderScanner(){
       <div class="online-pill">${icon('wifi')} EN LÍNEA</div>
     </div>`;
 
-  if(!ls){
-    stageInner = `
+      if (!ls) {
+        stageInner = `
       ${scanHeader}
       <div class="idle-pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/></svg></div>
       <p class="idle-title">Esperando lectura</p>
       <p class="idle-sub">Acerca el carnet al lector RFID, o usa la simulación manual en el panel de la derecha.</p>
       <div class="uid-buffer" id="uid-buffer-display"></div>
     `;
-  } else {
-    const ok = ls.resultado === 'permitido';
-    stageClass = ok ? 'state-ok' : 'state-fail';
-    const p = ls.persona;
-    const motivo = motivoLabel(ls.resultado);
-    const now = new Date();
+      } else {
+        const ok = ls.resultado === 'permitido';
+        stageClass = ok ? 'state-ok' : 'state-fail';
+        const p = ls.persona;
+        const motivo = motivoLabel(ls.resultado);
+        const now = new Date();
 
-    if(ok){
-      const bg = p ? colorFromString(p.documento_identidad) : '#888';
-      stageInner = `
+        if (ok) {
+          const bg = p ? colorFromString(p.documento_identidad) : '#888';
+          stageInner = `
         ${scanHeader}
         <div style="width:100%;text-align:left;">
           <div class="result-ok-icon">${icon('check')}</div>
-          <div class="big-avatar" style="background:${bg}">${p ? initials(p.nombre,p.apellido) : '?'}</div>
-          <p class="success-name" style="text-align:center;">${p ? esc((p.nombre+' '+p.apellido).toUpperCase()) : 'PERSONA NO IDENTIFICADA'}</p>
-          <p class="success-id">${p ? 'ID: '+esc(p.documento_identidad) : ''}</p>
-          <span class="success-tag">${p ? esc(tipoLabel(p.tipo_persona)) + (p.programa ? ' · '+esc(p.programa) : '') : ''}</span>
+          <div class="big-avatar" style="background:${bg}">${p ? initials(p.nombre, p.apellido) : '?'}</div>
+          <p class="success-name" style="text-align:center;">${p ? esc((p.nombre + ' ' + p.apellido).toUpperCase()) : 'PERSONA NO IDENTIFICADA'}</p>
+          <p class="success-id">${p ? 'ID: ' + esc(p.documento_identidad) : ''}</p>
+          <span class="success-tag">${p ? esc(tipoLabel(p.tipo_persona)) + (p.programa ? ' · ' + esc(p.programa) : '') : ''}</span>
           <div class="status-banner ok">Acceso Permitido</div>
           <div class="success-footer">
             <div class="footer-block">
@@ -574,13 +1496,13 @@ function renderScanner(){
           </div>
         </div>
       `;
-    } else {
-      const motivoTexto = {
-        denegado_no_registrado: 'La tarjeta escaneada no corresponde a ningún registro en la base de datos. El personal de seguridad ha sido notificado.',
-        denegado_revocado: 'Esta tarjeta fue revocada por un administrador (pérdida, robo o retiro). El acceso ha sido bloqueado.',
-        denegado_expirado: 'El permiso de acceso de este visitante ya venció. Debe renovarse desde el panel administrativo.'
-      }[ls.resultado] || 'No fue posible validar el acceso.';
-      stageInner = `
+        } else {
+          const motivoTexto = {
+            denegado_no_registrado: 'La tarjeta escaneada no corresponde a ningún registro en la base de datos. El personal de seguridad ha sido notificado.',
+            denegado_revocado: 'Esta tarjeta fue revocada por un administrador (pérdida, robo o retiro). El acceso ha sido bloqueado.',
+            denegado_expirado: 'El permiso de acceso de este visitante ya venció. Debe renovarse desde el panel administrativo.'
+          }[ls.resultado] || 'No fue posible validar el acceso.';
+          stageInner = `
         ${scanHeader}
         <div style="width:100%;text-align:left;">
           <div class="denied-icon-wrap">${icon('alertShield')}</div>
@@ -608,19 +1530,19 @@ function renderScanner(){
           <div class="status-banner fail">Acceso Denegado — ${esc(motivo)}</div>
         </div>
       `;
-    }
-  }
+        }
+      }
 
-  const uidOptions = state.tarjetas.map(t => {
-    const p = state.personas.find(x=>x.id_persona===t.id_persona);
-    return `<option value="${esc(t.uid)}">${esc(t.uid)} — ${p ? esc(p.nombre+' '+p.apellido) : 'sin persona'}</option>`;
-  }).join('');
+      const uidOptions = state.tarjetas.map(t => {
+        const p = state.personas.find(x => x.id_persona === t.id_persona);
+        return `<option value="${esc(t.uid)}">${esc(t.uid)} — ${p ? esc(p.nombre + ' ' + p.apellido) : 'sin persona'}</option>`;
+      }).join('');
 
-  const torniqueteOptions = state.torniquetes.map(t =>
-    `<option value="${t.id_torniquete}" ${t.id_torniquete===state.currentTorniquete?'selected':''}>${esc(t.nombre)} (${esc(t.ubicacion)})</option>`
-  ).join('') || `<option value="">Sin torniquetes registrados</option>`;
+      const torniqueteOptions = state.torniquetes.map(t =>
+        `<option value="${t.id_torniquete}" ${t.id_torniquete === state.currentTorniquete ? 'selected' : ''}>${esc(t.nombre)} (${esc(t.ubicacion)})</option>`
+      ).join('') || `<option value="">Sin torniquetes registrados</option>`;
 
-  return `
+      return `
   <div class="scanner-layout">
     <div>
       <div class="scan-stage ${stageClass}">${stageInner}</div>
@@ -647,26 +1569,26 @@ function renderScanner(){
       </div>
     </div>
   </div>`;
-}
+    }
 
-function tipoLabel(t){ return {estudiante:'Estudiante', docente:'Docente', visitante:'Visitante'}[t] || t; }
-function motivoLabel(r){
-  return {
-    denegado_no_registrado:'tarjeta no registrada',
-    denegado_revocado:'tarjeta revocada',
-    denegado_expirado:'acceso expirado'
-  }[r] || '';
-}
-function torniqueteName(id){
-  const t = state.torniquetes.find(x=>x.id_torniquete===id);
-  return t ? t.nombre : '—';
-}
+    function tipoLabel(t) { return { estudiante: 'Estudiante', docente: 'Docente', visitante: 'Visitante' }[t] || t; }
+    function motivoLabel(r) {
+      return {
+        denegado_no_registrado: 'tarjeta no registrada',
+        denegado_revocado: 'tarjeta revocada',
+        denegado_expirado: 'acceso expirado'
+      }[r] || '';
+    }
+    function torniqueteName(id) {
+      const t = state.torniquetes.find(x => x.id_torniquete === id);
+      return t ? t.nombre : '—';
+    }
 
-/* ============================ TAB: PERSONAS ============================ */
-function renderPersonas(){
-  const rows = state.personas.map(p => {
-    const tarjeta = state.tarjetas.find(t => t.id_persona === p.id_persona);
-    return `
+    /* ============================ TAB: PERSONAS ============================ */
+    function renderPersonas() {
+      const rows = state.personas.map(p => {
+        const tarjeta = state.tarjetas.find(t => t.id_persona === p.id_persona);
+        return `
     <tr>
       <td><span class="pill pill-neutral">${esc(tipoLabel(p.tipo_persona))}</span></td>
       <td>${esc(p.nombre)} ${esc(p.apellido)}</td>
@@ -676,9 +1598,9 @@ function renderPersonas(){
       <td>${tarjeta ? `<span class="mono">${esc(tarjeta.uid)}</span>` : `<button class="btn btn-ghost btn-sm" data-assign="${p.id_persona}">Asignar tarjeta</button>`}</td>
       <td><button class="btn btn-danger btn-sm" data-del-persona="${p.id_persona}">Eliminar</button></td>
     </tr>`;
-  }).join('');
+      }).join('');
 
-  return `
+      return `
   <div class="panel">
     <h2 class="section-title">Registrar persona</h2>
     <p class="section-sub">Estudiantes, docentes y visitantes. Los visitantes pueden llevar fecha límite de acceso.</p>
@@ -708,32 +1630,32 @@ function renderPersonas(){
       </table>
     </div>
   </div>`;
-}
+    }
 
-/* ============================ TAB: TARJETAS ============================ */
-function renderTarjetas(){
-  const rows = state.tarjetas.map(t => {
-    const p = state.personas.find(x=>x.id_persona===t.id_persona);
-    return `
+    /* ============================ TAB: TARJETAS ============================ */
+    function renderTarjetas() {
+      const rows = state.tarjetas.map(t => {
+        const p = state.personas.find(x => x.id_persona === t.id_persona);
+        return `
     <tr>
       <td class="mono">${esc(t.uid)}</td>
-      <td>${p ? esc(p.nombre+' '+p.apellido) : '<span class="mono">sin persona</span>'}</td>
+      <td>${p ? esc(p.nombre + ' ' + p.apellido) : '<span class="mono">sin persona</span>'}</td>
       <td>${p ? esc(tipoLabel(p.tipo_persona)) : '—'}</td>
       <td>${t.activa ? '<span class="pill pill-ok">Activa</span>' : '<span class="pill pill-fail">Revocada</span>'}</td>
       <td>
         ${t.activa
-          ? `<button class="btn btn-danger btn-sm" data-toggle-tarjeta="${t.id_tarjeta}" data-activa="0">Revocar</button>`
-          : `<button class="btn btn-ok btn-sm" data-toggle-tarjeta="${t.id_tarjeta}" data-activa="1">Reactivar</button>`}
+            ? `<button class="btn btn-danger btn-sm" data-toggle-tarjeta="${t.id_tarjeta}" data-activa="0">Revocar</button>`
+            : `<button class="btn btn-ok btn-sm" data-toggle-tarjeta="${t.id_tarjeta}" data-activa="1">Reactivar</button>`}
         <button class="btn btn-ghost btn-sm" data-del-tarjeta="${t.id_tarjeta}">Eliminar</button>
       </td>
     </tr>`;
-  }).join('');
+      }).join('');
 
-  const personaOptions = state.personas
-    .filter(p => !state.tarjetas.some(t=>t.id_persona===p.id_persona))
-    .map(p => `<option value="${p.id_persona}">${esc(p.nombre)} ${esc(p.apellido)}</option>`).join('');
+      const personaOptions = state.personas
+        .filter(p => !state.tarjetas.some(t => t.id_persona === p.id_persona))
+        .map(p => `<option value="${p.id_persona}">${esc(p.nombre)} ${esc(p.apellido)}</option>`).join('');
 
-  return `
+      return `
   <div class="panel">
     <h2 class="section-title">Vincular nueva tarjeta RFID</h2>
     <p class="section-sub">Cada persona sin tarjeta asignada puede vincularse aquí con el UID de su carnet.</p>
@@ -755,18 +1677,18 @@ function renderTarjetas(){
       </table>
     </div>
   </div>`;
-}
+    }
 
-/* ============================ TAB: TORNIQUETES ============================ */
-function renderTorniquetes(){
-  const rows = state.torniquetes.map(t => `
+    /* ============================ TAB: TORNIQUETES ============================ */
+    function renderTorniquetes() {
+      const rows = state.torniquetes.map(t => `
     <tr>
       <td>${esc(t.nombre)}</td>
       <td>${esc(t.ubicacion)}</td>
       <td><button class="btn btn-ghost btn-sm" data-del-torniquete="${t.id_torniquete}">Eliminar</button></td>
     </tr>`).join('');
 
-  return `
+      return `
   <div class="panel">
     <h2 class="section-title">Puntos de acceso</h2>
     <p class="section-sub">Los torniquetes registrados aparecen como opción en la pantalla del escáner.</p>
@@ -785,30 +1707,30 @@ function renderTorniquetes(){
       </table>
     </div>
   </div>`;
-}
+    }
 
-/* ============================ TAB: HISTORIAL ============================ */
-function renderHistorial(){
-  let lista = state.accesos.slice();
-  if(state.historialFiltro !== 'todos'){
-    lista = lista.filter(a => a.resultado === state.historialFiltro);
-  }
-  lista = lista.slice(0, 300);
+    /* ============================ TAB: HISTORIAL ============================ */
+    function renderHistorial() {
+      let lista = state.accesos.slice();
+      if (state.historialFiltro !== 'todos') {
+        lista = lista.filter(a => a.resultado === state.historialFiltro);
+      }
+      lista = lista.slice(0, 300);
 
-  const rows = lista.map(a => {
-    const t = state.tarjetas.find(x=>x.id_tarjeta===a.id_tarjeta);
-    const p = t ? state.personas.find(x=>x.id_persona===t.id_persona) : null;
-    const ok = a.resultado === 'permitido';
-    const chip = ok
-      ? `<span class="pill-badge ok">${icon('check')} Verificado</span>`
-      : `<span class="pill-badge fail">${icon('x')} ${esc(motivoLabel(a.resultado) || 'Denegado')}</span>`;
-    const avatar = p
-      ? `<div class="row-avatar" style="background:${colorFromString(p.documento_identidad)}">${initials(p.nombre,p.apellido)}</div>`
-      : `<div class="row-avatar" style="background:var(--text-dim)">?</div>`;
-    const nombreCol = p
-      ? `<div class="row-with-avatar">${avatar}<div><div>${esc(p.nombre+' '+p.apellido)}</div><div class="row-sub">${esc(p.documento_identidad)}</div></div></div>`
-      : `<div class="row-with-avatar">${avatar}<div><div>???</div><div class="row-sub">Desconocido</div></div></div>`;
-    return `
+      const rows = lista.map(a => {
+        const t = state.tarjetas.find(x => x.id_tarjeta === a.id_tarjeta);
+        const p = t ? state.personas.find(x => x.id_persona === t.id_persona) : null;
+        const ok = a.resultado === 'permitido';
+        const chip = ok
+          ? `<span class="pill-badge ok">${icon('check')} Verificado</span>`
+          : `<span class="pill-badge fail">${icon('x')} ${esc(motivoLabel(a.resultado) || 'Denegado')}</span>`;
+        const avatar = p
+          ? `<div class="row-avatar" style="background:${colorFromString(p.documento_identidad)}">${initials(p.nombre, p.apellido)}</div>`
+          : `<div class="row-avatar" style="background:var(--text-dim)">?</div>`;
+        const nombreCol = p
+          ? `<div class="row-with-avatar">${avatar}<div><div>${esc(p.nombre + ' ' + p.apellido)}</div><div class="row-sub">${esc(p.documento_identidad)}</div></div></div>`
+          : `<div class="row-with-avatar">${avatar}<div><div>???</div><div class="row-sub">Desconocido</div></div></div>`;
+        return `
     <tr>
       <td>${nombreCol}</td>
       <td>${esc(torniqueteName(a.id_torniquete))}</td>
@@ -816,14 +1738,14 @@ function renderHistorial(){
       <td class="mono">${esc(a.uid_leido)}</td>
       <td>${chip}</td>
     </tr>`;
-  }).join('');
+      }).join('');
 
-  const totalHoy = state.accesos.length;
-  const verificados = state.accesos.filter(a=>a.resultado==='permitido').length;
-  const denegados = totalHoy - verificados;
-  const terminalesActivas = state.torniquetes.length;
+      const totalHoy = state.accesos.length;
+      const verificados = state.accesos.filter(a => a.resultado === 'permitido').length;
+      const denegados = totalHoy - verificados;
+      const terminalesActivas = state.torniquetes.length;
 
-  return `
+      return `
   <div class="stat-grid">
     <div class="stat-card">
       <div class="stat-top"><span class="stat-label">Accesos Totales</span><div class="stat-icon blue">${icon('user')}</div></div>
@@ -847,11 +1769,11 @@ function renderHistorial(){
     <p class="section-sub">Registro cronológico real desde Supabase de todos los intentos de ingreso.</p>
     <div class="toolbar">
       <select id="sel-historial-filtro">
-        <option value="todos" ${state.historialFiltro==='todos'?'selected':''}>Todos los resultados</option>
-        <option value="permitido" ${state.historialFiltro==='permitido'?'selected':''}>Permitidos</option>
-        <option value="denegado_no_registrado" ${state.historialFiltro==='denegado_no_registrado'?'selected':''}>No registrados</option>
-        <option value="denegado_revocado" ${state.historialFiltro==='denegado_revocado'?'selected':''}>Revocados</option>
-        <option value="denegado_expirado" ${state.historialFiltro==='denegado_expirado'?'selected':''}>Expirados</option>
+        <option value="todos" ${state.historialFiltro === 'todos' ? 'selected' : ''}>Todos los resultados</option>
+        <option value="permitido" ${state.historialFiltro === 'permitido' ? 'selected' : ''}>Permitidos</option>
+        <option value="denegado_no_registrado" ${state.historialFiltro === 'denegado_no_registrado' ? 'selected' : ''}>No registrados</option>
+        <option value="denegado_revocado" ${state.historialFiltro === 'denegado_revocado' ? 'selected' : ''}>Revocados</option>
+        <option value="denegado_expirado" ${state.historialFiltro === 'denegado_expirado' ? 'selected' : ''}>Expirados</option>
       </select>
     </div>
     <div class="table-scroll">
@@ -861,169 +1783,170 @@ function renderHistorial(){
       </table>
     </div>
   </div>`;
-}
+    }
 
-/* ============================ EVENTOS ============================ */
-function bindGlobalEvents(){
-  document.getElementById('btn-reset').onclick = async () => {
-    document.getElementById('btn-reset').textContent = 'Cargando…';
-    await loadState();
-    render();
-  };
-  document.getElementById('btn-theme-toggle').onclick = () => {
-    state.theme = state.theme === 'dark' ? 'light' : 'dark';
-    render();
-  };
-  document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.onclick = () => { state.tab = btn.dataset.tab; state.lastScan = null; render(); };
-  });
-  setInterval(() => {
-    const el = document.getElementById('clock');
-    if(el) el.textContent = new Date().toLocaleTimeString('es-CO');
-  }, 1000);
-}
+    /* ============================ EVENTOS ============================ */
+    function bindGlobalEvents() {
+      document.getElementById('btn-reset').onclick = async () => {
+        document.getElementById('btn-reset').textContent = 'Cargando…';
+        await loadState();
+        render();
+      };
+      document.getElementById('btn-theme-toggle').onclick = () => {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        render();
+      };
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.onclick = () => { state.tab = btn.dataset.tab; state.lastScan = null; render(); };
+      });
+      setInterval(() => {
+        const el = document.getElementById('clock');
+        if (el) el.textContent = new Date().toLocaleTimeString('es-CO');
+      }, 1000);
+    }
 
-function bindTabEvents(){
-  if(state.tab === 'scanner'){
-    const selT = document.getElementById('sel-torniquete');
-    if(selT) selT.onchange = (e) => { state.currentTorniquete = Number(e.target.value); };
-    const btnSim = document.getElementById('btn-sim-scan');
-    if(btnSim) btnSim.onclick = () => {
-      const uid = document.getElementById('sel-sim-uid').value;
-      if(uid) validarUID(uid);
-    };
-    const btnUnk = document.getElementById('btn-sim-unknown');
-    if(btnUnk) btnUnk.onclick = () => validarUID('FFDEAD' + Math.floor(Math.random()*99).toString().padStart(2,'0'));
-    updateBufferDisplay();
-  }
+    function bindTabEvents() {
+      if (state.tab === 'scanner') {
+        const selT = document.getElementById('sel-torniquete');
+        if (selT) selT.onchange = (e) => { state.currentTorniquete = Number(e.target.value); };
+        const btnSim = document.getElementById('btn-sim-scan');
+        if (btnSim) btnSim.onclick = () => {
+          const uid = document.getElementById('sel-sim-uid').value;
+          if (uid) validarUID(uid);
+        };
+        const btnUnk = document.getElementById('btn-sim-unknown');
+        if (btnUnk) btnUnk.onclick = () => validarUID('FFDEAD' + Math.floor(Math.random() * 99).toString().padStart(2, '0'));
+        updateBufferDisplay();
+      }
 
-  if(state.tab === 'personas'){
-    document.getElementById('btn-add-persona').onclick = async () => {
-      const nombre = document.getElementById('f-nombre').value.trim();
-      const apellido = document.getElementById('f-apellido').value.trim();
-      const documento = document.getElementById('f-documento').value.trim();
-      if(!nombre || !apellido || !documento){ alert('Nombre, apellido y documento son obligatorios'); return; }
-      const btn = document.getElementById('btn-add-persona');
-      btn.disabled = true; btn.textContent = 'Guardando…';
-      try{
-        const nueva = await sbInsert('personas', {
-          tipo_persona: document.getElementById('f-tipo').value,
-          nombre, apellido,
-          documento_identidad: documento,
-          programa: document.getElementById('f-programa').value.trim() || null,
-          foto_path: `/fotos/${documento}.jpg`,
-          fecha_expiracion: document.getElementById('f-expiracion').value || null
+      if (state.tab === 'personas') {
+        document.getElementById('btn-add-persona').onclick = async () => {
+          const nombre = document.getElementById('f-nombre').value.trim();
+          const apellido = document.getElementById('f-apellido').value.trim();
+          const documento = document.getElementById('f-documento').value.trim();
+          if (!nombre || !apellido || !documento) { alert('Nombre, apellido y documento son obligatorios'); return; }
+          const btn = document.getElementById('btn-add-persona');
+          btn.disabled = true; btn.textContent = 'Guardando…';
+          try {
+            const nueva = await sbInsert('personas', {
+              tipo_persona: document.getElementById('f-tipo').value,
+              nombre, apellido,
+              documento_identidad: documento,
+              programa: document.getElementById('f-programa').value.trim() || null,
+              foto_path: `/fotos/${documento}.jpg`,
+              fecha_expiracion: document.getElementById('f-expiracion').value || null
+            });
+            state.personas.push(nueva);
+            render();
+          } catch (e) { alert('No se pudo guardar en Supabase: ' + e.message); btn.disabled = false; btn.textContent = 'Registrar persona'; }
+        };
+        document.querySelectorAll('[data-del-persona]').forEach(b => {
+          b.onclick = async () => {
+            const id = Number(b.dataset.delPersona);
+            if (!confirm('¿Eliminar esta persona? También se eliminará su tarjeta asociada.')) return;
+            try {
+              const tarjeta = state.tarjetas.find(t => t.id_persona === id);
+              if (tarjeta) await sbDelete('tarjetas_rfid', 'id_tarjeta', tarjeta.id_tarjeta);
+              await sbDelete('personas', 'id_persona', id);
+              state.personas = state.personas.filter(p => p.id_persona !== id);
+              state.tarjetas = state.tarjetas.filter(t => t.id_persona !== id);
+              render();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+          };
         });
-        state.personas.push(nueva);
-        render();
-      }catch(e){ alert('No se pudo guardar en Supabase: ' + e.message); btn.disabled=false; btn.textContent='Registrar persona'; }
-    };
-    document.querySelectorAll('[data-del-persona]').forEach(b => {
-      b.onclick = async () => {
-        const id = Number(b.dataset.delPersona);
-        if(!confirm('¿Eliminar esta persona? También se eliminará su tarjeta asociada.')) return;
-        try{
-          const tarjeta = state.tarjetas.find(t=>t.id_persona===id);
-          if(tarjeta) await sbDelete('tarjetas_rfid', 'id_tarjeta', tarjeta.id_tarjeta);
-          await sbDelete('personas', 'id_persona', id);
-          state.personas = state.personas.filter(p=>p.id_persona!==id);
-          state.tarjetas = state.tarjetas.filter(t=>t.id_persona!==id);
-          render();
-        }catch(e){ alert('No se pudo eliminar: ' + e.message); }
-      };
-    });
-    document.querySelectorAll('[data-assign]').forEach(b => {
-      b.onclick = async () => {
-        const uid = prompt('UID de la tarjeta a vincular:');
-        if(!uid) return;
-        const id_persona = Number(b.dataset.assign);
-        try{
-          const nueva = await sbInsert('tarjetas_rfid', {uid: uid.trim(), id_persona, activa:true});
-          state.tarjetas.push(nueva);
-          render();
-        }catch(e){ alert('No se pudo vincular la tarjeta: ' + e.message); }
-      };
-    });
-  }
+        document.querySelectorAll('[data-assign]').forEach(b => {
+          b.onclick = async () => {
+            const uid = prompt('UID de la tarjeta a vincular:');
+            if (!uid) return;
+            const id_persona = Number(b.dataset.assign);
+            try {
+              const nueva = await sbInsert('tarjetas_rfid', { uid: uid.trim(), id_persona, activa: true });
+              state.tarjetas.push(nueva);
+              render();
+            } catch (e) { alert('No se pudo vincular la tarjeta: ' + e.message); }
+          };
+        });
+      }
 
-  if(state.tab === 'tarjetas'){
-    const btnAdd = document.getElementById('btn-add-tarjeta');
-    if(btnAdd) btnAdd.onclick = async () => {
-      const uid = document.getElementById('f-uid').value.trim();
-      const id_persona = Number(document.getElementById('f-persona-tarjeta').value);
-      if(!uid || !id_persona){ alert('Completa el UID y selecciona una persona'); return; }
-      if(state.tarjetas.some(t=>t.uid.toUpperCase()===uid.toUpperCase())){ alert('Ese UID ya está registrado'); return; }
-      try{
-        const nueva = await sbInsert('tarjetas_rfid', {uid, id_persona, activa:true});
-        state.tarjetas.push(nueva);
-        render();
-      }catch(e){ alert('No se pudo vincular: ' + e.message); }
-    };
-    document.querySelectorAll('[data-toggle-tarjeta]').forEach(b => {
-      b.onclick = async () => {
-        const id = Number(b.dataset.toggleTarjeta);
-        const nuevaActiva = b.dataset.activa === '1';
-        try{
-          await sbUpdate('tarjetas_rfid', 'id_tarjeta', id, {activa: nuevaActiva});
-          const t = state.tarjetas.find(x=>x.id_tarjeta===id);
-          t.activa = nuevaActiva;
-          render();
-        }catch(e){ alert('No se pudo actualizar: ' + e.message); }
-      };
-    });
-    document.querySelectorAll('[data-del-tarjeta]').forEach(b => {
-      b.onclick = async () => {
-        const id = Number(b.dataset.delTarjeta);
-        if(!confirm('¿Eliminar esta tarjeta?')) return;
-        try{
-          await sbDelete('tarjetas_rfid', 'id_tarjeta', id);
-          state.tarjetas = state.tarjetas.filter(t=>t.id_tarjeta!==id);
-          render();
-        }catch(e){ alert('No se pudo eliminar: ' + e.message); }
-      };
-    });
-  }
+      if (state.tab === 'tarjetas') {
+        const btnAdd = document.getElementById('btn-add-tarjeta');
+        if (btnAdd) btnAdd.onclick = async () => {
+          const uid = document.getElementById('f-uid').value.trim();
+          const id_persona = Number(document.getElementById('f-persona-tarjeta').value);
+          if (!uid || !id_persona) { alert('Completa el UID y selecciona una persona'); return; }
+          if (state.tarjetas.some(t => t.uid.toUpperCase() === uid.toUpperCase())) { alert('Ese UID ya está registrado'); return; }
+          try {
+            const nueva = await sbInsert('tarjetas_rfid', { uid, id_persona, activa: true });
+            state.tarjetas.push(nueva);
+            render();
+          } catch (e) { alert('No se pudo vincular: ' + e.message); }
+        };
+        document.querySelectorAll('[data-toggle-tarjeta]').forEach(b => {
+          b.onclick = async () => {
+            const id = Number(b.dataset.toggleTarjeta);
+            const nuevaActiva = b.dataset.activa === '1';
+            try {
+              await sbUpdate('tarjetas_rfid', 'id_tarjeta', id, { activa: nuevaActiva });
+              const t = state.tarjetas.find(x => x.id_tarjeta === id);
+              t.activa = nuevaActiva;
+              render();
+            } catch (e) { alert('No se pudo actualizar: ' + e.message); }
+          };
+        });
+        document.querySelectorAll('[data-del-tarjeta]').forEach(b => {
+          b.onclick = async () => {
+            const id = Number(b.dataset.delTarjeta);
+            if (!confirm('¿Eliminar esta tarjeta?')) return;
+            try {
+              await sbDelete('tarjetas_rfid', 'id_tarjeta', id);
+              state.tarjetas = state.tarjetas.filter(t => t.id_tarjeta !== id);
+              render();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+          };
+        });
+      }
 
-  if(state.tab === 'torniquetes'){
-    document.getElementById('btn-add-torniquete').onclick = async () => {
-      const nombre = document.getElementById('f-torn-nombre').value.trim();
-      const ubicacion = document.getElementById('f-torn-ubicacion').value.trim();
-      if(!nombre){ alert('El nombre es obligatorio'); return; }
-      try{
-        const nuevo = await sbInsert('torniquetes', {nombre, ubicacion});
-        state.torniquetes.push(nuevo);
-        if(state.currentTorniquete===null) state.currentTorniquete = nuevo.id_torniquete;
-        render();
-      }catch(e){ alert('No se pudo agregar: ' + e.message); }
-    };
-    document.querySelectorAll('[data-del-torniquete]').forEach(b => {
-      b.onclick = async () => {
-        const id = Number(b.dataset.delTorniquete);
-        if(!confirm('¿Eliminar este torniquete?')) return;
-        try{
-          await sbDelete('torniquetes', 'id_torniquete', id);
-          state.torniquetes = state.torniquetes.filter(t=>t.id_torniquete!==id);
-          if(state.currentTorniquete===id) state.currentTorniquete = state.torniquetes[0] ? state.torniquetes[0].id_torniquete : null;
-          render();
-        }catch(e){ alert('No se pudo eliminar: ' + e.message); }
-      };
-    });
-  }
+      if (state.tab === 'torniquetes') {
+        document.getElementById('btn-add-torniquete').onclick = async () => {
+          const nombre = document.getElementById('f-torn-nombre').value.trim();
+          const ubicacion = document.getElementById('f-torn-ubicacion').value.trim();
+          if (!nombre) { alert('El nombre es obligatorio'); return; }
+          try {
+            const nuevo = await sbInsert('torniquetes', { nombre, ubicacion });
+            state.torniquetes.push(nuevo);
+            if (state.currentTorniquete === null) state.currentTorniquete = nuevo.id_torniquete;
+            render();
+          } catch (e) { alert('No se pudo agregar: ' + e.message); }
+        };
+        document.querySelectorAll('[data-del-torniquete]').forEach(b => {
+          b.onclick = async () => {
+            const id = Number(b.dataset.delTorniquete);
+            if (!confirm('¿Eliminar este torniquete?')) return;
+            try {
+              await sbDelete('torniquetes', 'id_torniquete', id);
+              state.torniquetes = state.torniquetes.filter(t => t.id_torniquete !== id);
+              if (state.currentTorniquete === id) state.currentTorniquete = state.torniquetes[0] ? state.torniquetes[0].id_torniquete : null;
+              render();
+            } catch (e) { alert('No se pudo eliminar: ' + e.message); }
+          };
+        });
+      }
 
-  if(state.tab === 'historial'){
-    document.getElementById('sel-historial-filtro').onchange = (e) => {
-      state.historialFiltro = e.target.value; render();
-    };
-  }
-}
+      if (state.tab === 'historial') {
+        document.getElementById('sel-historial-filtro').onchange = (e) => {
+          state.historialFiltro = e.target.value; render();
+        };
+      }
+    }
 
-/* ============================ INICIO ============================ */
-(async function init(){
-  applyTheme();
-  document.getElementById('app').innerHTML = `<div class="panel" style="margin:24px;text-align:center;color:var(--text-muted);">Conectando con Supabase…</div>`;
-  await loadState();
-  render();
-})();
-</script>
+    /* ============================ INICIO ============================ */
+    (async function init() {
+      applyTheme();
+      document.getElementById('app').innerHTML = `<div class="panel" style="margin:24px;text-align:center;color:var(--text-muted);">Conectando con Supabase…</div>`;
+      await loadState();
+      render();
+    })();
+  </script>
 </body>
+
 </html>
