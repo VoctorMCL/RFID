@@ -1288,8 +1288,6 @@
     }
 
     /* ============================ RESULTADO EN PANTALLA ============================ */
-    /* La Raspberry Pi (CrowPi3) lee el RC522, valida contra Supabase y registra el
-       acceso en la tabla "accesos". Esta página solo muestra el resultado. */
     let audioCtx = null;
     function beep(ok) {
       try {
@@ -1302,13 +1300,15 @@
     }
 
     let resetTimer = null;
-    function mostrarResultado(ok) {
-      state.lastScan = { ok };
+    function mostrarResultado(ok, acceso = null) {
+      state.lastScan = { ok, acceso };
       updateStage();
       beep(ok);
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(() => { state.lastScan = null; updateStage(); }, 3000);
+      // Aumentado a 5000ms para dar tiempo a leer la tarjeta del estudiante
+      resetTimer = setTimeout(() => { state.lastScan = null; updateStage(); }, 5000);
     }
+    
     function setDbStatus(msg) {
       state.dbStatus = msg;
       const el = document.getElementById('db-status');
@@ -1329,7 +1329,8 @@
           if (r.length) {
             lastSeen = r[r.length - 1].fecha_hora;
             r.forEach(a => state.accesos.unshift(a));
-            mostrarResultado(r[r.length - 1].resultado === 'permitido');
+            // ENVIAR EL OBJETO COMPLETO DEL ACCESO:
+            mostrarResultado(r[r.length - 1].resultado === 'permitido', r[r.length - 1]);
           }
         }
         if (state.dbStatus) setDbStatus('');
@@ -1451,10 +1452,60 @@
       <p class="idle-title">Esperando tarjeta</p>
       <p class="idle-sub">Acerca la tarjeta al lector RFID.</p>`;
       }
-      return ls.ok
-        ? `<div class="result-ok-icon big">${icon('check')}</div><div class="verdict ok">ACEPTADO</div>`
-        : `<div class="denied-icon-wrap big">${icon('x')}</div><div class="verdict fail">DENEGADO</div>`;
+
+      let p = null;
+      let t = null;
+      let hora = '';
+
+      // Extraer datos relacionales si existe un acceso
+      if (ls.acceso) {
+        hora = fmtDate(ls.acceso.fecha_hora);
+        t = state.tarjetas.find(x => x.id_tarjeta === ls.acceso.id_tarjeta);
+        if (t) {
+          p = state.personas.find(x => x.id_persona === t.id_persona);
+        }
+      }
+
+      if (ls.ok) {
+        if (p) {
+          // Si la imagen falla, muestra las iniciales con el color precalculado
+          const fotoFallback = `this.outerHTML='<div class="big-avatar" style="background:${colorFromString(p.documento_identidad)}; border:none; box-shadow: 0 0 0 4px var(--panel), 0 0 0 6px var(--ok-soft);">${initials(p.nombre, p.apellido)}</div>'`;
+          const avatarHtml = `<img src="${p.foto_path || ''}" onerror="${fotoFallback}" class="big-avatar" style="object-fit: cover; box-shadow: 0 0 0 4px var(--panel), 0 0 0 6px var(--ok-soft); border:none;">`;
+
+          return `
+            <div class="status-banner ok">ACCESO PERMITIDO</div>
+            ${avatarHtml}
+            <span class="success-tag">${esc(tipoLabel(p.tipo_persona))}</span>
+            <div class="success-name">${esc(p.nombre)} ${esc(p.apellido)}</div>
+            <div class="success-id">${esc(p.documento_identidad)} • ${esc(p.programa || 'Sin programa asignado')}</div>
+            <div style="margin-top: 15px; color: var(--text-muted); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              ${icon('clock')} ${hora}
+            </div>
+          `;
+        } else {
+          return `
+            <div class="status-banner ok">ACCESO PERMITIDO</div>
+            <div class="result-ok-icon big">${icon('check')}</div>
+            <div class="verdict ok">ACEPTADO</div>
+            <div style="margin-top: 15px; color: var(--text-muted); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              ${icon('clock')} ${hora}
+            </div>
+          `;
+        }
+      } else {
+        let motivo = ls.acceso ? motivoLabel(ls.acceso.resultado) : 'Desconocido';
+        return `
+          <div class="status-banner fail">ACCESO DENEGADO</div>
+          <div class="denied-icon-wrap big">${icon('x')}</div>
+          <div class="verdict fail">DENEGADO</div>
+          <div class="success-id" style="margin-top:10px; text-transform:uppercase;">${esc(motivo)}</div>
+          <div style="margin-top: 15px; color: var(--text-muted); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            ${icon('clock')} ${hora}
+          </div>
+        `;
+      }
     }
+    
     function updateStage() {
       const el = document.querySelector('.scan-stage');
       if (!el) return;
