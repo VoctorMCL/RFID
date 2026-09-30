@@ -1227,25 +1227,30 @@
 
     async function loadState() {
       state.connError = null;
-      try {
-        const [personas, tarjetas, torniquetes, accesos] = await Promise.all([
-          sbGet('personas', '&order=id_persona.asc'),
-          sbGet('tarjetas_rfid', '&order=id_tarjeta.asc'),
-          sbGet('torniquetes', '&order=id_torniquete.asc'),
-          sbGet('accesos', '&order=fecha_hora.desc&limit=300')
-        ]);
-        state.personas = personas;
-        state.tarjetas = tarjetas;
-        state.torniquetes = torniquetes;
-        state.accesos = accesos;
-        if (state.currentTorniquete === null && torniquetes[0]) state.currentTorniquete = torniquetes[0].id_torniquete;
-      } catch (e) {
-        console.error(e);
-        state.connError = e.message;
-      }
+      const pedidos = [
+        ['personas', '&order=id_persona.asc'],
+        ['tarjetas_rfid', '&order=id_tarjeta.asc'],
+        ['torniquetes', '&order=id_torniquete.asc'],
+        ['accesos', '&order=fecha_hora.desc&limit=300']
+      ];
+      const res = await Promise.allSettled(pedidos.map(([t, p]) => sbGet(t, p)));
+      const errores = [];
+      const [personas, tarjetas, torniquetes, accesos] = res.map(r => {
+        if (r.status === 'fulfilled') return r.value;
+        console.error(r.reason);
+        errores.push(r.reason.message);
+        return [];
+      });
+      state.personas = personas;
+      state.tarjetas = tarjetas;
+      state.torniquetes = torniquetes;
+      state.accesos = accesos;
+      if (state.currentTorniquete === null && torniquetes[0]) state.currentTorniquete = torniquetes[0].id_torniquete;
+      if (errores.length) state.connError = errores.join('\n');
       state.loaded = true;
     }
 
+    function normUid(s) { return String(s || '').replace(/[\s:\-]/g, '').toUpperCase(); }
     function esc(str) {
       return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
@@ -1254,7 +1259,7 @@
 
       // Normalizar el ISO string para asegurar formato UTC correcto
       let str = String(iso);
-      if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-')) {
+      if (!/(Z|[+-]\d{2}:?\d{2})$/.test(str)) {
         str += 'Z';
       }
 
@@ -1374,17 +1379,17 @@
     <div class="main">
       ${renderTopbarBreadcrumb()}
       ${state.connError ? renderErrorBanner() : ''}
-      <div id="tab-content">${state.connError ? '' : renderTabContent()}</div>
+      <div id="tab-content">${renderTabContent()}</div>
     </div>
   `;
       bindGlobalEvents();
-      if (!state.connError) bindTabEvents();
+      bindTabEvents();
     }
 
     function renderErrorBanner() {
       return `<div class="error-banner">
     No se pudo conectar con Supabase.<br>
-    <code>${esc(state.connError)}</code><br>
+    <code>${esc(state.connError).replace(/\n/g, '<br>')}</code><br>
     Revisa que la URL y la anon key sean correctas, que el script SQL se haya ejecutado, y que las tablas tengan permisos de lectura para el rol <code>anon</code> (si activaste RLS, necesitas políticas). Dale a "Reintentar" cuando lo corrijas.
   </div>`;
     }
@@ -1575,7 +1580,12 @@
     <h2 class="section-title">Vincular nueva tarjeta RFID</h2>
     <p class="section-sub">Cada persona sin tarjeta asignada puede vincularse aquí con el UID de su carnet.</p>
     <div class="form-grid">
-      <div><label class="field-label">UID de la tarjeta</label><input id="f-uid" placeholder="Ej. 04A1B2C3"></div>
+      <div>
+        <label class="field-label">UID de la tarjeta</label>
+        <input id="f-uid" placeholder="Ej. 04A1B2C3">
+        <button class="btn btn-ghost btn-sm" id="btn-ultimo-uid" style="margin-top:6px">Usar último UID leído</button>
+        <p class="hint">Acerca la tarjeta al lector (con lector_rfid.py corriendo) y pulsa el botón.</p>
+      </div>
       <div>
         <label class="field-label">Persona</label>
         <select id="f-persona-tarjeta">${personaOptions || '<option value="">No hay personas sin tarjeta</option>'}</select>
@@ -1759,11 +1769,12 @@
         });
         document.querySelectorAll('[data-assign]').forEach(b => {
           b.onclick = async () => {
-            const uid = prompt('UID de la tarjeta a vincular:');
+            const uidIn = prompt('UID de la tarjeta a vincular:');
+            const uid = normUid(uidIn);
             if (!uid) return;
             const id_persona = Number(b.dataset.assign);
             try {
-              const nueva = await sbInsert('tarjetas_rfid', { uid: uid.trim(), id_persona, activa: true });
+              const nueva = await sbInsert('tarjetas_rfid', { uid, id_persona, activa: true });
               state.tarjetas.push(nueva);
               render();
             } catch (e) { alert('No se pudo vincular la tarjeta: ' + e.message); }
@@ -1772,12 +1783,19 @@
       }
 
       if (state.tab === 'tarjetas') {
+        const btnUlt = document.getElementById('btn-ultimo-uid');
+        if (btnUlt) btnUlt.onclick = () => {
+          const a = state.accesos.find(x => x.resultado === 'denegado_no_registrado' && x.uid_leido);
+          if (!a) { alert('Todavía no se ha leído ninguna tarjeta sin registrar. Acércala al lector con lector_rfid.py corriendo.'); return; }
+          document.getElementById('f-uid').value = a.uid_leido;
+        };
         const btnAdd = document.getElementById('btn-add-tarjeta');
         if (btnAdd) btnAdd.onclick = async () => {
-          const uid = document.getElementById('f-uid').value.trim();
+          const uid = normUid(document.getElementById('f-uid').value);
           const id_persona = Number(document.getElementById('f-persona-tarjeta').value);
-          if (!uid || !id_persona) { alert('Completa el UID y selecciona una persona'); return; }
-          if (state.tarjetas.some(t => t.uid.toUpperCase() === uid.toUpperCase())) { alert('Ese UID ya está registrado'); return; }
+          if (!uid) { alert('Escribe el UID de la tarjeta'); return; }
+          if (!id_persona) { alert('No hay una persona seleccionada. Primero registra a la persona en la pestaña "Personas".'); return; }
+          if (state.tarjetas.some(t => normUid(t.uid) === uid)) { alert('Ese UID ya está registrado'); return; }
           try {
             const nueva = await sbInsert('tarjetas_rfid', { uid, id_persona, activa: true });
             state.tarjetas.push(nueva);

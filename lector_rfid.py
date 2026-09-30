@@ -9,15 +9,16 @@ Instalación (una sola vez, en la Raspberry Pi):
     pip3 install mfrc522 --break-system-packages
 
 Uso:
-    python3 lector_rfid.py
+    python3 lector_rfid.py          # modo normal: valida contra Supabase y registra el acceso
+    python3 lector_rfid.py --uid    # solo LEE y muestra el UID (no usa internet ni Supabase)
 """
+import argparse
 import json
 import re
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 
 import RPi.GPIO as GPIO          # en Raspberry Pi 5 lo provee python3-rpi-lgpio
 from mfrc522 import MFRC522
@@ -28,9 +29,17 @@ SUPABASE_ANON_KEY = (
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYnZtcHB0bXdsdHJvdnN4cWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3Mjg1MjgsImV4cCI6MjEwNDMwNDUyOH0."
     "ZZ54_0qYxxgSiF3GcWaNE2jsljRJWHYdvr4GL7YFEyY"
 )
-ID_TORNIQUETE = None     # número del torniquete (id_torniquete) o None si no aplica
+# Número del torniquete (id_torniquete). Si lo dejas en None, se usa el primero
+# que exista en la tabla "torniquetes" (muchas tablas exigen que este campo no sea NULL).
+ID_TORNIQUETE = None
 SEGUNDOS_ENTRE_LECTURAS = 2.0   # evita leer dos veces la misma tarjeta pegada al lector
 # =======================================================================
+
+ERRORES_RED = (urllib.error.URLError, OSError)
+
+
+class ApiError(Exception):
+    """Error devuelto por Supabase (incluye el mensaje real del servidor)."""
 
 
 def api(method, tabla, query="", body=None):
@@ -42,77 +51,142 @@ def api(method, tabla, query="", body=None):
     }
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=8) as r:
-        raw = r.read()
-        return json.loads(raw) if raw else None
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as e:
+        detalle = e.read().decode("utf-8", "replace")
+        raise ApiError(f"{method} {tabla} -> HTTP {e.code}: {detalle}") from None
 
 
 def norm(s):
     return re.sub(r"[\s:\-]", "", str(s or "")).upper()
 
 
-def formatos_uid(uid_bytes):
+# ------------------------------ UID ------------------------------
+def uid_formatos(uid_bytes):
     """Todas las formas comunes en que el UID pudo quedar guardado en la base de datos."""
-    b = list(uid_bytes[:4])
-    hex_normal = "".join(f"{x:02X}" for x in b)
-    hex_inverso = "".join(f"{x:02X}" for x in reversed(b))
-    dec_normal = str(int.from_bytes(bytes(b), "big"))
-    dec_inverso = str(int.from_bytes(bytes(b), "little"))
-    dec_5bytes = str(int.from_bytes(bytes(uid_bytes[:5]), "big"))
-    return hex_normal, {hex_normal, hex_inverso, dec_normal, dec_inverso, dec_5bytes}
+    b = bytes(uid_bytes[:4])
+    return {
+        "hex": b.hex().upper(),                                   # AABBCCDD  (recomendado)
+        "hex_dos_puntos": ":".join(f"{x:02X}" for x in b),        # AA:BB:CC:DD
+        "hex_inverso": b[::-1].hex().upper(),                     # DDCCBBAA
+        "dec": str(int.from_bytes(b, "big")),
+        "dec_inverso": str(int.from_bytes(b, "little")),
+        "dec_5bytes": str(int.from_bytes(bytes(uid_bytes[:5]), "big")),
+    }
 
 
-def validar(uid_bytes):
-    uid_hex, candidatos = formatos_uid(uid_bytes)
+def mostrar_uid(uid_bytes, detalle=False):
+    f = uid_formatos(uid_bytes)
+    hora = datetime.now().strftime("%H:%M:%S")
+    print(f"[{hora}] UID {f['hex']}  ({f['hex_dos_puntos']})  decimal {f['dec']}")
+    if detalle:
+        print(f"           hex invertido {f['hex_inverso']}  |  decimal invertido {f['dec_inverso']}")
+        print(f"           -> para registrarla en la web escribe:  {f['hex']}")
+
+
+# ------------------------------ SUPABASE ------------------------------
+_torniquete = "pendiente"
+
+
+def torniquete_actual():
+    global _torniquete
+    if ID_TORNIQUETE is not None:
+        return ID_TORNIQUETE
+    if _torniquete == "pendiente":
+        try:
+            r = api("GET", "torniquetes", "?select=id_torniquete&order=id_torniquete.asc&limit=1")
+            _torniquete = r[0]["id_torniquete"] if r else None
+        except (ApiError, *ERRORES_RED) as e:
+            print("  Aviso: no pude leer la tabla torniquetes:", e)
+            return None          # vuelve a intentarlo en la próxima lectura
+    return _torniquete
+
+
+def decidir(uid_bytes):
+    """Consulta la base de datos y decide el resultado. Devuelve (resultado, tarjeta)."""
+    f = uid_formatos(uid_bytes)
+    candidatos = {f["hex"], f["hex_inverso"], f["dec"], f["dec_inverso"], f["dec_5bytes"]}
+
     tarjeta = persona = None
-    resultado = "denegado_no_registrado"
-
-    tarjetas = api("GET", "tarjetas_rfid", "?select=*")
-    for t in tarjetas:
-        if norm(t["uid"]) in candidatos:
+    for t in api("GET", "tarjetas_rfid", "?select=*"):
+        if norm(t.get("uid")) in candidatos:
             tarjeta = t
             break
 
-    if tarjeta:
-        if tarjeta.get("id_persona") is not None:
-            r = api("GET", "personas", f"?select=*&id_persona=eq.{tarjeta['id_persona']}")
-            persona = r[0] if r else None
-        if not tarjeta.get("activa"):
-            resultado = "denegado_revocado"
-        elif persona and persona.get("fecha_expiracion") and persona["fecha_expiracion"] < date.today().isoformat():
-            resultado = "denegado_expirado"
-        else:
-            resultado = "permitido"
+    if tarjeta is None:
+        return "denegado_no_registrado", None
 
+    if tarjeta.get("id_persona") is not None:
+        r = api("GET", "personas", f"?select=*&id_persona=eq.{tarjeta['id_persona']}")
+        persona = r[0] if r else None
+
+    if not tarjeta.get("activa"):
+        return "denegado_revocado", tarjeta
+    if persona and persona.get("fecha_expiracion") and persona["fecha_expiracion"] < date.today().isoformat():
+        return "denegado_expirado", tarjeta
+    return "permitido", tarjeta
+
+
+def registrar_acceso(uid_bytes, tarjeta, resultado):
+    """Guarda el intento en la tabla accesos (la web lee de aquí)."""
+    uid_hex = uid_formatos(uid_bytes)["hex"]
     api("POST", "accesos", "", {
         "uid_leido": tarjeta["uid"] if tarjeta else uid_hex,
         "id_tarjeta": tarjeta["id_tarjeta"] if tarjeta else None,
-        "id_torniquete": ID_TORNIQUETE,
+        "id_torniquete": torniquete_actual(),
         "resultado": resultado,
     })
-    return resultado, uid_hex
+
+
+def procesar(uid_bytes):
+    try:
+        resultado, tarjeta = decidir(uid_bytes)
+    except (ApiError, *ERRORES_RED) as e:
+        print("           Error consultando Supabase:", e, "-> DENEGADO")
+        return
+    print(f"           -> {'ACEPTADO' if resultado == 'permitido' else 'DENEGADO'} ({resultado})")
+    try:
+        registrar_acceso(uid_bytes, tarjeta, resultado)
+    except (ApiError, *ERRORES_RED) as e:
+        print("           Aviso: NO se pudo guardar el acceso (la web no lo verá):", e)
+
+
+# ------------------------------ LECTOR ------------------------------
+def leer_uid(lector):
+    estado, _ = lector.MFRC522_Request(lector.PICC_REQIDL)
+    if estado != lector.MI_OK:
+        return None
+    estado, uid = lector.MFRC522_Anticoll()
+    return uid if estado == lector.MI_OK else None
 
 
 def main():
+    ap = argparse.ArgumentParser(description="Lector RFID RC522 -> Supabase")
+    ap.add_argument("--uid", "-u", action="store_true",
+                    help="solo leer y mostrar el UID de cada tarjeta (sin Supabase)")
+    args = ap.parse_args()
+
     lector = MFRC522()
-    print("Lector RC522 listo. Acerca una tarjeta (Ctrl+C para salir).")
+    if args.uid:
+        print("Modo UID: acerca una tarjeta para ver su UID (Ctrl+C para salir).")
+    else:
+        print("Lector RC522 listo. Acerca una tarjeta (Ctrl+C para salir).")
+
     ultimo_uid, ultimo_t = None, 0.0
     try:
         while True:
-            estado, _ = lector.MFRC522_Request(lector.PICC_REQIDL)
-            if estado == lector.MI_OK:
-                estado, uid = lector.MFRC522_Anticoll()
-                if estado == lector.MI_OK:
-                    ahora = time.time()
-                    if uid == ultimo_uid and ahora - ultimo_t < SEGUNDOS_ENTRE_LECTURAS:
-                        ultimo_t = ahora
-                        continue
-                    ultimo_uid, ultimo_t = uid, ahora
-                    try:
-                        resultado, uid_hex = validar(uid)
-                        print(f"{uid_hex}  ->  {'ACEPTADO' if resultado == 'permitido' else 'DENEGADO'} ({resultado})")
-                    except (urllib.error.URLError, OSError) as e:
-                        print("Error de conexión con Supabase:", e, "-> DENEGADO")
+            uid = leer_uid(lector)
+            if uid:
+                ahora = time.time()
+                repetida = uid == ultimo_uid and ahora - ultimo_t < SEGUNDOS_ENTRE_LECTURAS
+                ultimo_uid, ultimo_t = uid, ahora
+                if not repetida:
+                    mostrar_uid(uid, detalle=args.uid)
+                    if not args.uid:
+                        procesar(uid)
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
