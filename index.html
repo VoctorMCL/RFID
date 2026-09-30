@@ -1282,13 +1282,9 @@
       return `hsl(${hue}, 46%, 42%)`;
     }
 
-    /* ============================ VALIDACIÓN DE ACCESO ============================ */
-    function normUID(s) { return String(s || '').replace(/[\s:\-]/g, '').toUpperCase(); }
-    function hoyISO() {
-      const d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    }
-
+    /* ============================ RESULTADO EN PANTALLA ============================ */
+    /* La Raspberry Pi (CrowPi3) lee el RC522, valida contra Supabase y registra el
+       acceso en la tabla "accesos". Esta página solo muestra el resultado. */
     let audioCtx = null;
     function beep(ok) {
       try {
@@ -1314,106 +1310,29 @@
       if (el) el.textContent = msg || '';
     }
 
-    async function validarUID(uidRaw) {
-      const uid = (uidRaw || '').trim();
-      if (!uid) return;
-      const torniqueteId = state.currentTorniquete;
-      let tarjeta = null, persona = null, resultado;
-
+    let lastSeen = null, pollBusy = false;
+    async function pollAccesos() {
+      if (pollBusy) return;
+      pollBusy = true;
       try {
-        // Consulta SIEMPRE la base de datos en el momento de la lectura
-        const tarjetas = await sbGet('tarjetas_rfid');
-        state.tarjetas = tarjetas;
-        tarjeta = tarjetas.find(t => normUID(t.uid) === normUID(uid)) || null;
-        if (tarjeta && tarjeta.id_persona != null) {
-          const r = await sbGet('personas', '&id_persona=eq.' + tarjeta.id_persona);
-          persona = r[0] || null;
+        if (lastSeen === null) {
+          // punto de partida: lo último que ya existe en la base de datos
+          const r = await sbGet('accesos', '&order=fecha_hora.desc&limit=1');
+          lastSeen = r[0] ? r[0].fecha_hora : new Date(0).toISOString();
+        } else {
+          const r = await sbGet('accesos', '&fecha_hora=gt.' + encodeURIComponent(lastSeen) + '&order=fecha_hora.asc');
+          if (r.length) {
+            lastSeen = r[r.length - 1].fecha_hora;
+            r.forEach(a => state.accesos.unshift(a));
+            mostrarResultado(r[r.length - 1].resultado === 'permitido');
+          }
         }
-        setDbStatus('');
+        if (state.dbStatus) setDbStatus('');
       } catch (e) {
         console.error(e);
         setDbStatus('Sin conexión con la base de datos');
-        mostrarResultado(false); // si no se puede verificar, se deniega
-        return;
       }
-
-      if (!tarjeta) resultado = 'denegado_no_registrado';
-      else if (!tarjeta.activa) resultado = 'denegado_revocado';
-      else if (persona && persona.fecha_expiracion && persona.fecha_expiracion < hoyISO()) resultado = 'denegado_expirado';
-      else resultado = 'permitido';
-
-      mostrarResultado(resultado === 'permitido');
-
-      // Registro en historial (en segundo plano)
-      sbInsert('accesos', {
-        uid_leido: uid,
-        id_tarjeta: tarjeta ? tarjeta.id_tarjeta : null,
-        id_torniquete: torniqueteId,
-        resultado
-      }).then(a => { state.accesos.unshift(a); })
-        .catch(e => { console.error(e); setDbStatus('No se pudo guardar el registro en el historial'); });
-    }
-
-    /* ============================ LECTOR FÍSICO (USB, modo teclado) ============================ */
-    let scanBuffer = '';
-    let scanTimer = null;
-    function finalizarLectura() {
-      clearTimeout(scanTimer);
-      const uid = scanBuffer;
-      scanBuffer = '';
-      updateBufferDisplay();
-      if (uid.length >= 4) validarUID(uid);
-    }
-    document.addEventListener('keydown', (e) => {
-      if (state.tab !== 'scanner') return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const tag = document.activeElement.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        if (scanBuffer.length > 0) { e.preventDefault(); finalizarLectura(); }
-        return;
-      }
-      if (e.key.length === 1) {
-        e.preventDefault();
-        scanBuffer += e.key;
-        updateBufferDisplay();
-        clearTimeout(scanTimer);
-        // si el lector no envía Enter, se valida tras una pequeña pausa
-        scanTimer = setTimeout(() => { if (scanBuffer.length >= 4) finalizarLectura(); else { scanBuffer = ''; updateBufferDisplay(); } }, 350);
-      }
-    });
-    function updateBufferDisplay() {
-      const el = document.getElementById('uid-buffer-display');
-      if (el) el.textContent = scanBuffer ? 'Leyendo…' : '';
-    }
-
-    /* ============================ LECTOR SERIAL (Arduino / RC522 / PN532) ============================ */
-    let serialPort = null;
-    async function conectarSerial() {
-      if (!('serial' in navigator)) { alert('Tu navegador no soporta Web Serial. Usa Chrome o Edge de escritorio.'); return; }
-      try {
-        serialPort = await navigator.serial.requestPort();
-        await serialPort.open({ baudRate: 9600 });
-        state.serialOn = true; render();
-        const decoder = new TextDecoderStream();
-        serialPort.readable.pipeTo(decoder.writable);
-        const reader = decoder.readable.getReader();
-        let buf = '';
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += value;
-          let i;
-          while ((i = buf.search(/[\r\n]/)) >= 0) {
-            const line = buf.slice(0, i).trim();
-            buf = buf.slice(i + 1);
-            if (line) validarUID(line);
-          }
-        }
-      } catch (e) { console.error(e); }
-      state.serialOn = false;
-      render();
+      pollBusy = false;
     }
 
     /* ============================ RENDER: LAYOUT ============================ */
@@ -1525,8 +1444,7 @@
         return `
       <div class="idle-pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/></svg></div>
       <p class="idle-title">Esperando tarjeta</p>
-      <p class="idle-sub">Acerca la tarjeta al lector RFID.</p>
-      <div class="uid-buffer" id="uid-buffer-display"></div>`;
+      <p class="idle-sub">Acerca la tarjeta al lector RFID.</p>`;
       }
       return ls.ok
         ? `<div class="result-ok-icon big">${icon('check')}</div><div class="verdict ok">ACEPTADO</div>`
@@ -1559,14 +1477,9 @@
         <select id="sel-torniquete">${torniqueteOptions}</select>
       </div>
       <div class="card-box">
-        <h3>Lector RFID</h3>
-        <div class="listener-pill"><span class="listener-dot"></span> Escuchando lecturas en esta pestaña</div>
-        <p class="hint">Lector USB tipo teclado: conéctalo y acerca la tarjeta. El UID se valida automáticamente contra la base de datos.</p>
-        <div class="divider" style="margin:12px 0"></div>
-        ${state.serialOn
-          ? `<div class="listener-pill" style="color:var(--ok)">${icon('check', 'width="14" height="14"')} Lector serial conectado</div>`
-          : `<button class="btn btn-ghost" id="btn-serial" style="width:100%">Conectar lector serial (Arduino)</button>
-             <p class="hint">Opcional, solo Chrome/Edge. El Arduino debe imprimir un UID por línea a 9600 baudios.</p>`}
+        <h3>Lector RFID (CrowPi3 · RC522)</h3>
+        <div class="listener-pill"><span class="listener-dot"></span> Esperando lecturas de la Raspberry Pi</div>
+        <p class="hint">La Pi valida cada tarjeta contra la base de datos y esta pantalla muestra el resultado al instante. Debe estar corriendo <b>lector_rfid.py</b> en la CrowPi3.</p>
         <p class="hint" id="db-status" style="color:var(--danger)">${esc(state.dbStatus || '')}</p>
       </div>
     </div>
@@ -1807,9 +1720,6 @@
       if (state.tab === 'scanner') {
         const selT = document.getElementById('sel-torniquete');
         if (selT) selT.onchange = (e) => { state.currentTorniquete = Number(e.target.value); e.target.blur(); };
-        const btnSerial = document.getElementById('btn-serial');
-        if (btnSerial) btnSerial.onclick = () => { btnSerial.blur(); conectarSerial(); };
-        updateBufferDisplay();
       }
 
       if (state.tab === 'personas') {
@@ -1942,6 +1852,8 @@
       document.getElementById('app').innerHTML = `<div class="panel" style="margin:24px;text-align:center;color:var(--text-muted);">Conectando con Supabase…</div>`;
       await loadState();
       render();
+      pollAccesos();
+      setInterval(pollAccesos, 700);
     })();
   </script>
 </body>
