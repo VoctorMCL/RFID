@@ -1151,6 +1151,15 @@
       margin: 0;
       line-height: 1.5;
     }
+
+    .scan-stage { min-height: 420px; }
+    .scan-stage.state-ok { background: var(--ok-soft); border-width: 2px; }
+    .scan-stage.state-fail { background: var(--danger-soft); border-width: 2px; }
+    .result-ok-icon.big, .denied-icon-wrap.big { width: 130px; height: 130px; margin-bottom: 24px; }
+    .result-ok-icon.big svg, .denied-icon-wrap.big svg { width: 60px; height: 60px; }
+    .verdict { font-size: 52px; font-weight: 800; letter-spacing: 3px; text-align: center; }
+    .verdict.ok { color: var(--ok); }
+    .verdict.fail { color: var(--danger); }
   </style>
 </head>
 
@@ -1274,67 +1283,137 @@
     }
 
     /* ============================ VALIDACIÓN DE ACCESO ============================ */
+    function normUID(s) { return String(s || '').replace(/[\s:\-]/g, '').toUpperCase(); }
+    function hoyISO() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    let audioCtx = null;
+    function beep(ok) {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.type = 'sine'; o.frequency.value = ok ? 880 : 220; g.gain.value = 0.15;
+        o.start(); o.stop(audioCtx.currentTime + (ok ? 0.15 : 0.4));
+      } catch (e) { }
+    }
+
+    let resetTimer = null;
+    function mostrarResultado(ok) {
+      state.lastScan = { ok };
+      updateStage();
+      beep(ok);
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { state.lastScan = null; updateStage(); }, 3000);
+    }
+    function setDbStatus(msg) {
+      state.dbStatus = msg;
+      const el = document.getElementById('db-status');
+      if (el) el.textContent = msg || '';
+    }
+
     async function validarUID(uidRaw) {
       const uid = (uidRaw || '').trim();
       if (!uid) return;
       const torniqueteId = state.currentTorniquete;
-      const tarjeta = state.tarjetas.find(t => t.uid.toUpperCase() === uid.toUpperCase());
-      let resultado, persona = null;
-
-      if (!tarjeta) {
-        resultado = 'denegado_no_registrado';
-      } else {
-        persona = state.personas.find(p => p.id_persona === tarjeta.id_persona) || null;
-        if (!tarjeta.activa) {
-          resultado = 'denegado_revocado';
-        } else if (persona && persona.fecha_expiracion && new Date(persona.fecha_expiracion) < new Date(new Date().toDateString())) {
-          resultado = 'denegado_expirado';
-        } else {
-          resultado = 'permitido';
-        }
-      }
+      let tarjeta = null, persona = null, resultado;
 
       try {
-        const nuevoAcceso = await sbInsert('accesos', {
-          uid_leido: uid,
-          id_tarjeta: tarjeta ? tarjeta.id_tarjeta : null,
-          id_torniquete: torniqueteId,
-          resultado
-        });
-        state.accesos.unshift(nuevoAcceso);
-        state.lastScan = { resultado, persona, tarjeta, acceso: nuevoAcceso };
+        // Consulta SIEMPRE la base de datos en el momento de la lectura
+        const tarjetas = await sbGet('tarjetas_rfid');
+        state.tarjetas = tarjetas;
+        tarjeta = tarjetas.find(t => normUID(t.uid) === normUID(uid)) || null;
+        if (tarjeta && tarjeta.id_persona != null) {
+          const r = await sbGet('personas', '&id_persona=eq.' + tarjeta.id_persona);
+          persona = r[0] || null;
+        }
+        setDbStatus('');
       } catch (e) {
         console.error(e);
-        state.lastScan = null;
-        alert('No se pudo registrar el acceso en Supabase: ' + e.message);
+        setDbStatus('Sin conexión con la base de datos');
+        mostrarResultado(false); // si no se puede verificar, se deniega
+        return;
       }
-      render();
+
+      if (!tarjeta) resultado = 'denegado_no_registrado';
+      else if (!tarjeta.activa) resultado = 'denegado_revocado';
+      else if (persona && persona.fecha_expiracion && persona.fecha_expiracion < hoyISO()) resultado = 'denegado_expirado';
+      else resultado = 'permitido';
+
+      mostrarResultado(resultado === 'permitido');
+
+      // Registro en historial (en segundo plano)
+      sbInsert('accesos', {
+        uid_leido: uid,
+        id_tarjeta: tarjeta ? tarjeta.id_tarjeta : null,
+        id_torniquete: torniqueteId,
+        resultado
+      }).then(a => { state.accesos.unshift(a); })
+        .catch(e => { console.error(e); setDbStatus('No se pudo guardar el registro en el historial'); });
     }
 
-    /* ============================ LECTOR FÍSICO (USB HID) ============================ */
+    /* ============================ LECTOR FÍSICO (USB, modo teclado) ============================ */
     let scanBuffer = '';
     let scanTimer = null;
+    function finalizarLectura() {
+      clearTimeout(scanTimer);
+      const uid = scanBuffer;
+      scanBuffer = '';
+      updateBufferDisplay();
+      if (uid.length >= 4) validarUID(uid);
+    }
     document.addEventListener('keydown', (e) => {
       if (state.tab !== 'scanner') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = document.activeElement.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-      if (e.key === 'Enter') {
-        if (scanBuffer.length > 0) { validarUID(scanBuffer); }
-        scanBuffer = '';
-        updateBufferDisplay();
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (scanBuffer.length > 0) { e.preventDefault(); finalizarLectura(); }
         return;
       }
       if (e.key.length === 1) {
+        e.preventDefault();
         scanBuffer += e.key;
         updateBufferDisplay();
         clearTimeout(scanTimer);
-        scanTimer = setTimeout(() => { scanBuffer = ''; updateBufferDisplay(); }, 700);
+        // si el lector no envía Enter, se valida tras una pequeña pausa
+        scanTimer = setTimeout(() => { if (scanBuffer.length >= 4) finalizarLectura(); else { scanBuffer = ''; updateBufferDisplay(); } }, 350);
       }
     });
     function updateBufferDisplay() {
       const el = document.getElementById('uid-buffer-display');
-      if (el) el.textContent = scanBuffer ? 'Leyendo: ' + scanBuffer : '';
+      if (el) el.textContent = scanBuffer ? 'Leyendo…' : '';
+    }
+
+    /* ============================ LECTOR SERIAL (Arduino / RC522 / PN532) ============================ */
+    let serialPort = null;
+    async function conectarSerial() {
+      if (!('serial' in navigator)) { alert('Tu navegador no soporta Web Serial. Usa Chrome o Edge de escritorio.'); return; }
+      try {
+        serialPort = await navigator.serial.requestPort();
+        await serialPort.open({ baudRate: 9600 });
+        state.serialOn = true; render();
+        const decoder = new TextDecoderStream();
+        serialPort.readable.pipeTo(decoder.writable);
+        const reader = decoder.readable.getReader();
+        let buf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += value;
+          let i;
+          while ((i = buf.search(/[\r\n]/)) >= 0) {
+            const line = buf.slice(0, i).trim();
+            buf = buf.slice(i + 1);
+            if (line) validarUID(line);
+          }
+        }
+      } catch (e) { console.error(e); }
+      state.serialOn = false;
+      render();
     }
 
     /* ============================ RENDER: LAYOUT ============================ */
@@ -1440,104 +1519,30 @@
     }
 
     /* ============================ TAB: ESCÁNER ============================ */
+    function stageHTML() {
+      const ls = state.lastScan;
+      if (!ls) {
+        return `
+      <div class="idle-pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/></svg></div>
+      <p class="idle-title">Esperando tarjeta</p>
+      <p class="idle-sub">Acerca la tarjeta al lector RFID.</p>
+      <div class="uid-buffer" id="uid-buffer-display"></div>`;
+      }
+      return ls.ok
+        ? `<div class="result-ok-icon big">${icon('check')}</div><div class="verdict ok">ACEPTADO</div>`
+        : `<div class="denied-icon-wrap big">${icon('x')}</div><div class="verdict fail">DENEGADO</div>`;
+    }
+    function updateStage() {
+      const el = document.querySelector('.scan-stage');
+      if (!el) return;
+      const ls = state.lastScan;
+      el.className = 'scan-stage' + (ls ? (ls.ok ? ' state-ok' : ' state-fail') : '');
+      el.innerHTML = stageHTML();
+    }
+
     function renderScanner() {
       const ls = state.lastScan;
-      let stageClass = '';
-      let stageInner = '';
-
-      const torniqueteActual = torniqueteName(state.currentTorniquete);
-      const scanHeader = `
-    <div class="scan-header">
-      <div class="scan-header-left">
-        <div class="brand-mark">${icon('scan')}</div>
-        <div>
-          <div class="scan-header-title">ACCESO VIA RFID</div>
-          <div class="scan-header-sub">${esc(torniqueteActual)}</div>
-        </div>
-      </div>
-      <div class="online-pill">${icon('wifi')} EN LÍNEA</div>
-    </div>`;
-
-      if (!ls) {
-        stageInner = `
-      ${scanHeader}
-      <div class="idle-pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a4 4 0 0 1 4 4v3H8V6a4 4 0 0 1 4-4Z"/><rect x="5" y="9" width="14" height="12" rx="2"/></svg></div>
-      <p class="idle-title">Esperando lectura</p>
-      <p class="idle-sub">Acerca el carnet al lector RFID, o usa la simulación manual en el panel de la derecha.</p>
-      <div class="uid-buffer" id="uid-buffer-display"></div>
-    `;
-      } else {
-        const ok = ls.resultado === 'permitido';
-        stageClass = ok ? 'state-ok' : 'state-fail';
-        const p = ls.persona;
-        const motivo = motivoLabel(ls.resultado);
-        const now = new Date();
-
-        if (ok) {
-          const bg = p ? colorFromString(p.documento_identidad) : '#888';
-          stageInner = `
-        ${scanHeader}
-        <div style="width:100%;text-align:left;">
-          <div class="result-ok-icon">${icon('check')}</div>
-          <div class="big-avatar" style="background:${bg}">${p ? initials(p.nombre, p.apellido) : '?'}</div>
-          <p class="success-name" style="text-align:center;">${p ? esc((p.nombre + ' ' + p.apellido).toUpperCase()) : 'PERSONA NO IDENTIFICADA'}</p>
-          <p class="success-id">${p ? 'ID: ' + esc(p.documento_identidad) : ''}</p>
-          <span class="success-tag">${p ? esc(tipoLabel(p.tipo_persona)) + (p.programa ? ' · ' + esc(p.programa) : '') : ''}</span>
-          <div class="status-banner ok">Acceso Permitido</div>
-          <div class="success-footer">
-            <div class="footer-block">
-              <div class="footer-block-label">${icon('id')} Identificador UID</div>
-              <div class="footer-block-value">${esc(ls.acceso.uid_leido)}</div>
-            </div>
-            <div class="footer-block" style="text-align:right;">
-              <div class="footer-block-label" style="justify-content:flex-end;">${icon('clock')} Marca de tiempo</div>
-              <div class="footer-block-value">${fmtDate(ls.acceso.fecha_hora)}</div>
-            </div>
-          </div>
-        </div>
-      `;
-        } else {
-          const motivoTexto = {
-            denegado_no_registrado: 'La tarjeta escaneada no corresponde a ningún registro en la base de datos. El personal de seguridad ha sido notificado.',
-            denegado_revocado: 'Esta tarjeta fue revocada por un administrador (pérdida, robo o retiro). El acceso ha sido bloqueado.',
-            denegado_expirado: 'El permiso de acceso de este visitante ya venció. Debe renovarse desde el panel administrativo.'
-          }[ls.resultado] || 'No fue posible validar el acceso.';
-          stageInner = `
-        ${scanHeader}
-        <div style="width:100%;text-align:left;">
-          <div class="denied-icon-wrap">${icon('alertShield')}</div>
-          <p class="denied-title">IDENTIDAD NO CONFIRMADA</p>
-          <div class="denied-layout">
-            <div class="photo-placeholder">
-              ${icon('photo')}
-              <span>Foto no disponible<br>en este prototipo</span>
-            </div>
-            <div>
-              <div class="denied-info-box">
-                <div class="denied-info-label">${icon('id')} Identificador RFID (UID)</div>
-                <div class="denied-info-value">${esc(ls.acceso.uid_leido)}</div>
-              </div>
-              <div class="denied-info-box">
-                <div class="denied-info-label">${icon('clock')} Marca de tiempo</div>
-                <div class="denied-info-value">${fmtDate(ls.acceso.fecha_hora)}</div>
-              </div>
-              <div class="alert-box">
-                <b>Registro de alerta</b>
-                <p>${esc(motivoTexto)}</p>
-              </div>
-            </div>
-          </div>
-          <div class="status-banner fail">Acceso Denegado — ${esc(motivo)}</div>
-        </div>
-      `;
-        }
-      }
-
-      const uidOptions = state.tarjetas.map(t => {
-        const p = state.personas.find(x => x.id_persona === t.id_persona);
-        return `<option value="${esc(t.uid)}">${esc(t.uid)} — ${p ? esc(p.nombre + ' ' + p.apellido) : 'sin persona'}</option>`;
-      }).join('');
-
+      const stageClass = ls ? (ls.ok ? 'state-ok' : 'state-fail') : '';
       const torniqueteOptions = state.torniquetes.map(t =>
         `<option value="${t.id_torniquete}" ${t.id_torniquete === state.currentTorniquete ? 'selected' : ''}>${esc(t.nombre)} (${esc(t.ubicacion)})</option>`
       ).join('') || `<option value="">Sin torniquetes registrados</option>`;
@@ -1545,7 +1550,7 @@
       return `
   <div class="scanner-layout">
     <div>
-      <div class="scan-stage ${stageClass}">${stageInner}</div>
+      <div class="scan-stage ${stageClass}">${stageHTML()}</div>
     </div>
     <div class="scan-controls">
       <div class="card-box">
@@ -1554,18 +1559,15 @@
         <select id="sel-torniquete">${torniqueteOptions}</select>
       </div>
       <div class="card-box">
-        <h3>Lector físico</h3>
-        <div class="listener-pill"><span class="listener-dot"></span> Escuchando en esta pestaña</div>
-        <p class="hint">Compatible con lectores RFID/NFC USB tipo "teclado": conecta el lector y acerca el carnet — el UID se escribe solo y valida al presionar Enter, contra la base de datos real en Supabase.</p>
-      </div>
-      <div class="card-box">
-        <h3>Simular lectura (sin hardware)</h3>
-        <label class="field-label">Tarjeta registrada</label>
-        <select id="sel-sim-uid">${uidOptions || '<option value="">No hay tarjetas</option>'}</select>
-        <div style="height:8px"></div>
-        <button class="btn btn-primary" id="btn-sim-scan" style="width:100%">Simular tap de tarjeta</button>
-        <div style="height:8px"></div>
-        <button class="btn btn-ghost" id="btn-sim-unknown" style="width:100%">Simular tarjeta desconocida</button>
+        <h3>Lector RFID</h3>
+        <div class="listener-pill"><span class="listener-dot"></span> Escuchando lecturas en esta pestaña</div>
+        <p class="hint">Lector USB tipo teclado: conéctalo y acerca la tarjeta. El UID se valida automáticamente contra la base de datos.</p>
+        <div class="divider" style="margin:12px 0"></div>
+        ${state.serialOn
+          ? `<div class="listener-pill" style="color:var(--ok)">${icon('check', 'width="14" height="14"')} Lector serial conectado</div>`
+          : `<button class="btn btn-ghost" id="btn-serial" style="width:100%">Conectar lector serial (Arduino)</button>
+             <p class="hint">Opcional, solo Chrome/Edge. El Arduino debe imprimir un UID por línea a 9600 baudios.</p>`}
+        <p class="hint" id="db-status" style="color:var(--danger)">${esc(state.dbStatus || '')}</p>
       </div>
     </div>
   </div>`;
@@ -1799,23 +1801,14 @@
       document.querySelectorAll('.nav-item').forEach(btn => {
         btn.onclick = () => { state.tab = btn.dataset.tab; state.lastScan = null; render(); };
       });
-      setInterval(() => {
-        const el = document.getElementById('clock');
-        if (el) el.textContent = new Date().toLocaleTimeString('es-CO');
-      }, 1000);
     }
 
     function bindTabEvents() {
       if (state.tab === 'scanner') {
         const selT = document.getElementById('sel-torniquete');
-        if (selT) selT.onchange = (e) => { state.currentTorniquete = Number(e.target.value); };
-        const btnSim = document.getElementById('btn-sim-scan');
-        if (btnSim) btnSim.onclick = () => {
-          const uid = document.getElementById('sel-sim-uid').value;
-          if (uid) validarUID(uid);
-        };
-        const btnUnk = document.getElementById('btn-sim-unknown');
-        if (btnUnk) btnUnk.onclick = () => validarUID('FFDEAD' + Math.floor(Math.random() * 99).toString().padStart(2, '0'));
+        if (selT) selT.onchange = (e) => { state.currentTorniquete = Number(e.target.value); e.target.blur(); };
+        const btnSerial = document.getElementById('btn-serial');
+        if (btnSerial) btnSerial.onclick = () => { btnSerial.blur(); conectarSerial(); };
         updateBufferDisplay();
       }
 
@@ -1942,6 +1935,10 @@
     /* ============================ INICIO ============================ */
     (async function init() {
       applyTheme();
+      setInterval(() => {
+        const el = document.getElementById('clock');
+        if (el) el.textContent = new Date().toLocaleTimeString('es-CO');
+      }, 1000);
       document.getElementById('app').innerHTML = `<div class="panel" style="margin:24px;text-align:center;color:var(--text-muted);">Conectando con Supabase…</div>`;
       await loadState();
       render();
