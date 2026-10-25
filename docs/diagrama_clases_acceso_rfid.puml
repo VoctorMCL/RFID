@@ -1,0 +1,76 @@
+@startuml diagrama_clases_acceso_rfid
+title Diagrama de Clases UML — Sistema de Control de Acceso Peatonal RFID con Validación Visual\nCorporación Universitaria Lasallista (2026-2)
+
+enum TipoPersona {
+  ESTUDIANTE
+  DOCENTE
+  ADMINISTRATIVO
+  VISITANTE
+}
+
+enum ResultadoAcceso {
+  PERMITIDO
+  DENEGADO_NO_REGISTRADO
+  DENEGADO_REVOCADA
+  DENEGADO_EXPIRADA
+  DENEGADO_INACTIVO
+}
+
+class Persona {
+  - id_persona : Integer
+  - nombre : String
+  - apellido : String
+  - documento_identidad : String
+  - tipo_persona : TipoPersona
+  - programa : String
+  - foto_path : String
+  - fecha_expiracion : Date
+  - activo : Boolean
+  + esVigente() : Boolean
+  + obtenerNombreCompleto() : String
+}
+
+class TarjetaRFID {
+  - id_tarjeta : Integer
+  - uid : String
+  - activa : Boolean
+  - tipo_tarjeta : String
+  - fecha_emision : DateTime
+  + revocar() : Void
+  + activar() : Void
+  + estaActiva() : Boolean
+}
+
+class Torniquete {
+  - id_torniquete : Integer
+  - nombre : String
+  - ubicacion : String
+  - activo : Boolean
+  + liberarPaso() : Void
+  + bloquearPaso() : Void
+}
+
+class Acceso {
+  - id_acceso : Long
+  - uid_leido : String
+  - fecha_hora : DateTime
+  - resultado : ResultadoAcceso
+  - confirmado_celador : Boolean
+  - tiempo_respuesta_ms : Integer
+  + registrarIntento() : Void
+}
+
+class ValidadorAcceso {
+  + validarUID(uid : String, idTorniquete : Integer) : ResultadoAcceso
+  + consultarTarjeta(uid : String) : TarjetaRFID
+  + emitirAlertaVisual(resultado : ResultadoAcceso) : Void
+}
+
+Persona "1" -- "0..*" TarjetaRFID : posee >
+Torniquete "1" -- "0..*" Acceso : registra en <
+TarjetaRFID "0..1" -- "0..*" Acceso : genera >
+ValidadorAcceso ..> Persona : consulta
+ValidadorAcceso ..> TarjetaRFID : verifica
+ValidadorAcceso ..> Acceso : crea
+
+@enduml

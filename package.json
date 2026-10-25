@@ -1,0 +1,35 @@
+{
+  "name": "rfid-access-ecosystem",
+  "version": "1.0.0",
+  "description": "Ecosistema Inteligente de Control de Acceso RFID y Monitoreo Institucional (Corporación Universitaria Lasallista)",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "start": "bash start.sh",
+    "dev": "bash start.sh",
+    "dev:backend": "npm --prefix backend run dev",
+    "start:backend": "npm --prefix backend start",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "setup:db": "bash setup-db.sh",
+    "reader:rpi": "python3 hardware/lector_rfid.py",
+    "reader:test": "python3 hardware/lector_rfid.py --uid"
+  },
+  "keywords": [
+    "rfid",
+    "access-control",
+    "react",
+    "nodejs",
+    "express",
+    "websockets",
+    "postgresql",
+    "esp32",
+    "raspberry-pi",
+    "lasallista"
+  ],
+  "author": "Victor Manuel Cordoba Larez",
+  "license": "ISC"
+}

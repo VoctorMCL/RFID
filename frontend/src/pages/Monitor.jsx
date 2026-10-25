@@ -1,0 +1,673 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { apiClient } from '../api/client';
+import { useWebSocket } from '../hooks/useWebSocket';
+import {
+  Radio,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  DoorClosed,
+  CreditCard,
+  User,
+  Shield,
+  Volume2,
+  VolumeX,
+  Send,
+  AlertTriangle,
+  Cpu,
+  Wifi,
+  WifiOff,
+  RefreshCw
+} from 'lucide-react';
+
+export const Monitor = () => {
+  const [doors, setDoors] = useState([]);
+  const [selectedDoorId, setSelectedDoorId] = useState('');
+  const [simUid, setSimUid] = useState('A1B2C3D4');
+  const [lastScan, setLastScan] = useState(null);
+  const [liveStream, setLiveStream] = useState([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isVibrating, setIsVibrating] = useState(false);
+
+  // Estado del sensor de hardware RFID (CrowPi 3 / RC522)
+  // Por defecto está en falso (ROJO) hasta que se confirme enlace físico o se verifique
+  const [hardwareSensors, setHardwareSensors] = useState({
+    1: false, // Puerta Principal
+    2: false  // Puerta Lateral
+  });
+
+  const resetTimerRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  // Reproducir tono sonoro discreto en escala
+  const playBeep = (granted) => {
+    if (!soundEnabled) return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.value = granted ? 800 : 260;
+      gain.gain.value = 0.12;
+
+      osc.start();
+      osc.stop(ctx.currentTime + (granted ? 0.18 : 0.45));
+    } catch (e) {
+      console.warn('Audio no disponible:', e);
+    }
+  };
+
+  const handleScanResult = (result) => {
+    setLastScan(result);
+    playBeep(result.granted);
+
+    // Cuando se recibe una lectura de tarjeta, se confirma el sensor en VERDE
+    if (result.door?.id) {
+      setHardwareSensors(prev => ({ ...prev, [result.door.id]: true }));
+    }
+
+    if (!result.granted) {
+      // Disparar animación de vibración en denegación / error
+      setIsVibrating(false);
+      setTimeout(() => setIsVibrating(true), 15);
+
+      // Vibración háptica en dispositivos móviles o pantallas táctiles
+      if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate([120, 60, 120, 60, 200]);
+        } catch (e) {}
+      }
+    } else {
+      setIsVibrating(false);
+      if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+        try {
+          window.navigator.vibrate(80);
+        } catch (e) {}
+      }
+    }
+
+    // Agregar al stream en vivo
+    setLiveStream(prev => [
+      {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        ...result
+      },
+      ...prev.slice(0, 19)
+    ]);
+
+    // Mantener la pantalla visible durante 6 segundos antes de volver al estado de espera
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = setTimeout(() => {
+      setLastScan(null);
+      setIsVibrating(false);
+    }, 6000);
+  };
+
+  // Escuchar eventos en vivo desde el WebSocket (lecturas de Raspberry Pi, ESP32 u otros clientes)
+  const handleWsEvent = (event) => {
+    if (event.type === 'access_attempt') {
+      const data = event.data;
+      handleScanResult({
+        granted: data.granted,
+        denial_reason: data.denialReason,
+        timestamp: data.timestamp,
+        user: data.user ? {
+          first_name: data.user.name?.split(' ')[0] || '',
+          last_name: data.user.name?.split(' ').slice(1).join(' ') || '',
+          document_id: data.user.document_id,
+          program: data.user.program,
+          role: data.user.role
+        } : null,
+        door: data.door,
+        room: data.room,
+        alarm_triggered: data.alarmTriggered
+      });
+    }
+
+    // Si llega un heartbeat del hardware
+    if (event.type === 'hardware_heartbeat' || event.type === 'door_status') {
+      const doorId = event.data?.doorId;
+      if (doorId) {
+        setHardwareSensors(prev => ({ ...prev, [doorId]: true }));
+      }
+    }
+  };
+
+  useWebSocket(handleWsEvent);
+
+  useEffect(() => {
+    const fetchDoors = async () => {
+      try {
+        const res = await apiClient('/doors');
+        if (res.success && res.data.length > 0) {
+          setDoors(res.data);
+          setSelectedDoorId(res.data[0].id.toString());
+        }
+      } catch (err) {
+        console.error('Error cargando puertas:', err);
+      }
+    };
+    fetchDoors();
+
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
+
+  // Simular lectura de tarjeta física
+  const handleSimulateScan = async (e) => {
+    if (e) e.preventDefault();
+    if (!simUid || !selectedDoorId || isProcessing) return;
+
+    try {
+      setIsProcessing(true);
+      const res = await apiClient('/access/validate', {
+        method: 'POST',
+        body: {
+          rfid_uid: simUid.trim(),
+          door_id: parseInt(selectedDoorId, 10),
+          access_method: 'rfid'
+        }
+      });
+
+      if (res.success && res.data) {
+        handleScanResult(res.data);
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Alternar o comprobar el estado de hardware para la puerta seleccionada
+  const toggleHardwareConnection = () => {
+    const doorId = parseInt(selectedDoorId, 10);
+    setHardwareSensors(prev => ({
+      ...prev,
+      [doorId]: !prev[doorId]
+    }));
+  };
+
+  const getReasonText = (reason) => {
+    switch (reason) {
+      case 'denegado_no_registrado': return 'Tarjeta no registrada en el sistema institucional';
+      case 'denegado_tarjeta_inactiva': return 'Tarjeta deshabilitada o revocada por administración';
+      case 'denegado_sin_usuario_asignado': return 'Tarjeta no asignada a ningún estudiante o funcionario';
+      case 'denegado_usuario_inactivo': return 'Usuario suspendido temporalmente por decanatura';
+      case 'denegado_acceso_expirado': return 'Vigencia de acceso institucional expirada';
+      case 'denegado_area_no_autorizada': return 'Área no autorizada para el rol institucional';
+      case 'denegado_horario_no_valido': return 'Fuera del horario de clases asignado en la articulación horaria';
+      default: return reason || 'Acceso no permitido';
+    }
+  };
+
+  const getInitials = (firstName, lastName) => {
+    return `${(firstName || '?')[0]}${(lastName || '')[0]}`.toUpperCase();
+  };
+
+  const selectedDoor = doors.find(d => d.id.toString() === selectedDoorId);
+  const currentDoorId = parseInt(selectedDoorId, 10) || 1;
+  const isSensorDetected = !!hardwareSensors[currentDoorId];
+
+  return (
+    <div>
+      <div className="page-header" style={{ marginBottom: '20px' }}>
+        <div>
+          <h1 className="page-title" style={{ fontSize: '20px', fontWeight: 800 }}>
+            Escáner RFID y Validación Visual
+          </h1>
+          <p className="page-subtitle" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+            Monitoreo en tiempo real de puertas inteligentes, articulación horaria y sensores de acceso
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="btn btn-secondary btn-sm"
+            title="Activar/desactivar audio"
+          >
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            <span>{soundEnabled ? 'Audio Activado' : 'Silenciado'}</span>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+        
+        {/* PANEL PRINCIPAL: ESCENARIO DE VALIDACIÓN VISUAL */}
+        <div>
+          <div
+            className={lastScan !== null && !lastScan.granted && isVibrating ? 'vibrate-error' : ''}
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: `2px solid ${
+                lastScan === null ? 'var(--border)' :
+                lastScan.granted ? 'var(--status-ok-border)' : 'var(--status-denied-border)'
+              }`,
+              borderRadius: 'var(--radius-lg)',
+              padding: '36px',
+              minHeight: '440px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              position: 'relative',
+              boxShadow: 'var(--shadow)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {/* Estado de Espera */}
+            {lastScan === null && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{
+                  width: '84px',
+                  height: '84px',
+                  borderRadius: '50%',
+                  border: '2px solid var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '18px',
+                  backgroundColor: 'var(--accent-soft)'
+                }}>
+                  <Radio size={36} style={{ color: 'var(--accent)' }} />
+                </div>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Esperando Tarjeta RFID
+                </h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '380px', marginTop: '6px' }}>
+                  Acerque el carnet institucional al lector de la puerta seleccionada o utilice el puerto de simulación inferior.
+                </p>
+
+                <div style={{
+                  marginTop: '20px',
+                  padding: '6px 14px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '20px',
+                  fontSize: '11.5px',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)'
+                }}>
+                  Puerta activa: <b>{selectedDoor?.name || 'Seleccione una puerta'}</b>
+                </div>
+              </div>
+            )}
+
+            {/* Estado de Resultado: ACCESO PERMITIDO */}
+            {lastScan !== null && lastScan.granted && (
+              <div style={{ width: '100%' }}>
+                <div style={{
+                  padding: '12px 20px',
+                  backgroundColor: 'var(--status-ok-bg)',
+                  border: '1px solid var(--status-ok-border)',
+                  color: 'var(--status-ok-text)',
+                  borderRadius: 'var(--radius)',
+                  fontWeight: 800,
+                  fontSize: '16px',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  marginBottom: '28px'
+                }}>
+                  ACCESO PERMITIDO
+                </div>
+
+                {/* Avatar / Fotografía de Verificación Visual */}
+                <div style={{
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '3px solid var(--status-ok-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '32px',
+                  fontWeight: 800,
+                  color: 'var(--text-primary)',
+                  margin: '0 auto 16px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  {getInitials(lastScan.user?.first_name, lastScan.user?.last_name)}
+                </div>
+
+                <div style={{ fontSize: '12px', color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+                  {lastScan.user?.role || 'Personal Institucional'}
+                </div>
+
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                  {lastScan.user?.first_name} {lastScan.user?.last_name}
+                </div>
+
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Doc: {lastScan.user?.document_id} · {lastScan.user?.program || 'Sin programa'}
+                </div>
+
+                <div style={{
+                  marginTop: '24px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--border)',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '12px',
+                  textAlign: 'left'
+                }}>
+                  <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Puerta Habilitada</div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{lastScan.door?.name}</div>
+                  </div>
+                  <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Espacio / Sala</div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{lastScan.room?.name}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Estado de Resultado: ACCESO DENEGADO (CON ANIMACIÓN DE VIBRACIÓN) */}
+            {lastScan !== null && !lastScan.granted && (
+              <div style={{ width: '100%' }}>
+                <div style={{
+                  padding: '12px 20px',
+                  backgroundColor: 'var(--status-denied-bg)',
+                  border: '1px solid var(--status-denied-border)',
+                  color: 'var(--status-denied-text)',
+                  borderRadius: 'var(--radius)',
+                  fontWeight: 800,
+                  fontSize: '16px',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  marginBottom: '28px'
+                }}>
+                  ACCESO DENEGADO
+                </div>
+
+                <div
+                  className="denied-icon-wrap"
+                  style={{
+                    width: '90px',
+                    height: '90px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '2px solid var(--status-denied-border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
+                    color: 'var(--status-denied-text)'
+                  }}
+                >
+                  <XCircle size={44} />
+                </div>
+
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Restricción de Acceso
+                </div>
+
+                <div style={{
+                  fontSize: '13px',
+                  color: '#b0b0b8',
+                  maxWidth: '380px',
+                  margin: '8px auto 0',
+                  padding: '10px 14px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)'
+                }}>
+                  {getReasonText(lastScan.denial_reason)}
+                </div>
+
+                {lastScan.alarm_triggered && (
+                  <div style={{
+                    marginTop: '16px',
+                    padding: '10px 14px',
+                    backgroundColor: 'var(--status-alert-bg)',
+                    border: '1px solid var(--status-alert-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    color: 'var(--status-alert-text)',
+                    fontWeight: 600
+                  }}>
+                    🚨 ALARMA CRÍTICA DISPARADA: Apertura en sala asegurada. Solo deshabilitable desde el cuarto de control.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ESTADO DINÁMICO DEL SENSOR DE HARDWARE RFID (ROJO / VERDE) */}
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '14px 18px',
+              backgroundColor: 'var(--bg-card)',
+              border: `1px solid ${isSensorDetected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              borderRadius: 'var(--radius)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  backgroundColor: isSensorDetected ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  border: `2px solid ${isSensorDetected ? '#22c55e' : '#ef4444'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isSensorDetected ? '#22c55e' : '#ef4444'
+                }}
+              >
+                {isSensorDetected ? <Wifi size={18} /> : <WifiOff size={18} />}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: isSensorDetected ? '#22c55e' : '#ef4444',
+                      boxShadow: isSensorDetected ? '0 0 8px #22c55e' : '0 0 8px #ef4444'
+                    }}
+                  />
+                  <h4 style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {isSensorDetected
+                      ? 'Sensor RFID (CrowPi 3 · RC522) — Conectado y Confirmado'
+                      : 'Sensor RFID (CrowPi 3 · RC522) — No Detectado / Desconectado'}
+                  </h4>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {isSensorDetected
+                    ? 'Hardware MFRC522 enlazado por SPI a 13.56 MHz en esta puerta. Captura lista.'
+                    : 'No se detecta sensor RFID físico en esta puerta. Ejecute lector_rfid.py o verifique SPI.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={toggleHardwareConnection}
+              className="btn btn-secondary btn-sm"
+              style={{
+                fontSize: '12px',
+                borderColor: isSensorDetected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+              }}
+            >
+              <RefreshCw size={13} />
+              <span>{isSensorDetected ? 'Simular Desconexión' : 'Comprobar / Simular Enlace'}</span>
+            </button>
+          </div>
+
+          {/* HERRAMIENTA DE SIMULACIÓN DE LECTURA RFID (PUERTO DE PRUEBAS) */}
+          <div className="card" style={{ marginTop: '16px' }}>
+            <div className="card-header">
+              <div className="card-title">
+                <CreditCard size={18} />
+                <span>Simulador de Hardware RFID (Puerto de Inyección)</span>
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Prototipo CrowPi 3 / ESP32</span>
+            </div>
+
+            <form onSubmit={handleSimulateScan} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr auto', gap: '12px', alignItems: 'flex-end' }}>
+              <div>
+                <label className="form-label">UID Tarjeta RFID (Hex)</label>
+                <input
+                  type="text"
+                  className="form-input font-mono"
+                  placeholder="Ej. A1B2C3D4"
+                  value={simUid}
+                  onChange={(e) => setSimUid(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Puerta Seleccionada</label>
+                <select
+                  className="form-select"
+                  value={selectedDoorId}
+                  onChange={(e) => setSelectedDoorId(e.target.value)}
+                >
+                  {doors.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.room_name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={isProcessing}
+                style={{ padding: '9px 18px' }}
+              >
+                <Send size={15} />
+                <span>Simular Lectura</span>
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>Credenciales de Prueba:</span>
+              <button
+                type="button"
+                onClick={() => setSimUid('A1B2C3D4')}
+                className="btn btn-secondary btn-sm font-mono"
+              >
+                A1B2C3D4 (Rectora - Acceso Total)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimUid('E5F6A7B8')}
+                className="btn btn-secondary btn-sm font-mono"
+              >
+                E5F6A7B8 (Prof. López - Sala 1)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimUid('11223344')}
+                className="btn btn-secondary btn-sm font-mono"
+              >
+                11223344 (Víctor C. - Estudiante)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimUid('AABBCCDD')}
+                className="btn btn-secondary btn-sm font-mono"
+              >
+                AABBCCDD (Vigilancia - Ficha Maestra)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSimUid('99999999')}
+                className="btn btn-secondary btn-sm font-mono"
+                style={{ borderColor: 'var(--status-denied-border)' }}
+              >
+                99999999 (No Registrada - Vibra)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* FEED LATERAL EN VIVO (EVENTOS WEBSOCKET) */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '680px' }}>
+          <div className="card-header">
+            <div className="card-title">
+              <Clock size={18} />
+              <span>Flujo de Accesos en Vivo</span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{liveStream.length} eventos</span>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {liveStream.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+                Esperando eventos de lectura desde microcontroladores o emulador...
+              </div>
+            ) : (
+              liveStream.map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    padding: '10px 12px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: item.granted ? 'var(--text-primary)' : 'var(--text-muted)'
+                    }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {item.user ? `${item.user.first_name} ${item.user.last_name}` : 'Tarjeta Desconocida'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {item.door?.name || 'Puerta'} · {new Date(item.timestamp).toLocaleTimeString('es-CO')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className={`badge ${item.granted ? 'badge-ok' : 'badge-denied'}`}>
+                    {item.granted ? 'OK' : 'DENEGADO'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+};
