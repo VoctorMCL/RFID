@@ -89,6 +89,21 @@ const localFallback = {
   ]
 };
 
+// Helper para parsear de forma segura el body (sea objeto o string JSON)
+const getParsedBody = (rawBody) => {
+  if (!rawBody) return {};
+  if (typeof rawBody === 'object') return rawBody;
+  if (typeof rawBody === 'string') {
+    try {
+      const trimmed = rawBody.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        return JSON.parse(trimmed);
+      }
+    } catch (e) {}
+  }
+  return {};
+};
+
 export const apiClient = async (endpoint, options = {}) => {
   const token = localStorage.getItem('rfid_token');
 
@@ -136,10 +151,10 @@ export const apiClient = async (endpoint, options = {}) => {
   } catch (err) {
     console.warn(`[Control Acceso Fallback] ${endpoint}:`, err.message);
 
-    // Fallback de login en caso de caída total de red
+    // Fallback de login en caso de caída total de red o ausencia de backend en Vercel
     if (endpoint.startsWith('/auth/login')) {
       try {
-        const body = JSON.parse(options.body || '{}');
+        const body = getParsedBody(options.body);
         const email = (body.email || '').trim().toLowerCase();
         let matchedUser = null;
         if (email.includes('admin')) {
@@ -160,7 +175,9 @@ export const apiClient = async (endpoint, options = {}) => {
             }
           };
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Error procesando fallback de login:', e);
+      }
     }
 
     // Fallbacks para navegación fluida
@@ -184,7 +201,7 @@ export const apiClient = async (endpoint, options = {}) => {
     if (endpoint.startsWith('/access/logs')) return { success: true, data: localFallback.access_logs };
 
     if (endpoint.startsWith('/access/validate') && options.method === 'POST') {
-      const body = JSON.parse(options.body || '{}');
+      const body = getParsedBody(options.body);
       const uid = (body.rfid_uid || '').toUpperCase();
       const card = localFallback.rfid_cards.find(c => c.uid === uid);
       const user = card ? localFallback.users.find(u => u.id === card.user_id) : null;
