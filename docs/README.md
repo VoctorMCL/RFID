@@ -21,6 +21,7 @@ Documentación técnica, arquitectónica y de usuario del **Ecosistema Inteligen
 | [🛡️ Seguridad Física y Alarmas](./SECURITY.md) | Seguridad, Mantenimiento | Protocolo de alarma en Sala de Informática 1, fichas maestras, notificación por correo y Ley 1581 de 2012. |
 | [🔌 Integración de Hardware](./HARDWARE.md) | Técnicos de Hardware, IoT | Lector MFRC522 (13.56 MHz), conexión SPI en Raspberry Pi 5 / CrowPi 3, firmware ESP32 con relé y buzzer. |
 | [🚀 Despliegue y Operación](./DEPLOYMENT.md) | DevOps, SysAdmins | Puesta en producción, configuración de variables `.env`, scripts `start.sh` y `setup-db.sh`, servicio systemd. |
+| [☁️ Despliegue en Vercel](./VERCEL_DEPLOYMENT.md) | DevOps, Frontend, IoT | Despliegue Serverless en Vercel, captura de RFID (USB, Raspberry Pi, túnel) y solución a EADDRINUSE. |
 | [🔄 Diagramas de Secuencia](./SEQUENCE_DIAGRAMS.md) | Desarrolladores, Arquitectos | SD-001 a SD-004 en Mermaid: validación exitosa, denegación horaria, alarma crítica y login web. |
 | [⚡ Diagramas de Actividad](./ACTIVITIES.md) | Analistas, QA | AD-001 a AD-003 en Mermaid: motor de decisión de acceso, enrolamiento de tarjetas y ciclo de vida de alertas. |
 | [📐 Diagramas UML](./UML.md) | Evaluadores, Docentes | Diagrama de clases del dominio y diagrama de componentes del sistema en Mermaid. |

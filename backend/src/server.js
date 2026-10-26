@@ -14,6 +14,18 @@ const HOST = '0.0.0.0';
 // Crear servidor HTTP
 const server = http.createServer(app);
 
+// Manejador de errores del servidor (ej. puerto ocupado EADDRINUSE)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n❌ Error: El puerto ${PORT} ya está en uso por otro proceso.`);
+    console.error(`👉 Ejecute: fuser -k ${PORT}/tcp  o  kill -9 $(lsof -ti :${PORT}) para liberarlo.\n`);
+    process.exit(1);
+  } else {
+    console.error('❌ Error en el servidor HTTP/WS:', err);
+    process.exit(1);
+  }
+});
+
 // Inicializar WebSocket Server
 wsService.init(server);
 

@@ -3,7 +3,16 @@
 // Manejo robusto con tolerancia a fallos y fallback en memoria
 // ===================================================================
 
-const API_BASE = '/api';
+// Obtener URL base de la API (soporta override para conectar Vercel a servidor local/tunnel)
+export const getApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('rfid_api_url');
+    if (saved && saved.trim()) {
+      return saved.trim().replace(/\/$/, '');
+    }
+  }
+  return import.meta.env.VITE_API_URL || '/api';
+};
 
 // Roles y usuarios autorizados para ingresar a la plataforma web:
 // ÚNICAMENTE ADMINISTRADOR Y CELADOR / SEGURIDAD
@@ -99,7 +108,8 @@ export const apiClient = async (endpoint, options = {}) => {
   }
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, config);
+    const apiBase = getApiBase();
+    const response = await fetch(`${apiBase}${endpoint}`, config);
 
     // Lectura segura como texto para evitar "unexpected end of data" en JSON.parse
     const rawText = await response.text();

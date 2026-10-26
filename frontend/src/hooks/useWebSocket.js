@@ -19,13 +19,26 @@ export const useWebSocket = (onMessageCallback) => {
 
     const connect = () => {
       try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const port = window.location.port;
-        // En entorno Vite (5173) conectamos a puerto 4000; en servidor integrado usamos el mismo host:port
-        const wsHost = (port === '5173')
-          ? `${window.location.hostname}:4000`
-          : (window.location.host || `${window.location.hostname}:4000`);
-        const wsUrl = `${protocol}//${wsHost}`;
+        let wsUrl = '';
+        const customWs = localStorage.getItem('rfid_ws_url');
+        const customApi = localStorage.getItem('rfid_api_url');
+
+        if (customWs && customWs.trim()) {
+          wsUrl = customWs.trim();
+        } else if (customApi && customApi.trim()) {
+          const apiClean = customApi.trim().replace(/\/api\/?$/, '');
+          const proto = apiClean.startsWith('https') ? 'wss:' : 'ws:';
+          const hostPart = apiClean.replace(/^https?:\/\//, '');
+          wsUrl = `${proto}//${hostPart}`;
+        } else {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const port = window.location.port;
+          // En entorno Vite (5173) conectamos a puerto 4000; en servidor integrado usamos el mismo host:port
+          const wsHost = (port === '5173')
+            ? `${window.location.hostname}:4000`
+            : (window.location.host || `${window.location.hostname}:4000`);
+          wsUrl = `${protocol}//${wsHost}`;
+        }
 
         const ws = new WebSocket(wsUrl);
 

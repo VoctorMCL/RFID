@@ -17,7 +17,9 @@ import {
   Cpu,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  Globe
 } from 'lucide-react';
 
 export const Monitor = () => {
@@ -29,6 +31,10 @@ export const Monitor = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVibrating, setIsVibrating] = useState(false);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [customApiUrl, setCustomApiUrl] = useState(() => {
+    return typeof window !== 'undefined' ? (localStorage.getItem('rfid_api_url') || '') : '';
+  });
 
   // Estado del sensor de hardware RFID (CrowPi 3 / RC522)
   // Por defecto está en falso (ROJO) hasta que se confirme enlace físico o se verifique
@@ -39,6 +45,9 @@ export const Monitor = () => {
 
   const resetTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
+  const lastSeenLogIdRef = useRef(null);
+  const keyBufferRef = useRef('');
+  const lastKeyTimeRef = useRef(Date.now());
 
   // Reproducir tono sonoro discreto en escala
   const playBeep = (granted) => {
@@ -142,7 +151,95 @@ export const Monitor = () => {
     }
   };
 
-  useWebSocket(handleWsEvent);
+  const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
+
+  // 1. Captura automática de lectores RFID USB / Teclado en la página
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target?.tagName)) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastKeyTimeRef.current > 400) {
+        keyBufferRef.current = '';
+      }
+      lastKeyTimeRef.current = now;
+
+      if (e.key === 'Enter') {
+        const rawUid = keyBufferRef.current.trim().toUpperCase();
+        keyBufferRef.current = '';
+        if (rawUid.length >= 4 && rawUid.length <= 16 && /^[0-9A-F]+$/i.test(rawUid)) {
+          console.log('💳 Lector RFID USB detectado:', rawUid);
+          setIsProcessing(true);
+          apiClient('/access/validate', {
+            method: 'POST',
+            body: {
+              rfid_uid: rawUid,
+              door_id: parseInt(selectedDoorId || '1', 10),
+              access_method: 'rfid_usb'
+            }
+          }).then(res => {
+            if (res.success && res.data) {
+              handleScanResult(res.data);
+            }
+          }).catch(console.error)
+            .finally(() => setIsProcessing(false));
+        }
+      } else if (e.key && e.key.length === 1 && /^[0-9a-zA-Z]$/.test(e.key)) {
+        keyBufferRef.current += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDoorId]);
+
+  // 2. Polling de respaldo para Vercel o caídas de WebSocket (detecta lecturas de Raspberry Pi/CrowPi)
+  useEffect(() => {
+    if (isWsConnected) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiClient('/access/logs?limit=1');
+        if (res.success && res.data && res.data.length > 0) {
+          const latest = res.data[0];
+          if (latest.id) {
+            if (lastSeenLogIdRef.current === null) {
+              lastSeenLogIdRef.current = latest.id;
+              return;
+            }
+            if (latest.id !== lastSeenLogIdRef.current) {
+              lastSeenLogIdRef.current = latest.id;
+              const logTime = new Date(latest.timestamp).getTime();
+              // Si ocurrió en los últimos 25 segundos, reflejar en pantalla
+              if (Date.now() - logTime < 25000) {
+                handleScanResult({
+                  granted: latest.granted,
+                  denial_reason: latest.denial_reason,
+                  timestamp: latest.timestamp,
+                  user: latest.user_name && latest.user_name !== 'Desconocido' ? {
+                    first_name: latest.user_name.split(' ')[0] || '',
+                    last_name: latest.user_name.split(' ').slice(1).join(' ') || '',
+                    document_id: latest.user_document,
+                    program: latest.user_program || '',
+                    role: latest.role_name || ''
+                  } : null,
+                  door: { id: latest.door_id, name: latest.door_name },
+                  room: { id: latest.room_id, name: latest.room_name },
+                  alarm_triggered: !latest.granted && latest.room_has_alarm
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Silencioso
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [isWsConnected]);
 
   useEffect(() => {
     const fetchDoors = async () => {
@@ -501,18 +598,85 @@ export const Monitor = () => {
               </div>
             </div>
 
-            <button
-              onClick={toggleHardwareConnection}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: '12px',
-                borderColor: isSensorDetected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-              }}
-            >
-              <RefreshCw size={13} />
-              <span>{isSensorDetected ? 'Simular Desconexión' : 'Comprobar / Simular Enlace'}</span>
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={toggleHardwareConnection}
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: '12px',
+                  borderColor: isSensorDetected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                }}
+              >
+                <RefreshCw size={13} />
+                <span>{isSensorDetected ? 'Simular Desconexión' : 'Comprobar Enlace'}</span>
+              </button>
+
+              <button
+                onClick={() => setShowServerConfig(!showServerConfig)}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '12px' }}
+                title="Configurar servidor para Vercel o conexión remota"
+              >
+                <Settings size={13} />
+                <span>Enlace Servidor</span>
+              </button>
+            </div>
           </div>
+
+          {/* PANEL DE CONFIGURACIÓN DE SERVIDOR (PARA DESPLIEGUE VERCEL) */}
+          {showServerConfig && (
+            <div style={{
+              marginTop: '12px',
+              padding: '14px 16px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              fontSize: '12.5px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                <Globe size={16} />
+                <span>Dirección del Backend (Vercel Serverless o PC Servidor):</span>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '11.5px', marginBottom: '10px' }}>
+                Si estás en Vercel, déjalo vacío para usar los endpoints integrados (<code>/api</code>), o escribe la URL de tu PC / túnel ngrok (ej. <code>https://tu-ngrok.ngrok-free.app/api</code>).
+              </p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ fontSize: '12px', padding: '6px 10px', flex: 1 }}
+                  placeholder="/api (predeterminado)"
+                  value={customApiUrl}
+                  onChange={(e) => setCustomApiUrl(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    if (customApiUrl.trim()) {
+                      localStorage.setItem('rfid_api_url', customApiUrl.trim());
+                    } else {
+                      localStorage.removeItem('rfid_api_url');
+                    }
+                    window.location.reload();
+                  }}
+                >
+                  Guardar y Recargar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    localStorage.removeItem('rfid_api_url');
+                    setCustomApiUrl('');
+                    window.location.reload();
+                  }}
+                >
+                  Restablecer
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* HERRAMIENTA DE SIMULACIÓN DE LECTURA RFID (PUERTO DE PRUEBAS) */}
           <div className="card" style={{ marginTop: '16px' }}>

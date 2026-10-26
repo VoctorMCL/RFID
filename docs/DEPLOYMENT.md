@@ -175,7 +175,9 @@ server {
 
 ---
 
-## 8. Procedimiento de Rollback y Contingencia
+## 9. Despliegue en la Nube con Vercel
+Para instrucciones detalladas sobre cómo desplegar el ecosistema en Vercel y hacer que la página web en la nube lea las tarjetas RFID desde un lector USB, una Raspberry Pi o tu PC local, consulta la **[Guía Oficial de Despliegue en Vercel](./VERCEL_DEPLOYMENT.md)**.
+
 
 1. **Fallo de Base de Datos:** Si PostgreSQL entra en estado de fallo, el backend conmuta automáticamente a memoria sin intervención manual.
 2. **Reinicio de Emergencia:**

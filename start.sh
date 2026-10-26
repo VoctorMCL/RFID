@@ -15,12 +15,20 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 [ -z "$LAN_IP" ] && LAN_IP="127.0.0.1"
 
+# Liberar puerto 4000 si ya estaba ocupado por una instancia anterior
+BUSY_PID=$(lsof -ti :4000 2>/dev/null)
+if [ -n "$BUSY_PID" ]; then
+    echo "⚠️  Puerto 4000 ocupado por proceso(s) [PID $BUSY_PID]. Liberando puerto..."
+    kill -9 $BUSY_PID 2>/dev/null || true
+    sleep 1
+fi
+
 # Manejar cierre de procesos limpios
 cleanup() {
     echo ""
     echo "🛑 Deteniendo servicios del ecosistema..."
-    kill $BACKEND_PID 2>/dev/null
-    kill $FRONTEND_PID 2>/dev/null
+    [ -n "$BACKEND_PID" ] && kill $BACKEND_PID 2>/dev/null
+    [ -n "$FRONTEND_PID" ] && kill $FRONTEND_PID 2>/dev/null
     exit 0
 }
 trap cleanup SIGINT SIGTERM
@@ -38,6 +46,12 @@ node src/server.js &
 BACKEND_PID=$!
 
 sleep 2
+
+# Verificar si el backend inició correctamente
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "❌ Error: El backend en puerto 4000 no pudo iniciar."
+    exit 1
+fi
 
 # 3. Iniciar opcionalmente Frontend Vite (Puerto 5173 para Hot-Reload en desarrollo)
 if [ "$1" == "--dev" ] || [ "$MODE" == "dev" ]; then
