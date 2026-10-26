@@ -20,7 +20,12 @@ export const useWebSocket = (onMessageCallback) => {
     const connect = () => {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.hostname}:4000`;
+        const port = window.location.port;
+        // En entorno Vite (5173) conectamos a puerto 4000; en servidor integrado usamos el mismo host:port
+        const wsHost = (port === '5173')
+          ? `${window.location.hostname}:4000`
+          : (window.location.host || `${window.location.hostname}:4000`);
+        const wsUrl = `${protocol}//${wsHost}`;
 
         const ws = new WebSocket(wsUrl);
 

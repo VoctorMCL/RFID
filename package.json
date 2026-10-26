@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "start": "bash start.sh",
+    "serve": "node backend/src/server.js",
+    "build": "npm --prefix frontend run build",
     "dev": "bash start.sh",
     "dev:backend": "npm --prefix backend run dev",
     "start:backend": "npm --prefix backend start",

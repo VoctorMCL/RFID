@@ -37,8 +37,8 @@ DATABASE_URL=postgresql://victormcl:rfid2026@localhost:5432/rfid_db
 JWT_SECRET=rfid_secret_key_lasallista_2026
 JWT_EXPIRES_IN=24h
 
-# Orígenes Permitidos para CORS
-CORS_ORIGIN=http://localhost:5173
+# Orígenes Permitidos para CORS (* para admitir IP de LAN o dominio institucional)
+CORS_ORIGIN=*
 
 # Servicio de Correo Electrónico para Alarmas Críticas (SMTP)
 SMTP_HOST=smtp.gmail.com

@@ -99,21 +99,40 @@ RFID/
 
 ---
 
-## 🚀 Puesta en Marcha
+## 🚀 Puesta en Marcha (PC como Servidor de Pruebas & Despliegue)
 
-### 1. Iniciar el Ecosistema Completo con un solo comando:
+### 1. Iniciar el Servidor Unificado (Frontend + Backend + WebSockets en Puerto 4000)
 Desde la raíz del repositorio:
 
 ```bash
+# Opción 1: Lanzador automático con detección de IP de red
 ./start.sh
+
+# Opción 2: Directamente con npm (deja la PC como servidor de pruebas)
+npm run serve
 ```
 
-El lanzador levantará simultáneamente:
-- **Frontend React:** [http://localhost:5173](http://localhost:5173)
-- **Backend API:** [http://localhost:4000/api](http://localhost:4000/api)
-- **Servidor WebSocket:** `ws://localhost:4000`
+El servidor unificado atiende tanto la aplicación web completa como la API y los sockets:
+- **Acceso Local (en esta PC):** [http://localhost:4000](http://localhost:4000)
+- **Acceso en Red LAN (desde celulares, tablets o laptops conectadas al mismo Wi-Fi/red):** `http://<IP_DE_TU_PC>:4000` *(ej. `http://10.55.98.145:4000`)*
+- **API REST:** `http://<IP_DE_TU_PC>:4000/api`
+- **Servidor WebSocket:** `ws://<IP_DE_TU_PC>:4000`
 
-### 2. Credenciales de Demostración para Ingreso Web (Contraseña: `acceso2026`):
+### 2. Dejar la PC corriendo permanentemente como Servidor de Pruebas
+Si deseas dejar la terminal libre o cerrar la sesión mientras la PC sigue funcionando como servidor de pruebas:
+
+```bash
+# Iniciar en segundo plano
+nohup npm run serve > server.log 2>&1 &
+
+# Para monitorear logs en tiempo real:
+tail -f server.log
+
+# Para detener el servidor cuando termines:
+pkill -f "node src/server.js"
+```
+
+### 3. Credenciales de Demostración para Ingreso Web (Contraseña: `acceso2026`):
 
 | Rol Autorizado | Correo / Usuario | Privilegios y Alcance |
 |---|---|---|

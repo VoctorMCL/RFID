@@ -1,24 +1,35 @@
 // ===================================================================
 // Configuración de la aplicación Express — Control de Acceso RFID
+// Servidor unificado: API REST + WebSockets + Frontend SPA (React)
 // ===================================================================
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 
 const apiRoutes = require('./routes');
 
 const app = express();
 
 // Middlewares de seguridad y utilidad
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: true, // Permitir cualquier origen local o de red LAN (localhost, 10.55.98.145, etc.)
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Ruta a los estáticos compilados de React
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDist));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -33,7 +44,17 @@ app.get('/health', (req, res) => {
 // Rutas de la API
 app.use('/api', apiRoutes);
 
-// Manejador de rutas no encontradas
+// Manejador SPA: Redirigir cualquier otra ruta al index.html de React
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/health') {
+    return next();
+  }
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
+
+// Manejador de rutas no encontradas (para peticiones a la API inexistentes)
 app.use((req, res) => {
   res.status(404).json({
     success: false,
