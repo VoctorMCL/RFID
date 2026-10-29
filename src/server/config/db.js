@@ -2,6 +2,9 @@
 // Cliente de Base de Datos PostgreSQL / Supabase
 // Conexión Directa y Obligatoria — Control de Acceso RFID Institucional
 // ===================================================================
+const dns = require('dns');
+try { dns.setDefaultResultOrder('ipv4first'); } catch (e) {}
+
 const { Pool } = require('pg');
 
 const databaseUrl = process.env.DATABASE_URL || 'postgresql://victormcl:rfid2026@localhost:5432/rfid_db';

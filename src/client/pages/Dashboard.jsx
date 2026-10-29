@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAuth } from '../context/AuthContext';
+import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,15 +35,14 @@ import {
   GraduationCap,
   TrendingUp,
   Calendar,
-  Eye,
-  EyeOff,
   ChevronRight,
   ShieldCheck,
-  BarChart3,
   Flame,
   Gauge as GaugeIcon,
   Clock,
-  Layers
+  Layers,
+  GripHorizontal,
+  RotateCcw
 } from 'lucide-react';
 
 ChartJS.register(
@@ -56,32 +59,34 @@ ChartJS.register(
 );
 
 // =========================================================================
-// COMPONENTES DE VISUALIZACIÓN OFICIALES ESTILO GRAFANA
+// COMPONENTES DE VISUALIZACIÓN GRAFANA (ESTÉTICA KUBERNETES & BI)
 // =========================================================================
 
-// 1. Grafana Radial Gauge Component (Semicírculo con umbrales verde/amarillo/rojo)
+// 1. Radial Gauge de Grafana (Arcos vivos de alto contraste)
 const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación' }) => {
   const clamped = Math.min(Math.max(value, 0), 100);
-  const radius = 64;
-  const strokeWidth = 12;
+  const radius = 68;
+  const strokeWidth = 14;
   const circumference = Math.PI * radius;
   const strokeDashoffset = circumference * (1 - clamped / 100);
-  const color = value >= 95 ? '#10b981' : value >= 80 ? '#f59e0b' : '#ef4444';
+
+  // Colores vivos de Grafana (Verde neón #73bf69, Amarillo #fede00, Rojo #f2495c)
+  const color = value >= 95 ? '#73bf69' : value >= 80 ? '#fede00' : '#f2495c';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '190px' }}>
-      <svg width="190" height="115" viewBox="0 0 190 115" style={{ overflow: 'visible' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+      <svg width="200" height="120" viewBox="0 0 200 120" style={{ overflow: 'visible' }}>
         {/* Pista de fondo */}
         <path
-          d="M 25 105 A 64 64 0 0 1 165 105"
+          d="M 25 105 A 68 68 0 0 1 175 105"
           fill="none"
-          stroke="var(--bg-tertiary)"
+          stroke="#22252b"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
-        {/* Arco de valor */}
+        {/* Arco de valor vivo */}
         <path
-          d="M 25 105 A 64 64 0 0 1 165 105"
+          d="M 25 105 A 68 68 0 0 1 175 105"
           fill="none"
           stroke={color}
           strokeWidth={strokeWidth}
@@ -90,63 +95,62 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación' }) => {
           strokeLinecap="round"
           style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.3s ease' }}
         />
-        {/* Valor central */}
-        <text x="95" y="90" textAnchor="middle" fill="var(--text-primary)" fontSize="28" fontWeight="700">
+        {/* Valor central grande */}
+        <text x="100" y="92" textAnchor="middle" fill="#ffffff" fontSize="30" fontWeight="800">
           {value}%
         </text>
-        <text x="32" y="112" textAnchor="middle" fill="var(--text-muted)" fontSize="10">0%</text>
-        <text x="158" y="112" textAnchor="middle" fill="var(--text-muted)" fontSize="10">100%</text>
+        <text x="30" y="115" textAnchor="middle" fill="#8e8e8e" fontSize="10">0%</text>
+        <text x="170" y="115" textAnchor="middle" fill="#8e8e8e" fontSize="10">100%</text>
       </svg>
-      <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '4px' }}>
+      <div style={{ fontSize: '13px', color: '#d8d9da', fontWeight: 600, marginTop: '2px' }}>
         {label}
       </div>
-      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-        {value >= 95 ? 'Nivel óptimo (>95%)' : value >= 80 ? 'Precaución' : 'Atención crítica requerida'}
+      <div style={{ fontSize: '11px', color: '#8e8e8e', marginTop: '2px' }}>
+        {value >= 95 ? 'Nivel óptimo de seguridad (>95%)' : value >= 80 ? 'Infracciones moderadas' : 'Alerta de seguridad crítica'}
       </div>
     </div>
   );
 };
 
-// 2. Grafana Bar Gauge Component (Barras horizontales de progreso y porcentaje)
+// 2. Bar Gauge de Grafana (Barras horizontales de gradiente y porcentaje relativo)
 const GrafanaBarGauge = ({ items, total }) => {
   if (!items || items.length === 0) {
     return (
-      <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+      <div style={{ padding: '36px 20px', textAlign: 'center', color: '#8e8e8e', fontSize: '13px' }}>
         No hay estudiantes dentro del campus en este momento.
       </div>
     );
   }
 
-  const palette = ['#002855', '#1d4ed8', '#2563eb', '#38bdf8', '#10b981', '#8b5cf6', '#f59e0b'];
+  const colors = ['#73bf69', '#5794f2', '#fede00', '#ff7800', '#00e5ff', '#b877d9', '#f2495c'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '4px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%', overflowY: 'auto', paddingRight: '4px' }}>
       {items.map((item, idx) => {
-        const count = item.active_students || 0;
+        const count = item.active_students || item.count || 0;
         const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-        const color = palette[idx % palette.length];
+        const color = colors[idx % colors.length];
 
         return (
-          <div key={item.program || idx} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
-              <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.program}</span>
-              <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', fontSize: '12.5px' }}>
-                <b style={{ color: 'var(--text-primary)' }}>{count}</b> estudiante{count === 1 ? '' : 's'} ({pct}%)
+          <div key={item.program || idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+              <span style={{ fontWeight: 600, color: '#ffffff' }}>{item.program}</span>
+              <span style={{ color: '#d8d9da', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
+                <b style={{ color: '#ffffff' }}>{count}</b> ({pct}%)
               </span>
             </div>
             <div style={{
-              height: '11px',
-              backgroundColor: 'var(--bg-tertiary)',
-              borderRadius: '5px',
-              overflow: 'hidden',
-              border: '1px solid var(--border)'
+              height: '10px',
+              backgroundColor: '#22252b',
+              borderRadius: '3px',
+              overflow: 'hidden'
             }}>
               <div style={{
                 height: '100%',
                 width: `${Math.max(pct, 2)}%`,
                 backgroundColor: color,
-                borderRadius: '5px',
-                transition: 'width 0.5s ease'
+                borderRadius: '3px',
+                transition: 'width 0.4s ease'
               }} />
             </div>
           </div>
@@ -156,7 +160,7 @@ const GrafanaBarGauge = ({ items, total }) => {
   );
 };
 
-// 3. Grafana Heatmap Component (Matriz de calor: Días vs Horas)
+// 3. Heatmap de Grafana (Matriz 2D de Horas Pico e Intensidad)
 const GrafanaHeatmap = ({ data }) => {
   const days = [
     { dow: 1, label: 'Lunes' },
@@ -177,23 +181,23 @@ const GrafanaHeatmap = ({ data }) => {
   });
 
   const getHeatColor = (count) => {
-    if (!count || count === 0) return 'var(--bg-tertiary)';
+    if (!count || count === 0) return '#22252b';
     const ratio = count / maxCount;
-    if (ratio < 0.25) return 'rgba(37, 99, 235, 0.25)';
-    if (ratio < 0.5) return 'rgba(37, 99, 235, 0.55)';
-    if (ratio < 0.75) return '#2563eb';
-    return '#38bdf8'; // Pico más alto
+    if (ratio < 0.25) return '#1d4ed8'; // Azul suave
+    if (ratio < 0.5) return '#2563eb';  // Azul intenso
+    if (ratio < 0.75) return '#00e5ff'; // Cian vibrante
+    return '#fede00'; // Oro / Pico máximo
   };
 
   return (
-    <div>
-      <div style={{ overflowX: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+      <div style={{ overflowX: 'auto', flex: 1 }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '3px', fontSize: '11px' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, paddingRight: '8px', paddingBottom: '6px' }}>Día</th>
+              <th style={{ textAlign: 'left', color: '#8e8e8e', fontWeight: 500, paddingRight: '8px', paddingBottom: '4px' }}>Día</th>
               {hours.map(h => (
-                <th key={h} style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 500, width: '30px', paddingBottom: '6px' }}>
+                <th key={h} style={{ textAlign: 'center', color: '#8e8e8e', fontWeight: 500, width: '28px', paddingBottom: '4px' }}>
                   {h}h
                 </th>
               ))}
@@ -202,7 +206,7 @@ const GrafanaHeatmap = ({ data }) => {
           <tbody>
             {days.map(d => (
               <tr key={d.dow}>
-                <td style={{ color: 'var(--text-secondary)', fontWeight: 600, paddingRight: '8px', whiteSpace: 'nowrap' }}>
+                <td style={{ color: '#d8d9da', fontWeight: 600, paddingRight: '8px', whiteSpace: 'nowrap' }}>
                   {d.label}
                 </td>
                 {hours.map(h => {
@@ -212,15 +216,14 @@ const GrafanaHeatmap = ({ data }) => {
                       key={h}
                       title={`${d.label} a las ${h}:00 — ${count} accesos`}
                       style={{
-                        height: '24px',
+                        height: '22px',
                         backgroundColor: getHeatColor(count),
-                        borderRadius: '3px',
+                        borderRadius: '2px',
                         textAlign: 'center',
-                        color: count > 0 ? '#ffffff' : 'transparent',
+                        color: count > 0 ? (getHeatColor(count) === '#fede00' ? '#000000' : '#ffffff') : 'transparent',
                         fontSize: '10px',
-                        fontWeight: 600,
-                        cursor: 'default',
-                        transition: 'background-color 0.2s'
+                        fontWeight: 700,
+                        cursor: 'default'
                       }}
                     >
                       {count > 0 ? count : ''}
@@ -233,14 +236,15 @@ const GrafanaHeatmap = ({ data }) => {
         </table>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', fontSize: '11.5px', color: 'var(--text-muted)' }}>
-        <span>Mapa de calor de afluencia por franja horaria</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: '#8e8e8e' }}>
+        <span>Mapa de calor de accesos por franja horaria</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span>Tranquilo</span>
-          <div style={{ width: '12px', height: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '2px', border: '1px solid var(--border)' }} />
-          <div style={{ width: '12px', height: '12px', backgroundColor: 'rgba(37, 99, 235, 0.3)', borderRadius: '2px' }} />
-          <div style={{ width: '12px', height: '12px', backgroundColor: '#2563eb', borderRadius: '2px' }} />
-          <div style={{ width: '12px', height: '12px', backgroundColor: '#38bdf8', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: '#22252b', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: '#1d4ed8', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: '#2563eb', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: '#00e5ff', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: '#fede00', borderRadius: '2px' }} />
           <span>Hora pico</span>
         </div>
       </div>
@@ -248,13 +252,13 @@ const GrafanaHeatmap = ({ data }) => {
   );
 };
 
-// 4. Grafana Sparkline Component para Stat Cards
-const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
+// 4. Sparkline de Grafana para Stat Cards
+const GrafanaSparkline = ({ data, color = '#5794f2' }) => {
   const points = (data && data.length > 0) ? data : [0, 0, 0, 0, 0, 0];
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
   const range = max - min || 1;
-  const width = 84;
+  const width = 80;
   const height = 24;
 
   const pathPoints = points.map((p, i) => {
@@ -275,6 +279,23 @@ const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
       />
     </svg>
   );
+};
+
+// Layouts por defecto (24 columnas escalables con minW y minH)
+const DEFAULT_LAYOUTS = {
+  lg: [
+    { i: 'panel_total_stat', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_denied_stat', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_campus_stat', x: 6, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_doors_stat', x: 9, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_radial_gauge', x: 0, y: 3, w: 4, h: 7, minW: 3, minH: 5 },
+    { i: 'panel_timeseries', x: 4, y: 3, w: 8, h: 7, minW: 4, minH: 6 },
+    { i: 'panel_bar_gauge', x: 0, y: 10, w: 7, h: 8, minW: 4, minH: 6 },
+    { i: 'panel_blocks_donut', x: 7, y: 10, w: 5, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_heatmap', x: 0, y: 18, w: 8, h: 7, minW: 5, minH: 5 },
+    { i: 'panel_top_doors', x: 8, y: 18, w: 4, h: 7, minW: 3, minH: 5 },
+    { i: 'panel_loki_table', x: 0, y: 25, w: 12, h: 9, minW: 6, minH: 6 }
+  ]
 };
 
 export const Dashboard = () => {
@@ -306,37 +327,37 @@ export const Dashboard = () => {
   });
 
   const [recentLogs, setRecentLogs] = useState([]);
-  const [activeAlerts, setActiveAlerts] = useState([]);
   const [doors, setDoors] = useState([]);
   const [timeGranularity, setTimeGranularity] = useState('hour'); // 'hour' | 'minute'
-  const [loading, setLoading] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Selector de Visibilidad de Paneles Grafana
-  const [visiblePanels, setVisiblePanels] = useState(() => {
+  // Sistema de Grid Layout resizable y draggable
+  const [layouts, setLayouts] = useState(() => {
     try {
-      const saved = localStorage.getItem('grafana_visible_panels');
+      const saved = localStorage.getItem('grafana_dashboard_layouts_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
-    return {
-      picos: true,
-      gauge: true,
-      carreras: true,
-      bloques: true,
-      heatmap: true,
-      puertas: true
-    };
+    return DEFAULT_LAYOUTS;
   });
 
-  const togglePanel = (panelKey) => {
-    setVisiblePanels(prev => {
-      const updated = { ...prev, [panelKey]: !prev[panelKey] };
-      localStorage.setItem('grafana_visible_panels', JSON.stringify(updated));
-      return updated;
-    });
+  const { width: containerWidth, containerRef, mounted } = useContainerWidth();
+
+  const handleLayoutChange = (currentLayout, allLayouts) => {
+    setLayouts(allLayouts);
+    try {
+      localStorage.setItem('grafana_dashboard_layouts_v2', JSON.stringify(allLayouts));
+    } catch (e) {}
   };
 
+  const resetLayout = () => {
+    setLayouts(DEFAULT_LAYOUTS);
+    try {
+      localStorage.removeItem('grafana_dashboard_layouts_v2');
+    } catch (e) {}
+  };
+
+  // WebSocket en vivo
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
@@ -368,16 +389,10 @@ export const Dashboard = () => {
           denial_reason: data.denialReason || null,
           timestamp: data.timestamp || new Date().toISOString()
         },
-        ...prev.slice(0, 11)
+        ...prev.slice(0, 14)
       ]);
 
       loadAnalytics();
-    } else if (event.type === 'new_alert') {
-      setActiveAlerts(prev => [event.data, ...prev]);
-      setStats(prev => ({ ...prev, activeAlerts: prev.activeAlerts + 1 }));
-    } else if (event.type === 'alert_resolved') {
-      setActiveAlerts(prev => prev.filter(a => a.id !== event.data.alertId));
-      setStats(prev => ({ ...prev, activeAlerts: Math.max(0, prev.activeAlerts - 1) }));
     }
   };
 
@@ -396,25 +411,21 @@ export const Dashboard = () => {
 
   const loadData = async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
       setIsRefreshing(true);
-      const [statsRes, logsRes, alertsRes, doorsRes] = await Promise.all([
+      const [statsRes, logsRes, doorsRes] = await Promise.all([
         apiClient('/access/logs/stats'),
-        apiClient('/access/logs?limit=12'),
-        apiClient('/alerts?is_resolved=false'),
+        apiClient('/access/logs?limit=15'),
         apiClient('/doors')
       ]);
 
       if (statsRes.success) setStats(prev => ({ ...prev, ...statsRes.data }));
       if (logsRes.success) setRecentLogs(logsRes.data || []);
-      if (alertsRes.success) setActiveAlerts(alertsRes.data || []);
       if (doorsRes.success) setDoors(doorsRes.data || []);
       await loadAnalytics();
       setLastRefreshTime(new Date());
     } catch (err) {
-      console.error('Error cargando datos del dashboard:', err);
+      console.error('Error cargando telemetría del dashboard:', err);
     } finally {
-      if (!silent) setLoading(false);
       setIsRefreshing(false);
     }
   };
@@ -433,58 +444,58 @@ export const Dashboard = () => {
 
   const isHardwareSensorOnline = stats.activeSensors > 0 || doors.some(d => d.is_hardware_active);
 
-  // Opciones de estilo Grafana auténtico para Chart.js
+  // Opciones de estilo Grafana auténtico de alto contraste (Como en Kubernetes & BI)
   const grafanaChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    animation: { duration: 250 },
     plugins: {
       legend: {
         position: 'top',
         align: 'end',
         labels: {
-          color: 'var(--text-secondary)',
-          font: { family: 'var(--font-ui)', size: 12, weight: '500' },
-          boxWidth: 10,
-          boxHeight: 10,
+          color: '#ffffff',
+          font: { family: 'var(--font-ui)', size: 12, weight: '600' },
+          boxWidth: 12,
+          boxHeight: 12,
           usePointStyle: true,
           pointStyle: 'circle'
         }
       },
       tooltip: {
-        backgroundColor: 'var(--bg-secondary)',
-        titleColor: 'var(--text-primary)',
-        bodyColor: 'var(--text-secondary)',
-        borderColor: 'var(--border)',
+        backgroundColor: '#181b1f',
+        titleColor: '#ffffff',
+        bodyColor: '#d8d9da',
+        borderColor: '#22252b',
         borderWidth: 1,
         padding: 10,
-        cornerRadius: 6,
-        titleFont: { family: 'var(--font-ui)', size: 13, weight: '600' },
+        cornerRadius: 4,
+        titleFont: { family: 'var(--font-ui)', size: 13, weight: '700' },
         bodyFont: { family: 'var(--font-ui)', size: 12 }
       }
     },
     scales: {
       x: {
-        grid: { color: 'var(--border)' },
-        ticks: { color: 'var(--text-muted)', font: { family: 'var(--font-ui)', size: 11.5 } }
+        grid: { color: 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
       },
       y: {
         beginAtZero: true,
-        grid: { color: 'var(--border)' },
+        grid: { color: 'rgba(255, 255, 255, 0.08)' },
         ticks: {
-          color: 'var(--text-muted)',
-          font: { family: 'var(--font-ui)', size: 11.5 },
+          color: '#d8d9da',
+          font: { family: 'var(--font-ui)', size: 11.5, weight: '500' },
           precision: 0
         }
       }
     }
   };
 
-  // 1. Datos gráfica de picos (Por hora o Por minuto)
+  // Datos TimeSeries (Curva de picos)
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
-    : (timeGranularity === 'minute' ? ['--:--'] : ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']);
+    : (timeGranularity === 'minute' ? ['--:--'] : ['07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00']);
 
   const picosData = {
     labels: timeSlots,
@@ -492,33 +503,33 @@ export const Dashboard = () => {
       {
         label: 'Accesos autorizados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.granted) : new Array(timeSlots.length).fill(0),
-        borderColor: '#2563eb',
-        backgroundColor: 'rgba(37, 99, 235, 0.15)',
+        borderColor: '#fede00', // Amarillo Grafana vivo
+        backgroundColor: 'rgba(254, 222, 0, 0.18)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
+        pointBackgroundColor: '#fede00',
         pointRadius: timeGranularity === 'minute' ? 1.5 : 3
       },
       {
-        label: 'Accesos denegados (infracciones)',
+        label: 'Infracciones / Denegados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.denied) : new Array(timeSlots.length).fill(0),
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+        borderColor: '#f2495c', // Rojo Grafana
+        backgroundColor: 'rgba(242, 73, 92, 0.22)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
+        pointBackgroundColor: '#f2495c',
         pointRadius: timeGranularity === 'minute' ? 1.5 : 3
       }
     ]
   };
 
-  // 2. Estudiantes en campus por carrera
-  const studentsPrograms = analytics.studentsByProgram?.length > 0
-    ? analytics.studentsByProgram
-    : [];
-  const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || 0), 0);
+  // Estudiantes en campus por carrera
+  const studentsPrograms = analytics.studentsByProgram?.length > 0 ? analytics.studentsByProgram : [];
+  const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || p.count || 0), 0);
 
-  // 3. Tráfico por bloque con cálculo de porcentajes
+  // Distribución por bloque
   const blockStats = analytics.byBlock?.length > 0
     ? analytics.byBlock
     : [
@@ -533,611 +544,456 @@ export const Dashboard = () => {
   const bloquesData = {
     labels: blockStats.map(b => {
       const pct = totalBlockAccesses > 0 ? Math.round((b.count / totalBlockAccesses) * 100) : 0;
-      return `${b.block_name} (${pct}%)`;
+      return `${b.block_name || b.name} (${pct}%)`;
     }),
     datasets: [
       {
         data: blockStats.map(b => b.count || 0),
-        backgroundColor: ['#002855', '#2563eb', '#38bdf8', '#8b5cf6'],
-        borderWidth: 1,
-        borderColor: 'var(--border)'
+        backgroundColor: ['#ff7800', '#73bf69', '#fede00', '#5794f2'], // Naranja, Verde, Amarillo, Azul (Como en la foto BI)
+        borderColor: '#181b1f',
+        borderWidth: 2
       }
     ]
   };
 
-  // Sparkline data arrays para las stat cards
   const hourlyCounts = analytics.hourly.map(h => h.total);
   const hourlyDenied = analytics.hourly.map(h => h.denied);
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* Barra de cabecera Grafana */}
+      {/* Barra superior de Grafana (Top Bar) */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
         borderRadius: 'var(--radius)',
-        padding: '14px 20px',
-        marginBottom: '20px',
+        padding: '12px 18px',
+        marginBottom: '16px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '14px'
+        gap: '12px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <BarChart3 size={22} style={{ color: 'var(--accent)' }} />
-            <div>
-              <h1 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Panel de Telemetría Grafana · Unilasallista
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Logo llama Grafana */}
+          <div style={{
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            background: 'linear-gradient(135deg, #ff7800 0%, #fede00 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#000',
+            fontWeight: 900,
+            fontSize: '16px',
+            boxShadow: '0 0 10px rgba(255, 120, 0, 0.4)'
+          }}>
+            🔥
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                Control de Acceso RFID y Telemetría Institucional
               </h1>
-              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                Métricas, curvas de afluencia y control de accesos en tiempo real
-              </p>
+              <span style={{ fontSize: '11px', color: '#8e8e8e' }}>▾</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '1px' }}>
+              Paneles en vivo desde Supabase · Grids redimensionables
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            padding: '3px 10px',
+            borderRadius: '4px',
+            backgroundColor: isHardwareSensorOnline ? 'rgba(115, 191, 105, 0.15)' : 'rgba(242, 73, 92, 0.15)',
+            color: isHardwareSensorOnline ? '#73bf69' : '#f2495c',
+            border: `1px solid ${isHardwareSensorOnline ? 'rgba(115, 191, 105, 0.4)' : 'rgba(242, 73, 92, 0.4)'}`
+          }}>
             <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              fontWeight: 500,
-              padding: '4px 10px',
-              borderRadius: '6px',
-              backgroundColor: isHardwareSensorOnline ? 'var(--status-ok-bg)' : 'var(--status-denied-bg)',
-              color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
-              border: `1px solid ${isHardwareSensorOnline ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
-            }}>
-              <span style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                backgroundColor: isHardwareSensorOnline ? '#10b981' : '#ef4444'
-              }} />
-              {isHardwareSensorOnline ? 'Lector RFID en línea' : 'Lector RFID desconectado'}
-            </span>
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              backgroundColor: isHardwareSensorOnline ? '#73bf69' : '#f2495c'
+            }} />
+            {isHardwareSensorOnline ? 'Lector RFID en línea' : 'Lector RFID desconectado'}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Refresco en vivo: <b>4s</b> ({formatTime(lastRefreshTime)})
+          <span style={{ fontSize: '12px', color: '#8e8e8e' }}>
+            Refresco: <b>4s</b> ({formatTime(lastRefreshTime)})
           </span>
+
+          <button
+            onClick={resetLayout}
+            className="btn btn-secondary btn-sm"
+            title="Restablecer cuadrícula a tamaño y posición por defecto"
+            style={{ fontSize: '12px', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+          >
+            <RotateCcw size={13} />
+            <span>Restablecer Grids</span>
+          </button>
 
           <button
             onClick={() => loadData()}
             className="btn btn-secondary btn-sm"
             disabled={isRefreshing}
-            style={{ fontSize: '12.5px', padding: '6px 12px' }}
+            style={{ fontSize: '12px', padding: '5px 12px' }}
           >
-            <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
+            <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />
             <span>Refrescar</span>
           </button>
 
-          <Link to="/monitor" className="btn btn-primary btn-sm" style={{ fontSize: '12.5px', padding: '6px 14px' }}>
+          <Link to="/monitor" className="btn btn-primary btn-sm" style={{ fontSize: '12px', padding: '5px 14px' }}>
             <Radio size={14} />
             <span>Escáner en vivo</span>
           </Link>
         </div>
       </div>
 
-      {/* Selector de Paneles Grafana Visibles (Show / Hide) */}
-      <div style={{
-        backgroundColor: 'var(--bg-secondary)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        padding: '10px 18px',
-        marginBottom: '20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '10px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          <SlidersHorizontal size={15} style={{ color: 'var(--accent)' }} />
-          <span>Paneles de gráficas activas:</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { key: 'picos', label: 'Curva de picos' },
-            { key: 'gauge', label: 'Medidor radial' },
-            { key: 'carreras', label: 'Bar gauge carreras' },
-            { key: 'heatmap', label: 'Mapa de calor' },
-            { key: 'bloques', label: 'Tráfico por bloque' },
-            { key: 'puertas', label: 'Ranking de puertas' }
-          ].map(p => (
-            <button
-              key={p.key}
-              onClick={() => togglePanel(p.key)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 500,
-                cursor: 'pointer',
-                border: visiblePanels[p.key] ? '1px solid var(--accent)' : '1px solid var(--border)',
-                backgroundColor: visiblePanels[p.key] ? 'var(--accent-soft)' : 'var(--bg-primary)',
-                color: visiblePanels[p.key] ? 'var(--accent)' : 'var(--text-muted)'
-              }}
-            >
-              {visiblePanels[p.key] ? <Eye size={13} /> : <EyeOff size={13} />}
-              <span>{p.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Fila de Stat Panels de Grafana (KPIs con Sparklines) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-        gap: '14px',
-        marginBottom: '24px'
-      }}>
-        {/* Accesos de hoy con Sparkline */}
-        <div style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #002855',
-          borderRadius: 'var(--radius)',
-          padding: '16px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-              Accesos de hoy
-            </span>
-            <Activity size={17} style={{ color: '#002855' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10px' }}>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                {stats.totalToday}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Registros reales
-              </div>
-            </div>
-            <GrafanaSparkline data={hourlyCounts} color="#2563eb" />
-          </div>
-        </div>
-
-        {/* Infracciones / Denegados con Sparkline */}
-        <div style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderLeft: stats.deniedToday > 0 ? '4px solid #ef4444' : '4px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '16px 18px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-              Accesos denegados
-            </span>
-            <XCircle size={17} style={{ color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-muted)' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '10px' }}>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                {stats.deniedToday}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Infracciones hoy
-              </div>
-            </div>
-            <GrafanaSparkline data={hourlyDenied} color="#ef4444" />
-          </div>
-        </div>
-
-        {/* Puntos de control */}
-        <div style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #2563eb',
-          borderRadius: 'var(--radius)',
-          padding: '16px 18px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-              Puntos de control
-            </span>
-            <DoorClosed size={17} style={{ color: '#2563eb' }} />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '10px', fontVariantNumeric: 'tabular-nums' }}>
-            {stats.totalDoors}
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            En {stats.totalRooms} salas y 4 bloques
-          </div>
-        </div>
-
-        {/* Población en campus */}
-        <div style={{
-          backgroundColor: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #10b981',
-          borderRadius: 'var(--radius)',
-          padding: '16px 18px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-              Población en campus
-            </span>
-            <Users size={17} style={{ color: '#10b981' }} />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '10px', fontVariantNumeric: 'tabular-nums' }}>
-            {totalStudentsInCampus}
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            Estudiantes presentes ahora
-          </div>
-        </div>
-      </div>
-
-      {/* FILA 1: TimeSeries (Curva de Afluencia) + Radial Gauge (Tasa de Aprobación) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: visiblePanels.picos && visiblePanels.gauge ? '1.7fr 1fr' : '1fr',
-        gap: '20px',
-        marginBottom: '20px'
-      }}>
-        {/* Panel 1: Curva de Afluencia TimeSeries */}
-        {visiblePanels.picos && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TrendingUp size={18} style={{ color: 'var(--accent)' }} />
-                  <span>Curva de afluencia y picos en tiempo real</span>
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Comportamiento del tráfico minuto a minuto y por horas
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => setTimeGranularity('hour')}
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    border: timeGranularity === 'hour' ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    backgroundColor: timeGranularity === 'hour' ? 'var(--accent-soft)' : 'var(--bg-primary)',
-                    color: timeGranularity === 'hour' ? 'var(--accent)' : 'var(--text-muted)'
-                  }}
-                >
-                  Por hora (hoy)
-                </button>
-                <button
-                  onClick={() => setTimeGranularity('minute')}
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: '5px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    border: timeGranularity === 'minute' ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    backgroundColor: timeGranularity === 'minute' ? 'var(--accent-soft)' : 'var(--bg-primary)',
-                    color: timeGranularity === 'minute' ? 'var(--accent)' : 'var(--text-muted)'
-                  }}
-                >
-                  Por minuto (reciente)
-                </button>
-              </div>
-            </div>
-
-            <div style={{ height: '240px' }}>
-              <Line data={picosData} options={grafanaChartOptions} />
-            </div>
-          </div>
-        )}
-
-        {/* Panel 2: Grafana Radial Gauge */}
-        {visiblePanels.gauge && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <GaugeIcon size={18} style={{ color: 'var(--accent)' }} />
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Medidor de aprobación
-              </div>
-            </div>
-
-            <GrafanaRadialGauge
-              value={stats.successRate}
-              label={`${stats.grantedToday} autorizados de ${stats.totalToday}`}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* FILA 2: Bar Gauge (Estudiantes por Carrera) + Donut (Tráfico por Bloque) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: visiblePanels.carreras && visiblePanels.bloques ? '1.4fr 1fr' : '1fr',
-        gap: '20px',
-        marginBottom: '20px'
-      }}>
-        {/* Panel 3: Grafana Bar Gauge */}
-        {visiblePanels.carreras && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <GraduationCap size={18} style={{ color: 'var(--accent)' }} />
-                  <span>Censo de estudiantes en campus por carrera</span>
-                </div>
-                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Bar gauge con conteo y porcentaje relativo de la población
-                </div>
-              </div>
-              <span style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
-                {totalStudentsInCampus} presentes
-              </span>
-            </div>
-
-            <GrafanaBarGauge items={studentsPrograms} total={totalStudentsInCampus} />
-          </div>
-        )}
-
-        {/* Panel 4: Grafana Donut Chart */}
-        {visiblePanels.bloques && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px'
-          }}>
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building2 size={18} style={{ color: 'var(--accent)' }} />
-                <span>Distribución por bloque</span>
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Afluencia y proporciones en los 4 bloques
-              </div>
-            </div>
-
-            <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Doughnut
-                data={bloquesData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                      labels: {
-                        color: 'var(--text-secondary)',
-                        font: { family: 'var(--font-ui)', size: 11.5 },
-                        boxWidth: 10,
-                        boxHeight: 10,
-                        usePointStyle: true
-                      }
-                    }
-                  }
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* FILA 3: Heatmap de Horas Pico + Ranking de Puertas */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: visiblePanels.heatmap && visiblePanels.puertas ? '1.5fr 1fr' : '1fr',
-        gap: '20px',
-        marginBottom: '20px'
-      }}>
-        {/* Panel 5: Grafana Heatmap */}
-        {visiblePanels.heatmap && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px'
-          }}>
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Flame size={18} style={{ color: '#f59e0b' }} />
-                <span>Mapa de calor de horas pico</span>
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Densidad histórica de concurrencia por día de la semana y hora del día
-              </div>
-            </div>
-
-            <GrafanaHeatmap data={analytics.heatmap} />
-          </div>
-        )}
-
-        {/* Panel 6: Ranking de Puertas con Mayor Tráfico */}
-        {visiblePanels.puertas && (
-          <div style={{
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px 22px'
-          }}>
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Layers size={18} style={{ color: 'var(--accent)' }} />
-                <span>Puntos de acceso más transitados</span>
-              </div>
-              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                Ranking de accesos registrados hoy
-              </div>
-            </div>
-
-            {(!analytics.topDoors || analytics.topDoors.length === 0) ? (
-              <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                No hay movimientos registrados hoy en las puertas.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {analytics.topDoors.map((door, idx) => {
-                  const maxDoor = analytics.topDoors[0]?.count || 1;
-                  const pct = maxDoor > 0 ? Math.round((door.count / maxDoor) * 100) : 0;
-                  return (
-                    <div key={door.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          #{idx + 1} {door.door_name}
-                        </span>
-                        <span style={{ color: 'var(--text-secondary)' }}>
-                          <b>{door.count}</b> accesos
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {door.room_name} ({door.block_name})
-                      </div>
-                      <div style={{ height: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#2563eb', borderRadius: '3px' }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tabla de Registros en Vivo (Estilo Grafana Loki Table) */}
-      <div style={{
-        backgroundColor: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        padding: '18px 20px'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={17} style={{ color: 'var(--accent)' }} />
-              <span>Registro de transacciones en tiempo real</span>
-            </h2>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              Transacciones capturadas en tiempo real por el sistema de control
-            </p>
-          </div>
-          <Link
-            to="/logs"
-            style={{
-              fontSize: '13px',
-              color: 'var(--accent)',
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
+      {/* CONTENEDOR REACT-GRID-LAYOUT RESIZABLE Y DRAGGABLE */}
+      <div ref={containerRef} style={{ width: '100%' }}>
+        {mounted && (
+          <ResponsiveGridLayout
+            width={containerWidth}
+            className="grafana-grid"
+            layouts={layouts}
+            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+            rowHeight={36}
+            isDraggable={true}
+            isResizable={true}
+            draggableHandle=".panel-drag-handle"
+            onLayoutChange={handleLayoutChange}
           >
-            <span>Ver historial completo</span>
-            <ChevronRight size={15} />
-          </Link>
-        </div>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Hora</th>
-                <th>Estado</th>
-                <th>Punto de acceso</th>
-                <th>Ubicación</th>
-                <th>Persona</th>
-                <th>Carrera / Área</th>
-                <th>Rol</th>
-                <th>Tarjeta RFID</th>
-                <th>Detalle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentLogs.length === 0 ? (
-                <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                      <ShieldCheck size={28} style={{ opacity: 0.5 }} />
-                      <div style={{ fontSize: '13.5px', fontWeight: 500 }}>No hay eventos de acceso registrados hoy</div>
-                      <div style={{ fontSize: '12.5px' }}>Pase una tarjeta por el lector o abra el escáner para comenzar.</div>
+            {/* 1. Stat Card: Accesos de Hoy */}
+            <div key="panel_total_stat" className="grafana-panel" style={{ borderLeft: '4px solid #5794f2' }}>
+              <div className="grafana-panel-header panel-drag-handle">
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Total Accesos Hoy</span>
+                <Activity size={15} style={{ color: '#5794f2' }} />
+              </div>
+              <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                      {stats.totalToday}
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                recentLogs.map((log, idx) => (
-                  <tr key={log.id || idx}>
-                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {formatTime(log.timestamp)}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span className={`badge ${log.granted ? 'badge-ok' : 'badge-denied'}`}>
-                        {log.granted ? 'Autorizado' : 'Denegado'}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {log.door_name || `Acceso #${log.door_id}`}
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                      {log.room_name || '—'}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <span style={{ fontWeight: 500 }}>{log.user_name || 'No enrolado'}</span>
-                      {log.user_document && log.user_document !== '—' && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '6px' }}>
-                          ({log.user_document})
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--accent)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                      {log.user_program && log.user_program !== '—' ? log.user_program : 'General'}
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
-                      {log.role_name || 'Estudiante'}
-                    </td>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {log.rfid_uid_raw || '—'}
-                    </td>
-                    <td style={{ color: log.granted ? 'var(--text-muted)' : 'var(--status-denied-text)', fontSize: '13px' }}>
-                      {log.granted ? 'Ingreso permitido' : (log.denial_reason || 'Rechazado')}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Registros verificados</div>
+                  </div>
+                  <GrafanaSparkline data={hourlyCounts} color="#5794f2" />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Stat Card: Infracciones / Denegados */}
+            <div key="panel_denied_stat" className="grafana-panel" style={{ borderLeft: stats.deniedToday > 0 ? '4px solid #f2495c' : '4px solid var(--border)' }}>
+              <div className="grafana-panel-header panel-drag-handle">
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Infracciones / Denegados</span>
+                <XCircle size={15} style={{ color: stats.deniedToday > 0 ? '#f2495c' : '#8e8e8e' }} />
+              </div>
+              <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: stats.deniedToday > 0 ? '#f2495c' : '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                      {stats.deniedToday}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Infracciones detectadas</div>
+                  </div>
+                  <GrafanaSparkline data={hourlyDenied} color="#f2495c" />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Stat Card: Población en Campus */}
+            <div key="panel_campus_stat" className="grafana-panel" style={{ borderLeft: '4px solid #73bf69' }}>
+              <div className="grafana-panel-header panel-drag-handle">
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Población en Campus</span>
+                <Users size={15} style={{ color: '#73bf69' }} />
+              </div>
+              <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                      {totalStudentsInCampus}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Estudiantes presentes</div>
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#73bf69', padding: '3px 8px', borderRadius: '4px', backgroundColor: 'rgba(115, 191, 105, 0.15)' }}>
+                    Censo en vivo
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Stat Card: Puntos de Control */}
+            <div key="panel_doors_stat" className="grafana-panel" style={{ borderLeft: '4px solid #00e5ff' }}>
+              <div className="grafana-panel-header panel-drag-handle">
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Puntos de Control</span>
+                <DoorClosed size={15} style={{ color: '#00e5ff' }} />
+              </div>
+              <div className="grafana-panel-body">
+                <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                  {stats.totalDoors}
+                </div>
+                <div style={{ fontSize: '11px', color: '#8e8e8e', marginTop: '2px' }}>
+                  En {stats.totalRooms} salas y 4 bloques
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Radial Gauge: Tasa de Aprobación */}
+            <div key="panel_radial_gauge" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <GaugeIcon size={15} style={{ color: '#73bf69' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Tasa de Aprobación</span>
+                </div>
+                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaRadialGauge
+                  value={stats.successRate}
+                  label={`${stats.grantedToday} autorizados de ${stats.totalToday}`}
+                />
+              </div>
+            </div>
+
+            {/* 6. TimeSeries: Curva de Afluencia y Picos */}
+            <div key="panel_timeseries" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <TrendingUp size={15} style={{ color: '#fede00' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Curva de Afluencia y Detección de Picos</span>
+                </div>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <button
+                    onClick={() => setTimeGranularity('hour')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: timeGranularity === 'hour' ? '1px solid #fede00' : '1px solid #22252b',
+                      backgroundColor: timeGranularity === 'hour' ? 'rgba(254, 222, 0, 0.2)' : '#181b1f',
+                      color: timeGranularity === 'hour' ? '#fede00' : '#8e8e8e'
+                    }}
+                  >
+                    Por hora
+                  </button>
+                  <button
+                    onClick={() => setTimeGranularity('minute')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: timeGranularity === 'minute' ? '1px solid #fede00' : '1px solid #22252b',
+                      backgroundColor: timeGranularity === 'minute' ? 'rgba(254, 222, 0, 0.2)' : '#181b1f',
+                      color: timeGranularity === 'minute' ? '#fede00' : '#8e8e8e'
+                    }}
+                  >
+                    Por minuto
+                  </button>
+                </div>
+              </div>
+              <div className="grafana-panel-body">
+                <div style={{ height: '100%', minHeight: '180px' }}>
+                  <Line data={picosData} options={grafanaChartOptions} />
+                </div>
+              </div>
+            </div>
+
+            {/* 7. Bar Gauge: Estudiantes en Campus por Carrera */}
+            <div key="panel_bar_gauge" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <GraduationCap size={15} style={{ color: '#73bf69' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Estudiantes por Carrera (Bar Gauge)</span>
+                </div>
+                <span style={{ fontSize: '11.5px', color: '#73bf69', fontWeight: 600 }}>
+                  {totalStudentsInCampus} alumnos en campus
+                </span>
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaBarGauge items={studentsPrograms} total={totalStudentsInCampus} />
+              </div>
+            </div>
+
+            {/* 8. Donut Chart: Distribución por Bloque */}
+            <div key="panel_blocks_donut" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Building2 size={15} style={{ color: '#ff7800' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Distribución por Bloque</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalBlockAccesses}</span>
+              </div>
+              <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
+                  <Doughnut
+                    data={bloquesData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            color: '#ffffff',
+                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 9. Heatmap: Horas Pico */}
+            <div key="panel_heatmap" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Flame size={15} style={{ color: '#fede00' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Mapa de Calor de Horas Pico (Heatmap)</span>
+                </div>
+                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaHeatmap data={analytics.heatmap} />
+              </div>
+            </div>
+
+            {/* 10. Ranking de Puertas */}
+            <div key="panel_top_doors" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Layers size={15} style={{ color: '#5794f2' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Puertas Más Transitadas</span>
+                </div>
+                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+              </div>
+              <div className="grafana-panel-body" style={{ overflowY: 'auto' }}>
+                {(!analytics.topDoors || analytics.topDoors.length === 0) ? (
+                  <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+                    Sin datos de puertas hoy
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {analytics.topDoors.map((door, idx) => {
+                      const maxDoor = analytics.topDoors[0]?.count || 1;
+                      const pct = maxDoor > 0 ? Math.round((door.count / maxDoor) * 100) : 0;
+                      return (
+                        <div key={door.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                            <span style={{ fontWeight: 600, color: '#ffffff' }}>
+                              #{idx + 1} {door.door_name || door.name}
+                            </span>
+                            <span style={{ color: '#5794f2', fontWeight: 700 }}>
+                              {door.count} accesos
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#8e8e8e' }}>
+                            {door.room_name} ({door.block_name})
+                          </div>
+                          <div style={{ height: '6px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#5794f2', borderRadius: '3px' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 11. Tabla Loki: Registros de Auditoría en Tiempo Real */}
+            <div key="panel_loki_table" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={15} style={{ color: '#5794f2' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Registro de Transacciones en Tiempo Real (Loki Table)</span>
+                </div>
+                <Link to="/logs" style={{ fontSize: '12px', color: '#5794f2', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <span>Auditoría completa</span>
+                  <ChevronRight size={13} />
+                </Link>
+              </div>
+              <div className="grafana-panel-body" style={{ overflowX: 'auto', padding: 0 }}>
+                <table className="data-table" style={{ fontSize: '12.5px' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '8px 12px' }}>Hora</th>
+                      <th style={{ padding: '8px 12px' }}>Estado</th>
+                      <th style={{ padding: '8px 12px' }}>Punto de acceso</th>
+                      <th style={{ padding: '8px 12px' }}>Ubicación</th>
+                      <th style={{ padding: '8px 12px' }}>Persona</th>
+                      <th style={{ padding: '8px 12px' }}>Carrera</th>
+                      <th style={{ padding: '8px 12px' }}>Rol</th>
+                      <th style={{ padding: '8px 12px' }}>UID Tarjeta</th>
+                      <th style={{ padding: '8px 12px' }}>Detalle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentLogs.map((log, idx) => (
+                      <tr key={log.id || idx}>
+                        <td style={{ padding: '8px 12px', color: '#8e8e8e', whiteSpace: 'nowrap' }}>
+                          {formatTime(log.timestamp)}
+                        </td>
+                        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '3px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            backgroundColor: log.granted ? 'rgba(115, 191, 105, 0.2)' : 'rgba(242, 73, 92, 0.2)',
+                            color: log.granted ? '#73bf69' : '#f2495c',
+                            border: `1px solid ${log.granted ? '#73bf69' : '#f2495c'}`
+                          }}>
+                            {log.granted ? 'AUTORIZADO' : 'DENEGADO'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap' }}>
+                          {log.door_name || `Acceso #${log.door_id}`}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#d8d9da', whiteSpace: 'nowrap' }}>
+                          {log.room_name || '—'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#ffffff', whiteSpace: 'nowrap' }}>
+                          {log.user_name || 'No enrolado'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#5794f2', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {log.user_program && log.user_program !== '—' ? log.user_program : 'General'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#8e8e8e', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                          {log.role_name || 'Estudiante'}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: '#fede00', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {log.rfid_uid_raw || '—'}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: log.granted ? '#8e8e8e' : '#f2495c', fontSize: '12px' }}>
+                          {log.granted ? 'Acceso concedido' : (log.denial_reason || 'Rechazado')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ResponsiveGridLayout>
+        )}
       </div>
     </div>
   );

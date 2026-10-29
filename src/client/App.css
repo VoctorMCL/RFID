@@ -1,55 +1,64 @@
 /* ===================================================================
-   Estilos Globales y Paleta Monocromática Oscura en Grises
-   Control de Acceso RFID — Corporación Universitaria Lasallista
+   Estilos Globales y Paleta Oficial Grafana — Unilasallista
+   Control de Acceso RFID y Telemetría Institucional
    =================================================================== */
 
 :root {
-  /* Paleta Oscura Neutra y Elegante (Sin fondos azules saturados) */
-  --bg-primary: #0b0d12;
-  --bg-secondary: #12151c;
-  --bg-tertiary: #191d27;
-  --bg-hover: #212735;
-  --bg-active: #2b3243;
-  --bg-card: #12151c;
+  /* Paleta Oscura Oficial Grafana (Como en las capturas) */
+  --bg-primary: #111217;
+  --bg-secondary: #181b1f;
+  --bg-tertiary: #22252b;
+  --bg-hover: #262c35;
+  --bg-active: #323844;
+  --bg-card: #181b1f;
 
-  /* Bordes Neutros */
-  --border: #222736;
-  --border-light: #2d3447;
-  --border-focus: #2563eb;
+  /* Bordes Grafana */
+  --border: #22252b;
+  --border-light: #2c323d;
+  --border-focus: #5794f2;
 
-  /* Tipografía Humana */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-dim: #475569;
+  /* Textos de Alto Contraste para Modo Oscuro */
+  --text-primary: #ffffff;
+  --text-secondary: #d8d9da;
+  --text-muted: #8e8e8e;
+  --text-dim: #6e6e6e;
 
-  /* Azul Oficial Unilasallista (Utilizado con moderación como acento, NO de fondo) */
-  --accent: #2563eb;
+  /* Colores Vívidos Oficiales de Grafana (Kubernetes & BI) */
+  --grafana-green: #73bf69;
+  --grafana-yellow: #fede00;
+  --grafana-blue: #5794f2;
+  --grafana-orange: #ff7800;
+  --grafana-red: #f2495c;
+  --grafana-cyan: #00e5ff;
+  --grafana-purple: #b877d9;
+
+  /* Azul Institucional Unilasallista */
+  --accent: #5794f2;
   --accent-unilasallista: #002855;
   --accent-hover: #3b82f6;
-  --accent-soft: rgba(37, 99, 235, 0.12);
-  --accent-border: rgba(37, 99, 235, 0.3);
+  --accent-soft: rgba(87, 148, 242, 0.12);
+  --accent-border: rgba(87, 148, 242, 0.35);
   --accent-text: #ffffff;
 
-  /* Estados de Seguridad con buen contraste */
-  --status-ok-bg: rgba(16, 185, 129, 0.1);
-  --status-ok-text: #34d399;
-  --status-ok-border: rgba(16, 185, 129, 0.25);
+  /* Estados de Seguridad */
+  --status-ok-bg: rgba(115, 191, 105, 0.15);
+  --status-ok-text: #73bf69;
+  --status-ok-border: rgba(115, 191, 105, 0.35);
 
-  --status-denied-bg: rgba(239, 68, 68, 0.1);
-  --status-denied-text: #f87171;
-  --status-denied-border: rgba(239, 68, 68, 0.25);
+  --status-denied-bg: rgba(242, 73, 92, 0.15);
+  --status-denied-text: #f2495c;
+  --status-denied-border: rgba(242, 73, 92, 0.35);
 
-  --status-alert-bg: rgba(245, 158, 11, 0.1);
-  --status-alert-text: #fbbf24;
-  --status-alert-border: rgba(245, 158, 11, 0.25);
+  --status-alert-bg: rgba(254, 222, 0, 0.15);
+  --status-alert-text: #fede00;
+  --status-alert-border: rgba(254, 222, 0, 0.35);
 
-  --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.3);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", Consolas, monospace;
@@ -746,4 +755,107 @@ input, select, textarea {
 .scan-stage-denied,
 .input-error {
   animation: vibrate-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* ===================================================================
+   SISTEMA DE GRIDS GRAFANA RESIZABLE & DRAGGABLE (REACT-GRID-LAYOUT)
+   =================================================================== */
+
+.grafana-grid {
+  position: relative;
+  transition: height 0.2s ease;
+}
+
+.grafana-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.grafana-panel:hover {
+  border-color: var(--border-light);
+}
+
+.grafana-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.panel-drag-handle {
+  cursor: grab;
+}
+
+.panel-drag-handle:active {
+  cursor: grabbing;
+}
+
+.grafana-panel-body {
+  flex: 1;
+  padding: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Manija de redimensión estilo Grafana (Esquina inferior derecha) */
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  bottom: 2px;
+  right: 2px;
+  cursor: se-resize;
+  background-color: transparent;
+  background-image: none;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+
+.react-grid-item:hover > .react-resizable-handle::after {
+  opacity: 1;
+  border-color: var(--grafana-blue);
+}
+
+/* Animación y sombreado al arrastrar o soltar */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(87, 148, 242, 0.15) !important;
+  border: 1px dashed var(--grafana-blue) !important;
+  border-radius: var(--radius) !important;
+  opacity: 0.9 !important;
+  transition-duration: 100ms;
+  z-index: 2;
+}
+
+.react-grid-item.resizing {
+  z-index: 100;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none !important;
+  z-index: 100;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
 }

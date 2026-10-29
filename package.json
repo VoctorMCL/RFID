@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "setup:db": "bash setup-db.sh",
     "reader:rpi": "python3 hardware/lector_rfid.py",
-    "reader:test": "python3 hardware/lector_rfid.py --uid"
+    "reader:test": "python3 hardware/lector_rfid.py --uid",
+    "seed:supabase": "node seed-supabase.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,6 +31,7 @@
     "react": "^19.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.3.1",
+    "react-grid-layout": "^2.3.0",
     "react-router-dom": "^7.18.4",
     "ws": "^8.18.0"
   },
