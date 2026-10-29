@@ -33,30 +33,30 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
-# 1. Asegurar compilación del frontend si no existe dist/
-if [ ! -d "$ROOT_DIR/frontend/dist" ] || [ ! -f "$ROOT_DIR/frontend/dist/index.html" ]; then
-    echo "📦 Compilando assets del frontend para modo servidor..."
-    cd "$ROOT_DIR/frontend" && npm run build
+# 1. Asegurar compilación del cliente si no existe dist/
+if [ ! -d "$ROOT_DIR/dist" ] || [ ! -f "$ROOT_DIR/dist/index.html" ]; then
+    echo "📦 Compilando assets del cliente en dist/..."
+    cd "$ROOT_DIR" && npm run build
 fi
 
-# 2. Iniciar Backend (Puerto 4000: API + WebSockets + Servidor Web SPA)
+# 2. Iniciar Servidor Unificado (Puerto 4000: API REST + WebSockets + Servidor SPA)
 echo "🚀 Iniciando Servidor Unificado (Puerto 4000)..."
-cd "$ROOT_DIR/backend"
-node src/server.js &
+cd "$ROOT_DIR"
+node src/server/server.js &
 BACKEND_PID=$!
 
 sleep 2
 
-# Verificar si el backend inició correctamente
+# Verificar si el servidor inició correctamente
 if ! kill -0 $BACKEND_PID 2>/dev/null; then
-    echo "❌ Error: El backend en puerto 4000 no pudo iniciar."
+    echo "❌ Error: El servidor en puerto 4000 no pudo iniciar."
     exit 1
 fi
 
-# 3. Iniciar opcionalmente Frontend Vite (Puerto 5173 para Hot-Reload en desarrollo)
+# 3. Iniciar opcionalmente Vite para Hot-Reload si se pasa --dev
 if [ "$1" == "--dev" ] || [ "$MODE" == "dev" ]; then
-    echo "⚛️  Iniciando servidor Vite de desarrollo en puerto 5173..."
-    cd "$ROOT_DIR/frontend"
+    echo "⚛️  Iniciando Vite dev server en puerto 5173..."
+    cd "$ROOT_DIR"
     npx vite --host 0.0.0.0 --port 5173 &
     FRONTEND_PID=$!
     sleep 2
@@ -81,7 +81,7 @@ echo "   • Celador/Porter: celador@lasallista.edu.co (o usuario: celador)"
 echo "   ℹ️  Estudiantes y profesores validan con carnet RFID en puertas."
 echo "================================================================"
 echo "Tip: Para dejar el servidor corriendo permanentemente en segundo plano,"
-echo "     ejecute: nohup npm run serve > server.log 2>&1 &"
+echo "     ejecute: nohup npm start > server.log 2>&1 &"
 echo "Presione [Ctrl+C] para detener el servidor."
 
 wait

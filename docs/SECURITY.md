@@ -88,7 +88,7 @@ Para garantizar que el personal de vigilancia y los cuerpos de socorro no queden
 ## 4. Sistema de Alertas por Correo Electrónico (Nodemailer)
 
 Cuando se produce un incidente de severidad `critical`:
-- El módulo [`backend/src/services/emailService.js`](file:///home/victormcl/Documents/RFID/backend/src/services/emailService.js) genera un correo formateado en HTML con membrete institucional.
+- El módulo [`src/server/services/emailService.js`](file:///home/victormcl/Documents/RFID/src/server/services/emailService.js) genera un correo formateado en HTML con membrete institucional.
 - **Destinatario:** Configurado en la variable `ALERT_EMAIL` (por defecto `vigilancia@lasallista.edu.co`).
 - **Contenido del Mensaje:**
   - Nivel de Severidad (🚨 Crítica).

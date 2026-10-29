@@ -36,7 +36,7 @@ El ecosistema aplica el principio de **menor privilegio** mediante una arquitect
 
 ### Comportamiento del Backend ante Intentos de Ingreso No Autorizados:
 Si alguien intenta ingresar en `/login` con el correo de un estudiante o profesor:
-- El controlador [`backend/src/controllers/authController.js`](file:///home/victormcl/Documents/RFID/backend/src/controllers/authController.js) comprueba el rol del usuario.
+- El controlador [`src/server/controllers/authController.js`](file:///home/victormcl/Documents/RFID/src/server/controllers/authController.js) comprueba el rol del usuario.
 - Si el rol no pertenece a la lista permitida (`['admin', 'rector', 'security', 'celador']`), el servidor aborta la petición y responde:
 
 ```http
@@ -104,4 +104,4 @@ sequenceDiagram
 - **Contraseñas Institucionales de Demostración:**
   - Contraseña unificada para cuentas de prueba y laboratorios: `acceso2026`.
   - El servidor valida indistintamente la coincidencia mediante el hash almacenado en base de datos o la llave institucional de homologación.
-- **Tokens de Contingencia:** Para garantizar operación sin internet, el middleware [`backend/src/middleware/auth.js`](file:///home/victormcl/Documents/RFID/backend/src/middleware/auth.js) valida tanto tokens estándar emitidos por `jsonwebtoken` como tokens de emergencia codificados en base64 con el prefijo `rfid_jwt_`, asegurando que la consola de seguridad nunca se quede bloqueada.
+- **Tokens de Contingencia:** Para garantizar operación sin internet, el middleware [`src/server/middleware/auth.js`](file:///home/victormcl/Documents/RFID/src/server/middleware/auth.js) valida tanto tokens estándar emitidos por `jsonwebtoken` como tokens de emergencia codificados en base64 con el prefijo `rfid_jwt_`, asegurando que la consola de seguridad nunca se quede bloqueada.

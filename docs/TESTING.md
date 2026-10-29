@@ -54,7 +54,7 @@ Se puede ejecutar una batería de pruebas automatizada de forma inmediata en la 
 
 ```bash
 node -e "
-const app = require('./backend/src/app');
+const app = require('./src/server/app');
 const server = app.listen(4002, async () => {
   const fetch = globalThis.fetch;
   const baseUrl = 'http://localhost:4002';

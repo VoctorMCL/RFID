@@ -11,7 +11,7 @@
 El diseño de datos del ecosistema resuelve tres desafíos fundamentales:
 1. **Estructura Dinámica del Campus:** Los espacios físicos no están pre-grabados rígidamente en el código. Las tablas jerárquicas `blocks` $\rightarrow$ `rooms` $\rightarrow$ `doors` permiten expandir la cobertura física a cualquier nuevo bloque o laboratorio de la universidad.
 2. **Jerarquía RBAC y Articulación Horaria:** Permite modelar tanto accesos globales irrestrictos (Rectoría, Fichas Maestras) como accesos condicionados a ventanas temporales exactas (`schedules`) para profesores y estudiantes.
-3. **Resiliencia con Cero Tiempo de Inactividad (Dual Engine):** Toda la lógica de datos está duplicada en memoria dentro de [`backend/src/config/db.js`](file:///home/victormcl/Documents/RFID/backend/src/config/db.js). Si PostgreSQL no está instalado, se reinicia o sufre cortes de red, el sistema transmuta instantáneamente al almacenamiento en RAM sin arrojar error al usuario.
+3. **Resiliencia con Cero Tiempo de Inactividad (Dual Engine):** Toda la lógica de datos está duplicada en memoria dentro de [`src/server/config/db.js`](file:///home/victormcl/Documents/RFID/src/server/config/db.js). Si PostgreSQL no está instalado, se reinicia o sufre cortes de red, el sistema transmuta instantáneamente al almacenamiento en RAM sin arrojar error al usuario.
 
 ---
 
@@ -274,6 +274,6 @@ Para asegurar que las búsquedas no degraden la meta de respuesta de **3 segundo
 ---
 
 ## 5. Scripts de Configuración y Semillas
-- **Creación de Esquema:** [`backend/src/config/schema.sql`](file:///home/victormcl/Documents/RFID/backend/src/config/schema.sql)
-- **Datos Semilla Institucionales:** [`backend/seeds/seed.sql`](file:///home/victormcl/Documents/RFID/backend/seeds/seed.sql)
+- **Creación de Esquema:** [`src/server/config/schema.sql`](file:///home/victormcl/Documents/RFID/src/server/config/schema.sql)
+- **Datos Semilla Institucionales:** [`src/server/seeds/seed.sql`](file:///home/victormcl/Documents/RFID/src/server/seeds/seed.sql)
 - **Automatización de Instalación:** [`setup-db.sh`](file:///home/victormcl/Documents/RFID/setup-db.sh)

@@ -30,21 +30,8 @@ El sistema es un ecosistema inteligente de control de acceso físico, gestión d
 
 ```
 RFID/
-├── backend/                     # Servidor Node.js + Express + WebSockets (puerto 4000)
-│   ├── src/
-│   │   ├── config/              # db.js (PostgreSQL con fallback automático en memoria)
-│   │   ├── controllers/         # blocks, rooms, doors, users, schedules, access, alerts
-│   │   ├── middleware/          # auth.js (JWT & verificación de roles)
-│   │   ├── routes/              # Endpoints de la API REST (/api)
-│   │   ├── services/            # wsService.js (WebSockets en tiempo real)
-│   │   ├── app.js
-│   │   └── server.js            # Punto de entrada del servidor HTTP + WS
-│   ├── seeds/                   # Semillas SQL institucionales
-│   ├── .env                     # Variables de entorno
-│   └── package.json
-│
-├── frontend/                    # SPA React 19 + Vite (puerto 5173)
-│   ├── src/
+├── src/
+│   ├── client/                  # Frontend SPA React 19 + Vite
 │   │   ├── api/client.js        # Cliente HTTP con tolerancia a fallos y fallback local
 │   │   ├── context/AuthContext  # Manejador de sesión y roles institucionales
 │   │   ├── components/Layout/   # Barra lateral comprimible (Sidebar) y Topbar
@@ -59,10 +46,23 @@ RFID/
 │   │   │   ├── Alerts.jsx       # Consola de resolución de alarmas críticas
 │   │   │   └── Login.jsx        # Selector rápido de roles de demostración (Admin / Celador)
 │   │   ├── App.css              # Tema monocromático oscuro en grises y animación de vibración
-│   │   └── main.jsx
-│   ├── vite.config.js           # Proxy hacia el backend en localhost:4000
-│   └── package.json
+│   │   ├── App.jsx              # Enrutador principal del cliente
+│   │   └── main.jsx             # Punto de montaje React
+│   │
+│   └── server/                  # Backend Node.js + Express + WebSockets (puerto 4000)
+│       ├── config/              # db.js (PostgreSQL con fallback automático en memoria)
+│       ├── controllers/         # blocks, rooms, doors, users, schedules, access, alerts
+│       ├── middleware/          # auth.js (JWT & verificación de roles)
+│       ├── routes/              # Endpoints de la API REST (/api)
+│       ├── seeds/               # Semillas SQL institucionales (seed.sql)
+│       ├── services/            # wsService.js (WebSockets) y emailService.js (alertas)
+│       ├── app.js               # Configuración Express (CORS, Helmet, API, estáticos dist/)
+│       └── server.js            # Entrypoint del servidor HTTP + WebSockets
 │
+├── api/                         # Función Serverless para despliegue en Vercel
+│   └── index.js                 # Exporta la API de Express directamente a Vercel
+│
+├── public/                      # Assets estáticos (favicon.svg, icons.svg)
 ├── hardware/                    # Scripts y Firmware para Hardware Físico
 │   ├── lector_rfid.py           # Cliente Python para Raspberry Pi / CrowPi 3 (RC522 por SPI)
 │   ├── esp32_rfid_firmware.ino  # Firmware Arduino/C++ para microcontroladores ESP32 por WiFi
@@ -81,6 +81,7 @@ RFID/
 │   ├── SECURITY.md              # Seguridad física, alarmas en Sala 1 y Ley 1581
 │   ├── HARDWARE.md              # Lector MFRC522, pinout SPI, ESP32 y Raspberry Pi
 │   ├── DEPLOYMENT.md            # Despliegue en producción y servicio systemd
+│   ├── VERCEL_DEPLOYMENT.md     # Despliegue oficial en Vercel + captura RFID
 │   ├── SEQUENCE_DIAGRAMS.md     # Diagramas de secuencia en Mermaid (SD-001..004)
 │   ├── ACTIVITIES.md            # Diagramas de actividad en Mermaid (AD-001..003)
 │   ├── UML.md                   # Diagrama de clases y componentes en Mermaid
@@ -92,7 +93,11 @@ RFID/
 │   ├── CONTRIBUTING.md          # Estándares de desarrollo y directrices de equipo
 │   └── decisions/               # Registros de Decisiones de Arquitectura (ADR-001..006)
 │
-├── start.sh                     # Lanzador unificado de todo el ecosistema (Backend + React)
+├── index.html                   # Entrypoint HTML raíz
+├── vite.config.mjs              # Configuración unificada de Vite
+├── vercel.json                  # Configuración de despliegue en la nube
+├── package.json                 # UN SOLO package.json raíz para todo el proyecto
+├── start.sh                     # Lanzador unificado de todo el ecosistema (Servidor + Web)
 ├── setup-db.sh                  # Script de configuración de PostgreSQL local (opcional)
 └── package.json                 # Monorepo scripts raíz ("npm start", etc.)
 ```

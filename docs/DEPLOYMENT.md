@@ -22,9 +22,9 @@
 
 ---
 
-## 2. Variables de Entorno ([`backend/.env`](file:///home/victormcl/Documents/RFID/backend/.env))
+## 2. Variables de Entorno ([`.env`](file:///home/victormcl/Documents/RFID/.env))
 
-El archivo de configuración se encuentra en `backend/.env`:
+El archivo de configuración se encuentra en `.env`:
 
 ```ini
 # Puerto del servidor HTTP y WebSockets
@@ -81,8 +81,8 @@ sudo bash setup-db.sh
 El script realiza:
 1. Creación del rol `victormcl` con contraseña `rfid2026`.
 2. Creación de la base de datos `rfid_db`.
-3. Ejecución del esquema DDL [`backend/src/config/schema.sql`](file:///home/victormcl/Documents/RFID/backend/src/config/schema.sql).
-4. Carga de los datos semilla institucionales [`backend/seeds/seed.sql`](file:///home/victormcl/Documents/RFID/backend/seeds/seed.sql).
+3. Ejecución del esquema DDL [`src/server/config/schema.sql`](file:///home/victormcl/Documents/RFID/src/server/config/schema.sql).
+4. Carga de los datos semilla institucionales [`src/server/seeds/seed.sql`](file:///home/victormcl/Documents/RFID/src/server/seeds/seed.sql).
 
 ---
 
@@ -91,10 +91,9 @@ El script realiza:
 Para compilar la aplicación React optimizada para producción:
 
 ```bash
-cd frontend
 npm run build
 ```
-Los artefactos estáticos (HTML minificado, CSS purgado y bundles JS con gzip < 108 kB) se generan en la carpeta `frontend/dist/`.
+Los artefactos estáticos (HTML minificado, CSS purgado y bundles JS con gzip < 108 kB) se generan en la carpeta `dist/`.
 
 ---
 
@@ -116,8 +115,8 @@ After=network.target postgresql.service
 [Service]
 Type=simple
 User=victormcl
-WorkingDirectory=/home/victormcl/Documents/RFID/backend
-ExecStart=/usr/bin/node src/server.js
+WorkingDirectory=/home/victormcl/Documents/RFID
+ExecStart=/usr/bin/node src/server/server.js
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
@@ -148,7 +147,7 @@ server {
 
     # Frontend estático compilado
     location / {
-        root /home/victormcl/Documents/RFID/frontend/dist;
+        root /home/victormcl/Documents/RFID/dist;
         index index.html;
         try_files $uri $uri/ /index.html;
     }
@@ -186,5 +185,5 @@ Para instrucciones detalladas sobre cómo desplegar el ecosistema en Vercel y ha
    ```
 3. **Restauración de Datos Semilla:**
    ```bash
-   psql -U victormcl -d rfid_db -f backend/seeds/seed.sql
+   psql -U victormcl -d rfid_db -f src/server/seeds/seed.sql
    ```

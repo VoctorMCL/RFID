@@ -27,8 +27,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Ruta a los estáticos compilados de React
-const frontendDist = path.join(__dirname, '../../frontend/dist');
+// Ruta a los estáticos compilados de React en la raíz
+const frontendDist = path.join(__dirname, '../../dist');
 app.use(express.static(frontendDist));
 
 // Health check

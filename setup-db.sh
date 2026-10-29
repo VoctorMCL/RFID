@@ -25,11 +25,11 @@ sudo -u postgres createdb rfid_db -O victormcl 2>/dev/null && echo "✅ Base de 
 
 # Ejecutar esquema
 echo "📋 Ejecutando esquema..."
-psql -U victormcl -d rfid_db -f "$(dirname "$0")/backend/src/config/schema.sql"
+psql -U victormcl -d rfid_db -f "$(dirname "$0")/src/server/config/schema.sql"
 
 # Ejecutar seeds
 echo "🌱 Insertando datos semilla..."
-psql -U victormcl -d rfid_db -f "$(dirname "$0")/backend/seeds/seed.sql"
+psql -U victormcl -d rfid_db -f "$(dirname "$0")/src/server/seeds/seed.sql"
 
 echo ""
 echo "✅ PostgreSQL configurado correctamente."

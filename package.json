@@ -1,24 +1,41 @@
 {
   "name": "rfid-access-ecosystem",
-  "version": "1.0.0",
-  "description": "Ecosistema Inteligente de Control de Acceso RFID y Monitoreo Institucional (Corporación Universitaria Lasallista)",
+  "version": "2.0.0",
+  "description": "Ecosistema Inteligente de Control de Acceso RFID y Monitoreo Institucional — Corporación Universitaria Lasallista",
   "private": true,
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
   "scripts": {
-    "start": "bash start.sh",
-    "serve": "node backend/src/server.js",
-    "build": "npm --prefix frontend run build",
-    "dev": "bash start.sh",
-    "dev:backend": "npm --prefix backend run dev",
-    "start:backend": "npm --prefix backend start",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build:frontend": "npm --prefix frontend run build",
+    "dev": "vite",
+    "dev:server": "node src/server/server.js",
+    "build": "vite build",
+    "start": "node src/server/server.js",
+    "serve": "node src/server/server.js",
+    "preview": "vite preview",
     "setup:db": "bash setup-db.sh",
     "reader:rpi": "python3 hardware/lector_rfid.py",
     "reader:test": "python3 hardware/lector_rfid.py --uid"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "express-validator": "^7.2.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^1.61.0",
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.13.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.4"
   },
   "keywords": [
     "rfid",

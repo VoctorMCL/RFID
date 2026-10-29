@@ -34,19 +34,17 @@ flowchart TD
 
 ## 2. Archivos de Configuración para Vercel Incluidos en el Repositorio
 
-1. **[`vercel.json`](file:///home/victormcl/Documents/RFID/vercel.json):** Configuración declarativa que indica a Vercel compilar el frontend hacia `frontend/dist` y redirigir todas las llamadas `/api/*` hacia la función serverless de Express:
+1. **[`vercel.json`](file:///home/victormcl/Documents/RFID/vercel.json):** Configuración declarativa que indica a Vercel compilar el frontend hacia `dist` y redirigir todas las llamadas `/api/*` hacia la función serverless de Express:
    ```json
    {
      "version": 2,
-     "buildCommand": "npm --prefix frontend run build",
-     "outputDirectory": "frontend/dist",
      "rewrites": [
        { "source": "/api/(.*)", "destination": "/api/index.js" },
        { "source": "/((?!api/).*)", "destination": "/index.html" }
      ]
    }
    ```
-2. **[`api/index.js`](file:///home/victormcl/Documents/RFID/api/index.js):** Puente que ejecuta la aplicación de Express ([`backend/src/app.js`](file:///home/victormcl/Documents/RFID/backend/src/app.js)) dentro del entorno Serverless de Vercel.
+2. **[`api/index.js`](file:///home/victormcl/Documents/RFID/api/index.js):** Puente que ejecuta la aplicación de Express ([`src/server/app.js`](file:///home/victormcl/Documents/RFID/src/server/app.js)) dentro del entorno Serverless de Vercel.
 
 ---
 
@@ -70,10 +68,10 @@ git push origin main
 ### Paso 3: Configuración del Proyecto (Project Settings)
 Vercel leerá automáticamente el archivo `vercel.json`, pero verifica los siguientes campos:
 
-* **Framework Preset:** `Vite` (o `Other`)
-* **Root Directory:** `./` *(Déjalo en la raíz, NO selecciones la carpeta frontend para que Vercel incluya la carpeta `api/`)*.
-* **Build Command:** `npm --prefix frontend run build` *(configurado automáticamente)*
-* **Output Directory:** `frontend/dist` *(configurado automáticamente)*
+* **Framework Preset:** `Vite`
+* **Root Directory:** `./` *(la raíz del proyecto)*
+* **Build Command:** `npm run build`
+* **Output Directory:** `dist`
 * **Install Command:** `npm install`
 
 ### Paso 4: Variables de Entorno (Opcional)
