@@ -1,7 +1,8 @@
 -- =============================================================================
 -- BASE DE DATOS POSTGRESQL — SUPABASE (CONTROL DE ACCESO RFID)
 -- Corporación Universitaria Lasallista
--- Esquema Oficial sin sensores de cámaras ni movimiento PIR
+-- Campus Real: Bloques A, B, C y Administrativo
+-- Tablas Operativas 100% Vacías — Solo Usuarios Iniciales y Espacios Fijos
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -55,7 +56,7 @@ CREATE INDEX idx_users_role ON users(role_id);
 CREATE INDEX idx_users_document ON users(document_id);
 
 -- =============================================================================
--- 3. TABLA: BLOQUES DEL CAMPUS (Datos Fijos Institucionales)
+-- 3. TABLA: BLOQUES DEL CAMPUS (4 Bloques Institucionales)
 -- =============================================================================
 CREATE TABLE blocks (
     id SERIAL PRIMARY KEY,
@@ -67,14 +68,14 @@ CREATE TABLE blocks (
 );
 
 -- =============================================================================
--- 4. TABLA: SALAS Y ESPACIOS (Salones, Salas de PCs y Laboratorio de Animales)
+-- 4. TABLA: SALAS Y ESPACIOS
 -- =============================================================================
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
     name VARCHAR(150) NOT NULL,
     floor INTEGER DEFAULT 1,
-    room_type VARCHAR(50) DEFAULT 'general' CHECK (room_type IN ('general', 'lab_pcs', 'lab_animales', 'biblioteca', 'administrativo', 'auditorio')),
+    room_type VARCHAR(50) DEFAULT 'general',
     has_alarm BOOLEAN DEFAULT FALSE,
     security_status VARCHAR(30) DEFAULT 'normal' CHECK (security_status IN ('normal', 'armed', 'alert', 'lockdown')),
     description TEXT,
@@ -85,13 +86,13 @@ CREATE TABLE rooms (
 CREATE INDEX idx_rooms_block ON rooms(block_id);
 
 -- =============================================================================
--- 5. TABLA: PUERTAS Y PUNTOS DE CONTROL (Entrada Principal y Salones)
+-- 5. TABLA: PUERTAS Y PUNTOS DE ACCESO (Cada acceso físico a un espacio)
 -- =============================================================================
 CREATE TABLE doors (
     id SERIAL PRIMARY KEY,
     room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     name VARCHAR(150) NOT NULL,
-    door_type VARCHAR(30) DEFAULT 'puerta_sencilla' CHECK (door_type IN ('puerta_sencilla', 'puerta_doble')),
+    door_type VARCHAR(50) DEFAULT 'acceso',
     hardware_ip VARCHAR(45) DEFAULT '192.168.1.100',
     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
@@ -103,7 +104,7 @@ CREATE TABLE doors (
 CREATE INDEX idx_doors_room ON doors(room_id);
 
 -- =============================================================================
--- 6. TABLA: TARJETAS RFID (Carnets Físicos — Vacía inicialmente)
+-- 6. TABLA: TARJETAS RFID (Carnets Físicos — Vacía para enrolamiento real)
 -- =============================================================================
 CREATE TABLE rfid_cards (
     id SERIAL PRIMARY KEY,
@@ -189,7 +190,7 @@ INSERT INTO roles (id, name, display_name, global_access, description) VALUES
 (3, 'rector', 'Rectora / Alta Dirección', TRUE, 'Acceso total a todas las dependencias del campus.'),
 (4, 'professor', 'Profesor / Docente', FALSE, 'Acceso condicionado a articulación horaria de clases.'),
 (5, 'student', 'Estudiante', FALSE, 'Acceso a salas de biblioteca y laboratorios según horario.'),
-(6, 'admin_staff', 'Personal Administrativo', FALSE, 'Acceso a oficinas y bloques administrativos.');
+(6, 'admin_staff', 'Personal Administrativo', FALSE, 'Acceso a oficinas y dependencias administrativas.');
 
 SELECT setval('roles_id_seq', (SELECT MAX(id) FROM roles));
 
@@ -201,54 +202,126 @@ INSERT INTO users (id, first_name, last_name, email, password_hash, document_id,
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 
--- 3. Bloques Fijos del Campus (4 Bloques)
+-- 3. Bloques del Campus (4 Bloques)
 INSERT INTO blocks (id, name, description, location_info) VALUES
-(1, 'Bloque A', 'Aulas generales de clase', 'Costado Norte'),
-(2, 'Bloque B', 'Aulas de clase y Biblioteca Central', 'Costado Sur'),
-(3, 'Bloque C', 'Aulas de clase y Salas de Cómputo / PCs', 'Costado Occidental'),
-(4, 'Bloque Administrativo', 'Oficinas, Salas de PCs y Laboratorios de Animales / Veterinaria', 'Edificio Central');
+(1, 'Bloque A', 'Aulas de clase y salas de cómputo', 'Costado Norte'),
+(2, 'Bloque B', 'Aulas de clase y sala de idiomas', 'Costado Sur'),
+(3, 'Bloque C', 'Aulas de clase, salas de cómputo y laboratorios de hardware', 'Costado Occidental'),
+(4, 'Bloque Administrativo', 'Oficinas administrativas, salas de cómputo y laboratorio de alimentos', 'Edificio Central');
 
 SELECT setval('blocks_id_seq', (SELECT MAX(id) FROM blocks));
 
--- 4. Salas y Espacios Fijos por Bloque
+-- 4. Salas y Espacios por Bloque
 INSERT INTO rooms (id, block_id, name, floor, room_type, has_alarm, security_status, description) VALUES
--- Bloque A (Aulas)
+-- Bloque A (14 salones)
 (1, 1, 'Salón A-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
 (2, 1, 'Salón A-102', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
-(3, 1, 'Salón A-201', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(3, 1, 'Salón A-103', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(4, 1, 'Salón A-104', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(5, 1, 'Salón A-105', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(6, 1, 'Salón A-201', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(7, 1, 'Salón A-202', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(8, 1, 'Salón A-203', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(9, 1, 'Salón A-204', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(10, 1, 'Salón A-205', 2, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo con PCs - Piso 2'),
+(11, 1, 'Salón A-301', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(12, 1, 'Salón A-302', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(13, 1, 'Salón A-303', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(14, 1, 'Salón A-304', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
 
--- Bloque B (Aulas y Biblioteca)
-(4, 2, 'Salón B-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
-(5, 2, 'Salón B-102', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
-(6, 2, 'Biblioteca Central', 1, 'biblioteca', FALSE, 'normal', 'Biblioteca institucional y salas de estudio'),
+-- Bloque B (14 salones)
+(15, 2, 'Salón B-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(16, 2, 'Salón B-102', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(17, 2, 'Salón B-103', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(18, 2, 'Salón B-104', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(19, 2, 'Salón B-105', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(20, 2, 'Salón B-201', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(21, 2, 'Salón B-202', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(22, 2, 'Salón B-203', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(23, 2, 'Salón B-204', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(24, 2, 'Salón B-205', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(25, 2, 'Salón B-301', 3, 'idiomas', FALSE, 'normal', 'Salón de Idiomas / Inglés - Piso 3'),
+(26, 2, 'Salón B-302', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(27, 2, 'Salón B-303', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(28, 2, 'Salón B-304', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
 
--- Bloque C (Aulas y Salas de PCs)
-(7, 3, 'Salón C-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
-(8, 3, 'Sala de Cómputo C-1', 1, 'lab_pcs', TRUE, 'armed', 'Laboratorio principal de informática y desarrollo'),
-(9, 3, 'Sala de Cómputo C-2', 2, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo y redes - Piso 2'),
+-- Bloque C (Salones, Salas de PCs, Laboratorio de Hardware y Aula Máxima)
+(29, 3, 'Aula Máxima', 1, 'auditorio', FALSE, 'normal', 'Auditorio principal para eventos institucionales - Piso 1'),
+(30, 3, 'Salón C-105', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(31, 3, 'Sala de Cómputo C-201', 2, 'lab_pcs', TRUE, 'normal', 'Laboratorio de informática y desarrollo - Piso 2'),
+(32, 3, 'Sala de Cómputo C-202', 2, 'lab_pcs', TRUE, 'normal', 'Laboratorio de informática y redes - Piso 2'),
+(33, 3, 'Salón C-203', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(34, 3, 'Salón C-204', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(35, 3, 'Salón C-205', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+(36, 3, 'Salón C-301', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(37, 3, 'Salón C-302', 3, 'general', FALSE, 'normal', 'Aula de clase general - Piso 3'),
+(38, 3, 'Laboratorio de Hardware 1', 3, 'lab_hardware', TRUE, 'normal', 'Laboratorio especializado en arquitectura y hardware - Piso 3'),
+(39, 3, 'Laboratorio de Hardware 2', 3, 'lab_hardware', TRUE, 'normal', 'Laboratorio especializado en arquitectura y hardware - Piso 3'),
 
--- Bloque Administrativo (Oficinas, PCs y Lab Animales)
-(10, 4, 'Entrada Principal Campus', 1, 'general', FALSE, 'normal', 'Acceso general institucional al campus'),
-(11, 4, 'Decanatura y Profesores', 2, 'administrativo', FALSE, 'normal', 'Oficinas docentes y administrativas'),
-(12, 4, 'Sala de Cómputo Administrativa', 1, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo para personal administrativo'),
-(13, 4, 'Laboratorio de Animales y Veterinaria', 1, 'lab_animales', TRUE, 'armed', 'Laboratorio especializado de Medicina Veterinaria y Zootecnia');
+-- Bloque Administrativo (Laboratorio de Alimentos, Salas de PCs y Oficinas)
+(40, 4, 'Laboratorio de Alimentos', 1, 'lab_alimentos', TRUE, 'normal', 'Laboratorio especializado en ciencias de alimentos'),
+(41, 4, 'Sala de Cómputo Administrativa', 1, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo para dependencias administrativas'),
+(42, 4, 'Decanatura', 2, 'administrativo', FALSE, 'normal', 'Oficinas de decanatura y atención académica'),
+(43, 4, 'Sala de Profesores', 2, 'administrativo', FALSE, 'normal', 'Sala de trabajo docente'),
+(44, 4, 'Administración y Cartera', 2, 'administrativo', FALSE, 'normal', 'Oficinas de gestión financiera y cartera');
 
 SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
 
--- 5. Puertas Inteligentes Preparadas para Escaneo RFID (ID 1 es la Entrada Principal vinculada al CrowPi)
+-- 5. Puertas y Puntos de Acceso (Cada acceso físico a los espacios)
 INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
-(1, 10, 'Entrada Principal', 'puerta_sencilla', 'online', TRUE),
-(2, 1, 'Puerta Salón A-101', 'puerta_sencilla', 'online', TRUE),
-(3, 2, 'Puerta Salón A-102', 'puerta_sencilla', 'online', TRUE),
-(4, 3, 'Puerta Salón A-201', 'puerta_sencilla', 'online', TRUE),
-(5, 4, 'Puerta Salón B-101', 'puerta_sencilla', 'online', TRUE),
-(6, 5, 'Puerta Salón B-102', 'puerta_sencilla', 'online', TRUE),
-(7, 6, 'Puerta Biblioteca Central', 'puerta_doble', 'online', TRUE),
-(8, 7, 'Puerta Salón C-101', 'puerta_sencilla', 'online', TRUE),
-(9, 8, 'Puerta Sala de Cómputo C-1', 'puerta_doble', 'online', TRUE),
-(10, 9, 'Puerta Sala de Cómputo C-2', 'puerta_sencilla', 'online', TRUE),
-(11, 11, 'Puerta Decanatura y Profesores', 'puerta_sencilla', 'online', TRUE),
-(12, 12, 'Puerta Sala de Cómputo Administrativa', 'puerta_sencilla', 'online', TRUE),
-(13, 13, 'Puerta Laboratorio de Animales y Veterinaria', 'puerta_doble', 'online', TRUE);
+-- Bloque A (1 acceso por salón)
+(1, 1, 'Puerta Salón A-101', 'acceso', 'online', TRUE),
+(2, 2, 'Puerta Salón A-102', 'acceso', 'online', TRUE),
+(3, 3, 'Puerta Salón A-103', 'acceso', 'online', TRUE),
+(4, 4, 'Puerta Salón A-104', 'acceso', 'online', TRUE),
+(5, 5, 'Puerta Salón A-105', 'acceso', 'online', TRUE),
+(6, 6, 'Puerta Salón A-201', 'acceso', 'online', TRUE),
+(7, 7, 'Puerta Salón A-202', 'acceso', 'online', TRUE),
+(8, 8, 'Puerta Salón A-203', 'acceso', 'online', TRUE),
+(9, 9, 'Puerta Salón A-204', 'acceso', 'online', TRUE),
+(10, 10, 'Puerta Salón A-205 (PCs)', 'acceso', 'online', TRUE),
+(11, 11, 'Puerta Salón A-301', 'acceso', 'online', TRUE),
+(12, 12, 'Puerta Salón A-302', 'acceso', 'online', TRUE),
+(13, 13, 'Puerta Salón A-303', 'acceso', 'online', TRUE),
+(14, 14, 'Puerta Salón A-304', 'acceso', 'online', TRUE),
+
+-- Bloque B (1 acceso por salón)
+(15, 15, 'Puerta Salón B-101', 'acceso', 'online', TRUE),
+(16, 16, 'Puerta Salón B-102', 'acceso', 'online', TRUE),
+(17, 17, 'Puerta Salón B-103', 'acceso', 'online', TRUE),
+(18, 18, 'Puerta Salón B-104', 'acceso', 'online', TRUE),
+(19, 19, 'Puerta Salón B-105', 'acceso', 'online', TRUE),
+(20, 20, 'Puerta Salón B-201', 'acceso', 'online', TRUE),
+(21, 21, 'Puerta Salón B-202', 'acceso', 'online', TRUE),
+(22, 22, 'Puerta Salón B-203', 'acceso', 'online', TRUE),
+(23, 23, 'Puerta Salón B-204', 'acceso', 'online', TRUE),
+(24, 24, 'Puerta Salón B-205', 'acceso', 'online', TRUE),
+(25, 25, 'Puerta Salón B-301 (Inglés)', 'acceso', 'online', TRUE),
+(26, 26, 'Puerta Salón B-302', 'acceso', 'online', TRUE),
+(27, 27, 'Puerta Salón B-303', 'acceso', 'online', TRUE),
+(28, 28, 'Puerta Salón B-304', 'acceso', 'online', TRUE),
+
+-- Bloque C
+(29, 29, 'Aula Máxima - Acceso 1', 'acceso', 'online', TRUE),
+(30, 29, 'Aula Máxima - Acceso 2', 'acceso', 'online', TRUE),
+(31, 30, 'Puerta Salón C-105', 'acceso', 'online', TRUE),
+(32, 31, 'Puerta Sala de Cómputo C-201', 'acceso', 'online', TRUE),
+(33, 32, 'Puerta Sala de Cómputo C-202', 'acceso', 'online', TRUE),
+(34, 33, 'Puerta Salón C-203', 'acceso', 'online', TRUE),
+(35, 34, 'Puerta Salón C-204', 'acceso', 'online', TRUE),
+(36, 35, 'Puerta Salón C-205', 'acceso', 'online', TRUE),
+(37, 36, 'Puerta Salón C-301', 'acceso', 'online', TRUE),
+(38, 37, 'Puerta Salón C-302', 'acceso', 'online', TRUE),
+(39, 38, 'Puerta Laboratorio de Hardware 1', 'acceso', 'online', TRUE),
+(40, 39, 'Puerta Laboratorio de Hardware 2', 'acceso', 'online', TRUE),
+
+-- Bloque Administrativo
+(41, 40, 'Laboratorio de Alimentos - Acceso 1', 'acceso', 'online', TRUE),
+(42, 40, 'Laboratorio de Alimentos - Acceso 2', 'acceso', 'online', TRUE),
+(43, 41, 'Puerta Sala de Cómputo Administrativa', 'acceso', 'online', TRUE),
+(44, 42, 'Puerta Decanatura', 'acceso', 'online', TRUE),
+(45, 43, 'Puerta Sala de Profesores', 'acceso', 'online', TRUE),
+(46, 44, 'Administración y Cartera - Acceso 1', 'acceso', 'online', TRUE),
+(47, 44, 'Administración y Cartera - Acceso 2', 'acceso', 'online', TRUE);
 
 SELECT setval('doors_id_seq', (SELECT MAX(id) FROM doors));

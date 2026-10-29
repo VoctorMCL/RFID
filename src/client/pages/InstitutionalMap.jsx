@@ -45,7 +45,7 @@ export const InstitutionalMap = () => {
   });
   const [doorForm, setDoorForm] = useState({
     name: '',
-    door_type: 'puerta_sencilla',
+    door_type: 'acceso',
     hardware_ip: '192.168.1.100',
     mac_address: 'AA:BB:CC:DD:EE:01'
   });
@@ -144,7 +144,7 @@ export const InstitutionalMap = () => {
         setIsDoorModalOpen(false);
         setDoorForm({
           name: '',
-          door_type: 'puerta_sencilla',
+          door_type: 'acceso',
           hardware_ip: '192.168.1.100',
           mac_address: 'AA:BB:CC:DD:EE:01'
         });
@@ -408,7 +408,7 @@ export const InstitutionalMap = () => {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{d.name}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        Tipo: {d.door_type === 'puerta_doble' ? 'Puerta Doble' : 'Puerta de una'}
+                        Acceso ID: {d.id} ({d.door_type || 'acceso'})
                       </div>
                     </div>
                     <span className="badge badge-ok">ONLINE</span>
@@ -598,14 +598,15 @@ export const InstitutionalMap = () => {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Tipo de Puerta</label>
+            <label className="form-label">Tipo de Acceso</label>
             <select
               className="form-select"
               value={doorForm.door_type}
               onChange={e => setDoorForm({ ...doorForm, door_type: e.target.value })}
             >
-              <option value="puerta_sencilla">Puerta de una (Sencilla)</option>
-              <option value="puerta_doble">Puerta Doble</option>
+              <option value="acceso">Acceso Estándar</option>
+              <option value="acceso_1">Acceso 1</option>
+              <option value="acceso_2">Acceso 2</option>
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
