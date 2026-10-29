@@ -122,7 +122,7 @@ export const Alerts = () => {
         <div className="card-header">
           <div className="card-title">
             <ShieldAlert size={18} />
-            <span>Panel de Control de Alarmas Físicas (Prototipo Sala de Informática 1)</span>
+            <span>Panel de Control de Alarmas Físicas — Sala de Informática 1 y Áreas Críticas</span>
           </div>
           <span className="badge badge-alert">CENTRO DE CONTROL ACTIVO</span>
         </div>

@@ -23,6 +23,17 @@ export const useWebSocket = (onMessageCallback) => {
         const customWs = localStorage.getItem('rfid_ws_url');
         const customApi = localStorage.getItem('rfid_api_url');
 
+        // En dominios en la nube como rfid.victormcl.me o vercel.app, la sincronización
+        // en tiempo real opera mediante el motor serverless de alta velocidad de Monitor
+        const isCloudDeployment = typeof window !== 'undefined' && (
+          window.location.hostname.includes('victormcl.me') ||
+          window.location.hostname.includes('vercel.app')
+        );
+        if (isCloudDeployment && !customWs) {
+          if (isMounted) setIsConnected(false);
+          return;
+        }
+
         if (customWs && customWs.trim()) {
           wsUrl = customWs.trim();
         } else if (customApi && customApi.trim()) {

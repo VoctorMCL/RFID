@@ -26,11 +26,11 @@ except ImportError:
     HARDWARE_DISPONIBLE = False
 
 # ============================ CONFIGURACIÓN ============================
-# Por defecto conecta directamente a la plataforma en la nube (Vercel)
+# Por defecto conecta directamente a la plataforma en la nube (rfid.victormcl.me)
 # Sin necesidad de correr servidores locales en tu laptop o en la CrowPi.
 DEFAULT_API_URL = os.environ.get(
     "RFID_SERVER_URL",
-    "https://frontend-liart-chi-z3wqu7dhmw.vercel.app/api/access/validate"
+    "https://rfid.victormcl.me/api/access/validate"
 )
 DEFAULT_DOOR_ID = 1  # 1 = Puerta Principal — Sala de Informática 1
 SEGUNDOS_ENTRE_LECTURAS = 1.5

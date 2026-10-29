@@ -275,7 +275,7 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        {/* Estado de Seguridad por Salas (Prototipo Sala 1 y Laboratorios) */}
+        {/* Estado de Seguridad por Salas — Laboratorios y Campus */}
         <div className="card">
           <div className="card-header">
             <div className="card-title">

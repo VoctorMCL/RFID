@@ -100,19 +100,61 @@ let nextIds = {
 };
 
 // Inicialización de PostgreSQL
+const isRemotePg = process.env.DATABASE_URL &&
+  !process.env.DATABASE_URL.includes('localhost') &&
+  !process.env.DATABASE_URL.includes('127.0.0.1');
+
 try {
-  pool = new Pool({
+  const poolConfig = {
     connectionString: process.env.DATABASE_URL || 'postgresql://victormcl:rfid2026@localhost:5432/rfid_db',
-    connectionTimeoutMillis: 2000
-  });
+    connectionTimeoutMillis: 3000
+  };
+
+  if (isRemotePg) {
+    poolConfig.ssl = { rejectUnauthorized: false };
+  }
+
+  pool = new Pool(poolConfig);
+
+  const initDbFromPostgres = async () => {
+    if (!pool || useMemoryStore) return;
+    try {
+      const [rolesRes, usersRes, blocksRes, roomsRes, doorsRes, cardsRes, schedRes, logsRes, alertsRes] = await Promise.allSettled([
+        pool.query('SELECT * FROM roles ORDER BY id'),
+        pool.query('SELECT * FROM users ORDER BY id'),
+        pool.query('SELECT * FROM blocks ORDER BY id'),
+        pool.query('SELECT * FROM rooms ORDER BY id'),
+        pool.query('SELECT * FROM doors ORDER BY id'),
+        pool.query('SELECT * FROM rfid_cards ORDER BY id'),
+        pool.query('SELECT * FROM schedules ORDER BY id'),
+        pool.query('SELECT * FROM access_logs ORDER BY id DESC LIMIT 100'),
+        pool.query('SELECT * FROM alerts ORDER BY id DESC LIMIT 50')
+      ]);
+
+      if (rolesRes.status === 'fulfilled' && rolesRes.value.rows?.length > 0) memoryDb.roles = rolesRes.value.rows;
+      if (usersRes.status === 'fulfilled' && usersRes.value.rows?.length > 0) memoryDb.users = usersRes.value.rows;
+      if (blocksRes.status === 'fulfilled' && blocksRes.value.rows?.length > 0) memoryDb.blocks = blocksRes.value.rows;
+      if (roomsRes.status === 'fulfilled' && roomsRes.value.rows?.length > 0) memoryDb.rooms = roomsRes.value.rows;
+      if (doorsRes.status === 'fulfilled' && doorsRes.value.rows?.length > 0) memoryDb.doors = doorsRes.value.rows;
+      if (cardsRes.status === 'fulfilled' && cardsRes.value.rows?.length > 0) memoryDb.rfid_cards = cardsRes.value.rows;
+      if (schedRes.status === 'fulfilled' && schedRes.value.rows?.length > 0) memoryDb.schedules = schedRes.value.rows;
+      if (logsRes.status === 'fulfilled' && logsRes.value.rows?.length > 0) memoryDb.access_logs = logsRes.value.rows;
+      if (alertsRes.status === 'fulfilled' && alertsRes.value.rows?.length > 0) memoryDb.alerts = alertsRes.value.rows;
+
+      console.log('✅ Base de datos PostgreSQL conectada y sincronizada.');
+    } catch (err) {
+      console.warn('⚠️ No se pudieron precargar tablas de PostgreSQL:', err.message);
+    }
+  };
 
   pool.query('SELECT 1', (err) => {
     if (err) {
-      console.warn('⚠️  PostgreSQL no conectado (ejecute setup-db.sh para configurarlo).');
-      console.log('🔄 Activando modo Storage en Memoria con datos institucionales completos.');
+      console.warn('⚠️  PostgreSQL no conectado. Activando modo almacenamiento institucional en memoria.');
       useMemoryStore = true;
     } else {
-      console.log('📦 Conectado exitosamente a PostgreSQL (rfid_db)');
+      console.log('📦 Conectado exitosamente a PostgreSQL.');
+      useMemoryStore = false;
+      initDbFromPostgres();
     }
   });
 } catch (e) {

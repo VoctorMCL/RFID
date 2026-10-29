@@ -170,6 +170,15 @@ const validateAccess = async (req, res) => {
 
     db.memoryDb.access_logs.unshift(logEntry);
 
+    // Persistencia asíncrona en PostgreSQL si la base de datos está conectada
+    if (!db.useMemory && db.pool) {
+      db.pool.query(
+        `INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, timestamp, access_method, granted, denial_reason, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [logEntry.user_id, logEntry.door_id, logEntry.rfid_card_id, logEntry.rfid_uid_raw, logEntry.timestamp, logEntry.access_method, logEntry.granted, logEntry.denial_reason, logEntry.notes]
+      ).catch(e => console.warn('Error guardando log en PostgreSQL:', e.message));
+    }
+
     // 8. Broadcast de intento de acceso en tiempo real a monitores y cuartos de control
     const broadcastPayload = {
       logId: logEntry.id,

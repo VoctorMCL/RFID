@@ -12,32 +12,23 @@ import {
   Shield,
   Volume2,
   VolumeX,
-  Send,
   AlertTriangle,
   Cpu,
   Wifi,
-  WifiOff,
-  RefreshCw,
-  Settings,
-  Globe
+  WifiOff
 } from 'lucide-react';
 
 export const Monitor = () => {
   const [doors, setDoors] = useState([]);
   const [selectedDoorId, setSelectedDoorId] = useState('');
-  const [simUid, setSimUid] = useState('A1B2C3D4');
   const [lastScan, setLastScan] = useState(null);
   const [liveStream, setLiveStream] = useState([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVibrating, setIsVibrating] = useState(false);
-  const [showServerConfig, setShowServerConfig] = useState(false);
-  const [customApiUrl, setCustomApiUrl] = useState(() => {
-    return typeof window !== 'undefined' ? (localStorage.getItem('rfid_api_url') || '') : '';
-  });
 
   // Estado del sensor de hardware RFID (CrowPi 3 / RC522)
-  // Por defecto está en falso (ROJO) hasta que se confirme enlace físico o se verifique
+  // Por defecto está en falso (ROJO) hasta que se confirme lectura física real
   const [hardwareSensors, setHardwareSensors] = useState({
     1: false, // Puerta Principal
     2: false  // Puerta Lateral
@@ -279,41 +270,6 @@ export const Monitor = () => {
     };
   }, []);
 
-  // Simular lectura de tarjeta física
-  const handleSimulateScan = async (e) => {
-    if (e) e.preventDefault();
-    if (!simUid || !selectedDoorId || isProcessing) return;
-
-    try {
-      setIsProcessing(true);
-      const res = await apiClient('/access/validate', {
-        method: 'POST',
-        body: {
-          rfid_uid: simUid.trim(),
-          door_id: parseInt(selectedDoorId, 10),
-          access_method: 'rfid'
-        }
-      });
-
-      if (res.success && res.data) {
-        handleScanResult(res.data);
-      }
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Alternar o comprobar el estado de hardware para la puerta seleccionada
-  const toggleHardwareConnection = () => {
-    const doorId = parseInt(selectedDoorId, 10);
-    setHardwareSensors(prev => ({
-      ...prev,
-      [doorId]: !prev[doorId]
-    }));
-  };
-
   const getReasonText = (reason) => {
     switch (reason) {
       case 'denegado_no_registrado': return 'Tarjeta no registrada en el sistema institucional';
@@ -400,10 +356,10 @@ export const Monitor = () => {
                   <Radio size={36} style={{ color: 'var(--accent)' }} />
                 </div>
                 <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Esperando Tarjeta RFID
+                  Esperando Carnet RFID
                 </h2>
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '380px', marginTop: '6px' }}>
-                  Acerque el carnet institucional al lector de la puerta seleccionada o utilice el puerto de simulación inferior.
+                  Acerque el carnet institucional al lector físico de la puerta para registrar el ingreso.
                 </p>
 
                 <div style={{
@@ -606,184 +562,15 @@ export const Monitor = () => {
                   <h4 style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {isSensorDetected
                       ? 'Sensor RFID (CrowPi 3 · RC522) — Conectado y Confirmado'
-                      : 'Sensor RFID (CrowPi 3 · RC522) — No Detectado / Desconectado'}
+                      : 'Sensor RFID (CrowPi 3 · RC522) — Esperando Lectura en Puerta'}
                   </h4>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
                   {isSensorDetected
                     ? 'Hardware MFRC522 enlazado por SPI a 13.56 MHz en esta puerta. Captura lista.'
-                    : 'No se detecta sensor RFID físico en esta puerta. Ejecute lector_rfid.py o verifique SPI.'}
+                    : 'Esperando señal del lector de tarjetas en esta puerta.'}
                 </p>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={toggleHardwareConnection}
-                className="btn btn-secondary btn-sm"
-                style={{
-                  fontSize: '12px',
-                  borderColor: isSensorDetected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-                }}
-              >
-                <RefreshCw size={13} />
-                <span>{isSensorDetected ? 'Simular Desconexión' : 'Comprobar Enlace'}</span>
-              </button>
-
-              <button
-                onClick={() => setShowServerConfig(!showServerConfig)}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '12px' }}
-                title="Configurar servidor para Vercel o conexión remota"
-              >
-                <Settings size={13} />
-                <span>Enlace Servidor</span>
-              </button>
-            </div>
-          </div>
-
-          {/* PANEL DE CONFIGURACIÓN DE SERVIDOR (PARA DESPLIEGUE VERCEL) */}
-          {showServerConfig && (
-            <div style={{
-              marginTop: '12px',
-              padding: '14px 16px',
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              fontSize: '12.5px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
-                <Globe size={16} />
-                <span>Dirección del Backend (Vercel Serverless o PC Servidor):</span>
-              </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '11.5px', marginBottom: '10px' }}>
-                Si estás en Vercel, déjalo vacío para usar los endpoints integrados (<code>/api</code>), o escribe la URL de tu PC / túnel ngrok (ej. <code>https://tu-ngrok.ngrok-free.app/api</code>).
-              </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  style={{ fontSize: '12px', padding: '6px 10px', flex: 1 }}
-                  placeholder="/api (predeterminado)"
-                  value={customApiUrl}
-                  onChange={(e) => setCustomApiUrl(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => {
-                    if (customApiUrl.trim()) {
-                      localStorage.setItem('rfid_api_url', customApiUrl.trim());
-                    } else {
-                      localStorage.removeItem('rfid_api_url');
-                    }
-                    window.location.reload();
-                  }}
-                >
-                  Guardar y Recargar
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    localStorage.removeItem('rfid_api_url');
-                    setCustomApiUrl('');
-                    window.location.reload();
-                  }}
-                >
-                  Restablecer
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* HERRAMIENTA DE SIMULACIÓN DE LECTURA RFID (PUERTO DE PRUEBAS) */}
-          <div className="card" style={{ marginTop: '16px' }}>
-            <div className="card-header">
-              <div className="card-title">
-                <CreditCard size={18} />
-                <span>Simulador de Hardware RFID (Puerto de Inyección)</span>
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Prototipo CrowPi 3 / ESP32</span>
-            </div>
-
-            <form onSubmit={handleSimulateScan} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr auto', gap: '12px', alignItems: 'flex-end' }}>
-              <div>
-                <label className="form-label">UID Tarjeta RFID (Hex)</label>
-                <input
-                  type="text"
-                  className="form-input font-mono"
-                  placeholder="Ej. A1B2C3D4"
-                  value={simUid}
-                  onChange={(e) => setSimUid(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Puerta Seleccionada</label>
-                <select
-                  className="form-select"
-                  value={selectedDoorId}
-                  onChange={(e) => setSelectedDoorId(e.target.value)}
-                >
-                  {doors.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.room_name})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isProcessing}
-                style={{ padding: '9px 18px' }}
-              >
-                <Send size={15} />
-                <span>Simular Lectura</span>
-              </button>
-            </form>
-
-            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>Credenciales de Prueba:</span>
-              <button
-                type="button"
-                onClick={() => setSimUid('A1B2C3D4')}
-                className="btn btn-secondary btn-sm font-mono"
-              >
-                A1B2C3D4 (Rectora - Acceso Total)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimUid('E5F6A7B8')}
-                className="btn btn-secondary btn-sm font-mono"
-              >
-                E5F6A7B8 (Prof. López - Sala 1)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimUid('11223344')}
-                className="btn btn-secondary btn-sm font-mono"
-              >
-                11223344 (Víctor C. - Estudiante)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimUid('AABBCCDD')}
-                className="btn btn-secondary btn-sm font-mono"
-              >
-                AABBCCDD (Vigilancia - Ficha Maestra)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSimUid('99999999')}
-                className="btn btn-secondary btn-sm font-mono"
-                style={{ borderColor: 'var(--status-denied-border)' }}
-              >
-                99999999 (No Registrada - Vibra)
-              </button>
             </div>
           </div>
         </div>
