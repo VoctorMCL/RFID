@@ -33,10 +33,11 @@ import {
   Calendar,
   Eye,
   EyeOff,
-  ExternalLink,
   ChevronRight,
   ShieldCheck,
-  AlertCircle
+  PieChart,
+  BarChart3,
+  Clock
 } from 'lucide-react';
 
 ChartJS.register(
@@ -86,7 +87,7 @@ export const Dashboard = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Visibilidad de paneles de analítica
+  // Selector de Visibilidad de Paneles Grafana
   const [visiblePanels, setVisiblePanels] = useState(() => {
     try {
       const saved = localStorage.getItem('grafana_visible_panels');
@@ -95,13 +96,10 @@ export const Dashboard = () => {
     return {
       picos: true,
       carreras: true,
-      semanal: true,
-      bloques: true
+      bloques: true,
+      semanal: true
     };
   });
-
-  const [grafanaEmbedUrl, setGrafanaEmbedUrl] = useState(() => localStorage.getItem('grafana_embed_url') || '');
-  const [showEmbedModal, setShowEmbedModal] = useState(false);
 
   const togglePanel = (panelKey) => {
     setVisiblePanels(prev => {
@@ -111,6 +109,7 @@ export const Dashboard = () => {
     });
   };
 
+  // Escuchar eventos en vivo por WebSocket
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
@@ -206,22 +205,25 @@ export const Dashboard = () => {
   };
 
   const isHardwareSensorOnline = stats.activeSensors > 0 || doors.some(d => d.is_hardware_active);
-  const successRateColor = stats.successRate >= 95 ? 'var(--status-ok-text)' : stats.successRate >= 80 ? 'var(--status-alert-text)' : 'var(--status-denied-text)';
+  const successRateColor = stats.successRate >= 95 ? '#10b981' : stats.successRate >= 80 ? '#f59e0b' : '#ef4444';
 
-  // Opciones de estilo limpias y tipografía legible para Chart.js
-  const chartCommonOptions = {
+  // Opciones de estilo Grafana auténtico para Chart.js
+  const grafanaChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 300 },
+    animation: { duration: 350 },
     plugins: {
       legend: {
+        position: 'top',
+        align: 'end',
         labels: {
           color: 'var(--text-secondary)',
-          font: { family: 'var(--font-ui)', size: 12.5, weight: '500' },
-          boxWidth: 12,
-          boxHeight: 12,
+          font: { family: 'var(--font-ui)', size: 12, weight: '500' },
+          boxWidth: 10,
+          boxHeight: 10,
           usePointStyle: true,
-          pointStyle: 'circle'
+          pointStyle: 'circle',
+          padding: 16
         }
       },
       tooltip: {
@@ -231,7 +233,6 @@ export const Dashboard = () => {
         borderColor: 'var(--border)',
         borderWidth: 1,
         padding: 10,
-        boxPadding: 4,
         cornerRadius: 6,
         titleFont: { family: 'var(--font-ui)', size: 13, weight: '600' },
         bodyFont: { family: 'var(--font-ui)', size: 12 }
@@ -240,21 +241,21 @@ export const Dashboard = () => {
     scales: {
       x: {
         grid: { color: 'var(--border)' },
-        ticks: { color: 'var(--text-muted)', font: { family: 'var(--font-ui)', size: 12 } }
+        ticks: { color: 'var(--text-muted)', font: { family: 'var(--font-ui)', size: 11.5 } }
       },
       y: {
         beginAtZero: true,
         grid: { color: 'var(--border)' },
         ticks: {
           color: 'var(--text-muted)',
-          font: { family: 'var(--font-ui)', size: 12 },
+          font: { family: 'var(--font-ui)', size: 11.5 },
           precision: 0
         }
       }
     }
   };
 
-  // 1. Datos gráfica de picos (Por hora o Por minuto)
+  // 1. Datos de la gráfica de picos (Por hora o Por minuto)
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
@@ -266,18 +267,18 @@ export const Dashboard = () => {
       {
         label: 'Accesos autorizados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.granted) : new Array(timeSlots.length).fill(0),
-        borderColor: '#2563eb',
-        backgroundColor: 'rgba(37, 99, 235, 0.08)',
+        borderColor: '#2563eb', // Azul Unilasallista
+        backgroundColor: 'rgba(37, 99, 235, 0.15)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
         pointRadius: timeGranularity === 'minute' ? 1.5 : 3
       },
       {
-        label: 'Intentos denegados',
+        label: 'Accesos denegados (alertas)',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.denied) : new Array(timeSlots.length).fill(0),
         borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.06)',
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
@@ -286,10 +287,12 @@ export const Dashboard = () => {
     ]
   };
 
-  // 2. Datos gráfica de estudiantes en campus por carrera
+  // 2. Datos gráfica: Estudiantes actualmente en campus por carrera
   const studentsPrograms = analytics.studentsByProgram?.length > 0
     ? analytics.studentsByProgram
     : [];
+
+  const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || 0), 0);
 
   const carrerasData = {
     labels: studentsPrograms.length > 0 ? studentsPrograms.map(p => p.program) : ['Sin registros de carrera'],
@@ -311,7 +314,34 @@ export const Dashboard = () => {
     ]
   };
 
-  // 3. Afluencia semanal
+  // 3. Tráfico por bloque institucional con cálculo de porcentajes
+  const blockStats = analytics.byBlock?.length > 0
+    ? analytics.byBlock
+    : [
+        { block_name: 'Bloque A', count: 0 },
+        { block_name: 'Bloque B', count: 0 },
+        { block_name: 'Bloque C', count: 0 },
+        { block_name: 'Bloque Administrativo', count: 0 }
+      ];
+
+  const totalBlockAccesses = blockStats.reduce((acc, b) => acc + (b.count || 0), 0);
+
+  const bloquesData = {
+    labels: blockStats.map(b => {
+      const pct = totalBlockAccesses > 0 ? Math.round((b.count / totalBlockAccesses) * 100) : 0;
+      return `${b.block_name} (${pct}%)`;
+    }),
+    datasets: [
+      {
+        data: blockStats.map(b => b.count || 0),
+        backgroundColor: ['#002855', '#2563eb', '#38bdf8', '#8b5cf6'],
+        borderWidth: 1,
+        borderColor: 'var(--border)'
+      }
+    ]
+  };
+
+  // 4. Afluencia semanal por día y carrera
   const weeklyDays = Array.from(new Set(analytics.weeklyByProgram?.map(w => w.day_label) || []));
   const uniquePrograms = Array.from(new Set(analytics.weeklyByProgram?.map(w => w.program) || []));
 
@@ -341,31 +371,9 @@ export const Dashboard = () => {
     ]
   };
 
-  // 4. Tráfico por bloque
-  const blockStats = analytics.byBlock?.length > 0
-    ? analytics.byBlock
-    : [
-        { block_name: 'Bloque A', count: 0 },
-        { block_name: 'Bloque B', count: 0 },
-        { block_name: 'Bloque C', count: 0 },
-        { block_name: 'Bloque Administrativo', count: 0 }
-      ];
-
-  const bloquesData = {
-    labels: blockStats.map(b => b.block_name),
-    datasets: [
-      {
-        data: blockStats.map(b => b.count > 0 ? b.count : 0),
-        backgroundColor: ['#002855', '#2563eb', '#38bdf8', '#8b5cf6'],
-        borderWidth: 1,
-        borderColor: 'var(--border)'
-      }
-    ]
-  };
-
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* Barra superior de estado y acciones */}
+      {/* Barra de cabecera Grafana */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
@@ -379,13 +387,16 @@ export const Dashboard = () => {
         gap: '14px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              Panel de control y analítica
-            </h1>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-              Monitoreo en tiempo real del campus institucional
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <BarChart3 size={22} style={{ color: 'var(--accent)' }} />
+            <div>
+              <h1 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                Panel de Telemetría Grafana · Unilasallista
+              </h1>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                Métricas, curvas de afluencia y control de accesos en tiempo real
+              </p>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -402,8 +413,8 @@ export const Dashboard = () => {
               border: `1px solid ${isHardwareSensorOnline ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
             }}>
               <span style={{
-                width: '6px',
-                height: '6px',
+                width: '7px',
+                height: '7px',
                 borderRadius: '50%',
                 backgroundColor: isHardwareSensorOnline ? '#10b981' : '#ef4444'
               }} />
@@ -413,18 +424,9 @@ export const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-            Actualización: 4s ({formatTime(lastRefreshTime)})
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Refresco en vivo: <b>4s</b> ({formatTime(lastRefreshTime)})
           </span>
-
-          <button
-            onClick={() => setShowEmbedModal(!showEmbedModal)}
-            className="btn btn-secondary btn-sm"
-            style={{ fontSize: '12.5px', padding: '6px 12px' }}
-          >
-            <ExternalLink size={14} />
-            <span>{grafanaEmbedUrl ? 'Servidor Grafana' : 'Integrar Grafana'}</span>
-          </button>
 
           <button
             onClick={() => loadData()}
@@ -443,71 +445,7 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Modal de Servidor Grafana Externo */}
-      {showEmbedModal && (
-        <div style={{
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '18px 20px',
-          marginBottom: '20px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>
-              Integración con servidor de Grafana
-            </div>
-            <button onClick={() => setShowEmbedModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px' }}>✕</button>
-          </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.5 }}>
-            Pegue la URL pública o con parámetro <code>kiosk</code> de su panel de Grafana conectado a PostgreSQL:
-          </p>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
-            <input
-              type="text"
-              placeholder="https://su-grafana.com/d-solo/xxx/rfid?orgId=1&kiosk"
-              value={grafanaEmbedUrl}
-              onChange={(e) => {
-                setGrafanaEmbedUrl(e.target.value);
-                localStorage.setItem('grafana_embed_url', e.target.value);
-              }}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-                backgroundColor: 'var(--bg-primary)',
-                color: 'var(--text-primary)',
-                fontSize: '13px'
-              }}
-            />
-            {grafanaEmbedUrl && (
-              <button
-                onClick={() => {
-                  setGrafanaEmbedUrl('');
-                  localStorage.removeItem('grafana_embed_url');
-                }}
-                className="btn btn-secondary btn-sm"
-              >
-                Quitar enlace
-              </button>
-            )}
-          </div>
-
-          {grafanaEmbedUrl && (
-            <div style={{ height: '420px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <iframe
-                src={grafanaEmbedUrl}
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                title="Servidor Grafana"
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Selector de Paneles Visibles */}
+      {/* Selector de Paneles Grafana Visibles (Show / Hide) */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
@@ -522,15 +460,15 @@ export const Dashboard = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
           <SlidersHorizontal size={15} style={{ color: 'var(--accent)' }} />
-          <span>Gráficas en pantalla:</span>
+          <span>Paneles de gráficas activas:</span>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
             { key: 'picos', label: 'Picos de acceso' },
             { key: 'carreras', label: 'Estudiantes por carrera' },
-            { key: 'semanal', label: 'Afluencia semanal' },
-            { key: 'bloques', label: 'Tráfico por bloque' }
+            { key: 'bloques', label: 'Tráfico por bloque' },
+            { key: 'semanal', label: 'Afluencia semanal' }
           ].map(p => (
             <button
               key={p.key}
@@ -556,16 +494,18 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Tarjetas de Métricas Clave (KPIs) */}
+      {/* Fila de Stat Panels de Grafana (KPIs con acento institucional) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '14px',
         marginBottom: '24px'
       }}>
+        {/* Accesos de hoy */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: '4px solid #002855',
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
@@ -573,7 +513,7 @@ export const Dashboard = () => {
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
               Accesos de hoy
             </span>
-            <Activity size={17} style={{ color: 'var(--accent)' }} />
+            <Activity size={17} style={{ color: '#002855' }} />
           </div>
           <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.totalToday}
@@ -583,9 +523,11 @@ export const Dashboard = () => {
           </div>
         </div>
 
+        {/* Tasa de aprobación */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: `4px solid ${successRateColor}`,
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
@@ -603,9 +545,11 @@ export const Dashboard = () => {
           </div>
         </div>
 
+        {/* Denegados / Infracciones */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: stats.deniedToday > 0 ? '4px solid #ef4444' : '4px solid var(--border)',
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
@@ -613,19 +557,21 @@ export const Dashboard = () => {
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
               Accesos denegados
             </span>
-            <XCircle size={17} style={{ color: stats.deniedToday > 0 ? 'var(--status-denied-text)' : 'var(--text-muted)' }} />
+            <XCircle size={17} style={{ color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-muted)' }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: stats.deniedToday > 0 ? 'var(--status-denied-text)' : 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.deniedToday}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Intentos no autorizados hoy
+            Infracciones detectadas hoy
           </div>
         </div>
 
+        {/* Puntos de acceso */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: '4px solid #2563eb',
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
@@ -633,7 +579,7 @@ export const Dashboard = () => {
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
               Puntos de control
             </span>
-            <DoorClosed size={17} style={{ color: 'var(--text-secondary)' }} />
+            <DoorClosed size={17} style={{ color: '#2563eb' }} />
           </div>
           <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.totalDoors}
@@ -643,9 +589,11 @@ export const Dashboard = () => {
           </div>
         </div>
 
+        {/* Estado del sensor RFID físico */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: `4px solid ${isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)'}`,
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
@@ -653,46 +601,48 @@ export const Dashboard = () => {
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
               Sensor RFID
             </span>
-            <Cpu size={17} style={{ color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--text-muted)' }} />
+            <Cpu size={17} style={{ color: isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)' }} />
           </div>
           <div style={{
             fontSize: '18px',
             fontWeight: 700,
-            color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--text-muted)',
+            color: isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)',
             marginTop: '12px'
           }}>
             {isHardwareSensorOnline ? 'En línea' : 'Desconectado'}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            {isHardwareSensorOnline ? 'Pulsos de hardware recibidos' : 'Sin comunicación en <30s'}
+            {isHardwareSensorOnline ? 'Pulsos de hardware activos' : 'Sin latidos en <30s'}
           </div>
         </div>
 
+        {/* Población activa */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
+          borderLeft: '4px solid #1d4ed8',
           borderRadius: 'var(--radius)',
           padding: '16px 18px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-              Usuarios registrados
+              Población en campus
             </span>
-            <Users size={17} style={{ color: 'var(--accent)' }} />
+            <Users size={17} style={{ color: '#1d4ed8' }} />
           </div>
           <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
-            {stats.activeUsers}
+            {totalStudentsInCampus}
           </div>
           <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Personal y estudiantes activos
+            Estudiantes dentro del campus
           </div>
         </div>
       </div>
 
-      {/* Gráficas de analítica */}
+      {/* Paneles de Gráficas de Grafana */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '24px' }}>
 
-        {/* Gráfica 1: Picos de acceso por hora / minuto */}
+        {/* Panel 1: Curva de Afluencia y Picos de Acceso (Grafana TimeSeries) */}
         {visiblePanels.picos && (
           <div style={{
             backgroundColor: 'var(--bg-card)',
@@ -704,10 +654,10 @@ export const Dashboard = () => {
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <TrendingUp size={18} style={{ color: 'var(--accent)' }} />
-                  <span>Curva de afluencia y picos de tráfico</span>
+                  <span>Curva de afluencia y picos de acceso</span>
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Comportamiento del flujo de ingreso a lo largo del tiempo
+                  Identifica las horas pico y el tráfico en puertas minuto a minuto
                 </div>
               </div>
 
@@ -747,7 +697,7 @@ export const Dashboard = () => {
             </div>
 
             <div style={{ height: '260px' }}>
-              <Line data={picosData} options={chartCommonOptions} />
+              <Line data={picosData} options={grafanaChartOptions} />
             </div>
             {timeSeriesSource.length === 0 && (
               <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '10px' }}>
@@ -757,13 +707,13 @@ export const Dashboard = () => {
           </div>
         )}
 
-        {/* Fila de 2 Gráficas: Estudiantes por Carrera + Tráfico por Bloque */}
+        {/* Fila de 2 Paneles: Estudiantes por Carrera + Tráfico por Bloque */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: visiblePanels.carreras && visiblePanels.bloques ? '1.3fr 1fr' : '1fr',
           gap: '20px'
         }}>
-          {/* Gráfica 2: Estudiantes presentes por carrera */}
+          {/* Panel 2: Estudiantes presentes por carrera (Bar Gauge) */}
           {visiblePanels.carreras && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
@@ -778,16 +728,19 @@ export const Dashboard = () => {
                     <span>Estudiantes en campus por carrera</span>
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                    Población estudiantil actualmente dentro de las instalaciones
+                    Censo en tiempo real de población estudiantil por carnet RFID
                   </div>
                 </div>
+                <span style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600 }}>
+                  {totalStudentsInCampus} presentes
+                </span>
               </div>
 
               <div style={{ height: '240px' }}>
                 <Bar
                   data={carrerasData}
                   options={{
-                    ...chartCommonOptions,
+                    ...grafanaChartOptions,
                     indexAxis: 'y'
                   }}
                 />
@@ -800,7 +753,7 @@ export const Dashboard = () => {
             </div>
           )}
 
-          {/* Gráfica 3: Tráfico por Bloque */}
+          {/* Panel 3: Tráfico por Bloque (Donut con porcentajes) */}
           {visiblePanels.bloques && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
@@ -814,7 +767,7 @@ export const Dashboard = () => {
                   <span>Distribución por bloque</span>
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Volumen de accesos en los 4 bloques
+                  Volumen de accesos y porcentajes en los 4 bloques
                 </div>
               </div>
 
@@ -830,8 +783,8 @@ export const Dashboard = () => {
                         labels: {
                           color: 'var(--text-secondary)',
                           font: { family: 'var(--font-ui)', size: 12 },
-                          boxWidth: 12,
-                          boxHeight: 12,
+                          boxWidth: 10,
+                          boxHeight: 10,
                           usePointStyle: true
                         }
                       }
@@ -843,7 +796,7 @@ export const Dashboard = () => {
           )}
         </div>
 
-        {/* Gráfica 4: Afluencia semanal */}
+        {/* Panel 4: Afluencia semanal por día y carrera */}
         {visiblePanels.semanal && (
           <div style={{
             backgroundColor: 'var(--bg-card)',
@@ -858,13 +811,13 @@ export const Dashboard = () => {
                   <span>Afluencia semanal por día y carrera</span>
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                  Comparativa de asistencia en los últimos 7 días
+                  Comparativa de qué carreras asisten más según el día de la semana
                 </div>
               </div>
             </div>
 
             <div style={{ height: '240px' }}>
-              <Bar data={semanalData} options={chartCommonOptions} />
+              <Bar data={semanalData} options={grafanaChartOptions} />
             </div>
             {weeklyDays.length === 0 && (
               <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '10px' }}>
@@ -875,7 +828,7 @@ export const Dashboard = () => {
         )}
       </div>
 
-      {/* Tabla de Registros de Acceso Recientes */}
+      {/* Tabla de Registros en Vivo (Estilo Grafana Loki) */}
       <div style={{
         backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border)',
@@ -884,8 +837,9 @@ export const Dashboard = () => {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              Últimos registros de acceso
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={17} style={{ color: 'var(--accent)' }} />
+              <span>Registro de transacciones en tiempo real</span>
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               Transacciones capturadas en tiempo real por el sistema de control
