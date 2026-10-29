@@ -5,6 +5,9 @@ const db = require('../config/db');
 const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
 
+// Caché en memoria del último evento de escaneo para clientes en polling (Vercel Serverless)
+let latestScanEvent = null;
+
 /**
  * Valida un intento de acceso con tarjeta RFID en una puerta
  * POST /api/access/validate
@@ -188,6 +191,40 @@ const validateAccess = async (req, res) => {
 
     wsService.broadcast('access_attempt', broadcastPayload);
 
+    // Actualizar el último escaneo en memoria para clientes en polling (Vercel Serverless)
+    latestScanEvent = {
+      id: logEntry.id,
+      logId: logEntry.id,
+      granted,
+      denial_reason: denialReason,
+      timestamp: logEntry.timestamp,
+      uid: cleanUid,
+      user: user ? {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        name: `${user.first_name} ${user.last_name}`,
+        document_id: user.document_id,
+        program: user.program,
+        role: role ? role.display_name : 'Usuario',
+        photo_url: user.photo_url
+      } : null,
+      door: {
+        id: door.id,
+        name: door.name,
+        status: door.status
+      },
+      room: {
+        id: room.id,
+        name: room.name,
+        block_name: block ? block.name : 'Campus',
+        security_status: room.security_status,
+        has_alarm: room.has_alarm
+      },
+      alarm_triggered: alarmTriggered,
+      alarm: alarmDetails
+    };
+
     return res.json({
       success: true,
       data: {
@@ -325,4 +362,19 @@ const getStats = async (req, res) => {
   }
 };
 
-module.exports = { validateAccess, getAccessLogs, getStats };
+/**
+ * Obtiene el último evento de escaneo RFID registrado (para polling en Vercel Serverless)
+ * GET /api/access/latest
+ */
+const getLatestScan = async (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      data: latestScanEvent
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al obtener último escaneo' });
+  }
+};
+
+module.exports = { validateAccess, getAccessLogs, getStats, getLatestScan };

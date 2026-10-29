@@ -27,6 +27,9 @@ router.post('/auth/login', authController.login);
 // Validación de acceso RFID desde hardware físico (ESP32 / Pi)
 router.post('/access/validate', accessController.validateAccess);
 
+// Último escaneo RFID para monitores en tiempo real (Soporte Vercel Serverless / Polling)
+router.get('/access/latest', accessController.getLatestScan);
+
 // Heartbeat de hardware para puertas
 router.post('/doors/:id/heartbeat', doorsController.heartbeat);
 

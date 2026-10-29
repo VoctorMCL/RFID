@@ -41,8 +41,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rutas de la API
+// Rutas de la API (soporta /api/* y rutas directas reescritas por Vercel Serverless)
 app.use('/api', apiRoutes);
+app.use('/', apiRoutes);
 
 // Manejador SPA: Redirigir cualquier otra ruta al index.html de React
 app.get('*', (req, res, next) => {

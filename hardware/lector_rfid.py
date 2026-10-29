@@ -11,9 +11,8 @@ Uso:
 """
 import argparse
 import json
-import queue
-import re
-import threading
+import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -27,7 +26,12 @@ except ImportError:
     HARDWARE_DISPONIBLE = False
 
 # ============================ CONFIGURACIÓN ============================
-DEFAULT_API_URL = "http://localhost:4000/api/access/validate"
+# Por defecto conecta directamente a la plataforma en la nube (Vercel)
+# Sin necesidad de correr servidores locales en tu laptop o en la CrowPi.
+DEFAULT_API_URL = os.environ.get(
+    "RFID_SERVER_URL",
+    "https://frontend-liart-chi-z3wqu7dhmw.vercel.app/api/access/validate"
+)
 DEFAULT_DOOR_ID = 1  # 1 = Puerta Principal — Sala de Informática 1
 SEGUNDOS_ENTRE_LECTURAS = 1.5
 # =======================================================================
@@ -39,6 +43,14 @@ def norm_uid(uid_bytes):
 
 
 def enviar_al_backend(api_url, door_id, uid_hex):
+    # Formatear URL de forma inteligente si solo se pasa el host o dominio base
+    url = api_url.strip().rstrip('/')
+    if not url.endswith('/access/validate'):
+        if url.endswith('/api'):
+            url = f"{url}/access/validate"
+        else:
+            url = f"{url}/api/access/validate"
+
     payload = {
         "rfid_uid": uid_hex,
         "door_id": int(door_id),
@@ -46,14 +58,20 @@ def enviar_al_backend(api_url, door_id, uid_hex):
     }
 
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "CrowPi3-RFID-Reader/1.0"
     }
 
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(api_url, data=data, headers=headers, method="POST")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    # Contexto SSL tolerante para Raspberry Pi / CrowPi con ca-certificates embebidos
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
 
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=6, context=ssl_ctx) as response:
             res_body = response.read().decode("utf-8")
             result = json.loads(res_body)
 
@@ -61,20 +79,23 @@ def enviar_al_backend(api_url, door_id, uid_hex):
                 d = result.get("data", {})
                 granted = d.get("granted")
                 user = d.get("user")
+                door = d.get("door", {})
+                room = d.get("room", {})
                 user_name = f"{user.get('first_name')} {user.get('last_name')}" if user else "Desconocido"
 
                 if granted:
-                    print(f"  ✅ [ACCESO PERMITIDO] Titular: {user_name} ({user.get('role')})")
+                    print(f"  🟢 [ACCESO CONCEDIDO] Puerta: {door.get('name', 'Principal')} ({room.get('name', 'Sala')})")
+                    print(f"     👤 Titular: {user_name} | Doc: {user.get('document_id')} | Rol: {user.get('role')}")
                 else:
                     reason = d.get("denial_reason")
-                    print(f"  ❌ [ACCESO DENEGADO] Causa: {reason}")
+                    print(f"  🔴 [ACCESO DENEGADO] Causa: {reason}")
                     if d.get("alarm_triggered"):
-                        print("  🚨 [ALARMA CRÍTICA DISPARADA] Sala asegurada en alerta.")
+                        print("  🚨 [ALARMA CRÍTICA DISPARADA] Notificación de apertura no autorizada enviada.")
             else:
                 print("  ⚠️ Error del backend:", result.get("error"))
 
     except urllib.error.URLError as e:
-        print(f"  ❌ Error de red conectando al servidor ({api_url}): {e.reason}")
+        print(f"  ❌ Error de conexión al servidor ({url}): {e.reason}")
     except Exception as e:
         print(f"  ❌ Error inesperado:", e)
 

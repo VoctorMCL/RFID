@@ -195,12 +195,31 @@ export const Monitor = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedDoorId]);
 
-  // 2. Polling de respaldo para Vercel o caídas de WebSocket (detecta lecturas de Raspberry Pi/CrowPi)
+  // 2. Polling en tiempo real para Vercel Serverless o caídas de WebSocket (detecta lecturas físicas del CrowPi 3)
   useEffect(() => {
     if (isWsConnected) return;
 
     const interval = setInterval(async () => {
       try {
+        // Intento 1: Endpoint de último escaneo directo (/access/latest)
+        const latestRes = await apiClient('/access/latest');
+        if (latestRes.success && latestRes.data && latestRes.data.id) {
+          const scan = latestRes.data;
+          if (lastSeenLogIdRef.current === null) {
+            lastSeenLogIdRef.current = scan.id;
+            return;
+          }
+          if (scan.id !== lastSeenLogIdRef.current) {
+            lastSeenLogIdRef.current = scan.id;
+            const scanTime = new Date(scan.timestamp).getTime();
+            if (Date.now() - scanTime < 30000) {
+              handleScanResult(scan);
+              return;
+            }
+          }
+        }
+
+        // Intento 2: Historial de logs (/access/logs?limit=1)
         const res = await apiClient('/access/logs?limit=1');
         if (res.success && res.data && res.data.length > 0) {
           const latest = res.data[0];
@@ -212,12 +231,12 @@ export const Monitor = () => {
             if (latest.id !== lastSeenLogIdRef.current) {
               lastSeenLogIdRef.current = latest.id;
               const logTime = new Date(latest.timestamp).getTime();
-              // Si ocurrió en los últimos 25 segundos, reflejar en pantalla
-              if (Date.now() - logTime < 25000) {
+              if (Date.now() - logTime < 30000) {
                 handleScanResult({
                   granted: latest.granted,
                   denial_reason: latest.denial_reason,
                   timestamp: latest.timestamp,
+                  uid: latest.rfid_uid_raw,
                   user: latest.user_name && latest.user_name !== 'Desconocido' ? {
                     first_name: latest.user_name.split(' ')[0] || '',
                     last_name: latest.user_name.split(' ').slice(1).join(' ') || '',
@@ -234,9 +253,9 @@ export const Monitor = () => {
           }
         }
       } catch (err) {
-        // Silencioso
+        // Silencioso para no ensuciar consola durante polling
       }
-    }, 1500);
+    }, 1200);
 
     return () => clearInterval(interval);
   }, [isWsConnected]);

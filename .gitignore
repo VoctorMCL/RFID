@@ -30,3 +30,7 @@ pnpm-debug.log*
 .DS_Store
 *.swp
 *.swo
+
+# Python
+__pycache__/
+*.py[cod]
