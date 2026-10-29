@@ -1,7 +1,7 @@
 -- =============================================================================
 -- BASE DE DATOS POSTGRESQL — SUPABASE (CONTROL DE ACCESO RFID)
 -- Corporación Universitaria Lasallista
--- Campus Real: Bloques A, B, C y Administrativo
+-- Campus Real: Bloques A, B, C y Bloque Administrativo (Pisos 1, 2, 3 y 4)
 -- Tablas Operativas 100% Vacías — Solo Usuarios Iniciales y Espacios Fijos
 -- =============================================================================
 
@@ -207,7 +207,7 @@ INSERT INTO blocks (id, name, description, location_info) VALUES
 (1, 'Bloque A', 'Aulas de clase y salas de cómputo', 'Costado Norte'),
 (2, 'Bloque B', 'Aulas de clase y sala de idiomas', 'Costado Sur'),
 (3, 'Bloque C', 'Aulas de clase, salas de cómputo y laboratorios de hardware', 'Costado Occidental'),
-(4, 'Bloque Administrativo', 'Oficinas administrativas, salas de cómputo y laboratorio de alimentos', 'Edificio Central');
+(4, 'Bloque Administrativo', 'Laboratorios generales, laboratorios de informática, alimentos, profesores y cartera', 'Edificio Central');
 
 SELECT setval('blocks_id_seq', (SELECT MAX(id) FROM blocks));
 
@@ -258,12 +258,27 @@ INSERT INTO rooms (id, block_id, name, floor, room_type, has_alarm, security_sta
 (38, 3, 'Laboratorio de Hardware 1', 3, 'lab_hardware', TRUE, 'normal', 'Laboratorio especializado en arquitectura y hardware - Piso 3'),
 (39, 3, 'Laboratorio de Hardware 2', 3, 'lab_hardware', TRUE, 'normal', 'Laboratorio especializado en arquitectura y hardware - Piso 3'),
 
--- Bloque Administrativo (Laboratorio de Alimentos, Salas de PCs y Oficinas)
-(40, 4, 'Laboratorio de Alimentos', 1, 'lab_alimentos', TRUE, 'normal', 'Laboratorio especializado en ciencias de alimentos'),
-(41, 4, 'Sala de Cómputo Administrativa', 1, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo para dependencias administrativas'),
-(42, 4, 'Decanatura', 2, 'administrativo', FALSE, 'normal', 'Oficinas de decanatura y atención académica'),
-(43, 4, 'Sala de Profesores', 2, 'administrativo', FALSE, 'normal', 'Sala de trabajo docente'),
-(44, 4, 'Administración y Cartera', 2, 'administrativo', FALSE, 'normal', 'Oficinas de gestión financiera y cartera');
+-- Bloque Administrativo (Pisos 1, 2, 3 y 4)
+-- Piso 1: 2 laboratorios generales (alimentos y zootecnia)
+(40, 4, 'Laboratorio General 1 (Alimentos y Zootecnia)', 1, 'lab_general', TRUE, 'normal', 'Laboratorio general de prácticas para alimentos y zootecnia - Piso 1'),
+(41, 4, 'Laboratorio General 2 (Alimentos y Zootecnia)', 1, 'lab_general', TRUE, 'normal', 'Laboratorio general de prácticas para alimentos y zootecnia - Piso 1'),
+
+-- Piso 2: 2 laboratorios generales (alimentos y zootecnia) y Cartera
+(42, 4, 'Laboratorio General 3 (Alimentos y Zootecnia)', 2, 'lab_general', TRUE, 'normal', 'Laboratorio general de prácticas para alimentos y zootecnia - Piso 2'),
+(43, 4, 'Laboratorio General 4 (Alimentos y Zootecnia)', 2, 'lab_general', TRUE, 'normal', 'Laboratorio general de prácticas para alimentos y zootecnia - Piso 2'),
+(44, 4, 'Cartera', 2, 'administrativo', FALSE, 'normal', 'Oficina de gestión financiera y cartera - Piso 2'),
+
+-- Piso 3: Sala de Profesores, 2 Laboratorios de Informática y 1 Lab de Alimentos
+(45, 4, 'Sala de Profesores (Piso 3)', 3, 'administrativo', FALSE, 'normal', 'Entrada y sala de trabajo docente - Piso 3'),
+(46, 4, 'Laboratorio de Informática 1', 3, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 3'),
+(47, 4, 'Laboratorio de Informática 2', 3, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 3'),
+(48, 4, 'Laboratorio de Alimentos', 3, 'lab_alimentos', TRUE, 'normal', 'Laboratorio especializado en ciencia y tecnología de alimentos - Piso 3'),
+
+-- Piso 4: 3 Laboratorios de Informática y otra entrada para Profesores
+(49, 4, 'Laboratorio de Informática 3', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
+(50, 4, 'Laboratorio de Informática 4', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
+(51, 4, 'Laboratorio de Informática 5', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
+(52, 4, 'Sala de Profesores (Piso 4)', 4, 'administrativo', FALSE, 'normal', 'Acceso y sala de trabajo docente - Piso 4');
 
 SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
 
@@ -315,13 +330,26 @@ INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
 (39, 38, 'Puerta Laboratorio de Hardware 1', 'acceso', 'online', TRUE),
 (40, 39, 'Puerta Laboratorio de Hardware 2', 'acceso', 'online', TRUE),
 
--- Bloque Administrativo
-(41, 40, 'Laboratorio de Alimentos - Acceso 1', 'acceso', 'online', TRUE),
-(42, 40, 'Laboratorio de Alimentos - Acceso 2', 'acceso', 'online', TRUE),
-(43, 41, 'Puerta Sala de Cómputo Administrativa', 'acceso', 'online', TRUE),
-(44, 42, 'Puerta Decanatura', 'acceso', 'online', TRUE),
-(45, 43, 'Puerta Sala de Profesores', 'acceso', 'online', TRUE),
-(46, 44, 'Administración y Cartera - Acceso 1', 'acceso', 'online', TRUE),
-(47, 44, 'Administración y Cartera - Acceso 2', 'acceso', 'online', TRUE);
+-- Bloque Administrativo (Pisos 1 al 4)
+-- Piso 1
+(41, 40, 'Puerta Laboratorio General 1 (Piso 1)', 'acceso', 'online', TRUE),
+(42, 41, 'Puerta Laboratorio General 2 (Piso 1)', 'acceso', 'online', TRUE),
+
+-- Piso 2
+(43, 42, 'Puerta Laboratorio General 3 (Piso 2)', 'acceso', 'online', TRUE),
+(44, 43, 'Puerta Laboratorio General 4 (Piso 2)', 'acceso', 'online', TRUE),
+(45, 44, 'Puerta Cartera', 'acceso', 'online', TRUE),
+
+-- Piso 3
+(46, 45, 'Puerta Sala de Profesores (Piso 3)', 'acceso', 'online', TRUE),
+(47, 46, 'Puerta Laboratorio de Informática 1', 'acceso', 'online', TRUE),
+(48, 47, 'Puerta Laboratorio de Informática 2', 'acceso', 'online', TRUE),
+(49, 48, 'Puerta Laboratorio de Alimentos (Piso 3)', 'acceso', 'online', TRUE),
+
+-- Piso 4
+(50, 49, 'Puerta Laboratorio de Informática 3', 'acceso', 'online', TRUE),
+(51, 50, 'Puerta Laboratorio de Informática 4', 'acceso', 'online', TRUE),
+(52, 51, 'Puerta Laboratorio de Informática 5', 'acceso', 'online', TRUE),
+(53, 52, 'Puerta Sala de Profesores (Piso 4)', 'acceso', 'online', TRUE);
 
 SELECT setval('doors_id_seq', (SELECT MAX(id) FROM doors));
