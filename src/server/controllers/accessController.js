@@ -440,4 +440,107 @@ const getLatestScan = async (req, res) => {
   }
 };
 
-module.exports = { validateAccess, getAccessLogs, getStats, getLatestScan };
+/**
+ * Analítica avanzada de telemetría institucional para Grafana
+ * Picos por minuto/hora, estudiantes activos por carrera y afluencia semanal
+ * GET /api/access/analytics
+ */
+const getAnalytics = async (req, res) => {
+  try {
+    // 1. Picos por hora (hoy)
+    const hourlyQuery = await db.query(`
+      SELECT
+        TO_CHAR(l.timestamp, 'HH24:00') as time_slot,
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
+        COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
+      FROM access_logs l
+      WHERE l.timestamp::date = CURRENT_DATE
+      GROUP BY TO_CHAR(l.timestamp, 'HH24:00')
+      ORDER BY time_slot ASC
+    `);
+
+    // 2. Picos por minuto (últimos 60 minutos)
+    const minuteQuery = await db.query(`
+      SELECT
+        TO_CHAR(l.timestamp, 'HH24:MI') as time_slot,
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
+        COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
+      FROM access_logs l
+      WHERE l.timestamp >= NOW() - INTERVAL '60 minutes'
+      GROUP BY TO_CHAR(l.timestamp, 'HH24:MI')
+      ORDER BY time_slot ASC
+    `);
+
+    // 3. Estudiantes actualmente en campus por carrera
+    // Usuarios con rol 'student' cuyo último acceso registrado hoy fue 'granted = true'
+    const studentsByProgramQuery = await db.query(`
+      WITH last_student_access AS (
+        SELECT DISTINCT ON (l.user_id)
+          l.user_id,
+          l.granted,
+          l.timestamp,
+          u.program
+        FROM access_logs l
+        JOIN users u ON u.id = l.user_id
+        JOIN roles r ON r.id = u.role_id
+        WHERE r.name = 'student'
+          AND l.timestamp::date = CURRENT_DATE
+        ORDER BY l.user_id, l.timestamp DESC
+      )
+      SELECT
+        COALESCE(NULLIF(TRIM(program), ''), 'Sin Carrera Asignada') as program,
+        COUNT(*)::int as active_students
+      FROM last_student_access
+      WHERE granted = true
+      GROUP BY program
+      ORDER BY active_students DESC
+    `);
+
+    // 4. Afluencia semanal por día y carrera (últimos 7 días)
+    const weeklyByProgramQuery = await db.query(`
+      SELECT
+        TO_CHAR(l.timestamp, 'YYYY-MM-DD') as date_str,
+        TO_CHAR(l.timestamp, 'Dy') as day_label,
+        COALESCE(NULLIF(TRIM(u.program), ''), 'General') as program,
+        COUNT(*)::int as count
+      FROM access_logs l
+      JOIN users u ON u.id = l.user_id
+      WHERE l.granted = true
+        AND l.timestamp >= CURRENT_DATE - INTERVAL '6 days'
+      GROUP BY date_str, day_label, program
+      ORDER BY date_str ASC, count DESC
+    `);
+
+    // 5. Tráfico acumulado por Bloque
+    const byBlockQuery = await db.query(`
+      SELECT
+        b.id,
+        b.name as block_name,
+        COUNT(l.id)::int as count
+      FROM blocks b
+      LEFT JOIN rooms r ON r.block_id = b.id
+      LEFT JOIN doors d ON d.room_id = r.id
+      LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+      GROUP BY b.id, b.name
+      ORDER BY b.id ASC
+    `);
+
+    return res.json({
+      success: true,
+      data: {
+        hourly: hourlyQuery.rows || [],
+        minute: minuteQuery.rows || [],
+        studentsByProgram: studentsByProgramQuery.rows || [],
+        weeklyByProgram: weeklyByProgramQuery.rows || [],
+        byBlock: byBlockQuery.rows || []
+      }
+    });
+  } catch (error) {
+    console.error('Error en getAnalytics:', error);
+    return res.status(500).json({ success: false, error: 'Error al consultar analítica en PostgreSQL: ' + error.message });
+  }
+};
+
+module.exports = { validateAccess, getAccessLogs, getStats, getLatestScan, getAnalytics };

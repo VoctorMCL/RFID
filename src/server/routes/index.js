@@ -94,6 +94,7 @@ router.delete('/schedules/:id', authorize('rector', 'admin_staff'), schedulesCon
 // Auditoría y Métricas de Acceso
 router.get('/access/logs', accessController.getAccessLogs);
 router.get('/access/logs/stats', accessController.getStats);
+router.get('/access/analytics', accessController.getAnalytics);
 
 // Alertas de Seguridad
 router.get('/alerts', alertsController.getAlerts);

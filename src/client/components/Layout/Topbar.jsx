@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { apiClient } from '../../api/client';
-import { Cpu } from 'lucide-react';
+import { Cpu, Sun, Moon, Laptop } from 'lucide-react';
 
 const routeTitles = {
   '/dashboard': 'Panel Principal de Telemetría (Grafana)',
@@ -19,6 +19,24 @@ export const Topbar = () => {
   const location = useLocation();
   const [activeSensorDoor, setActiveSensorDoor] = useState(null);
   const [isSensorActive, setIsSensorActive] = useState(false);
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('rfid_theme_mode') || 'auto');
+
+  useEffect(() => {
+    if (themeMode === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else if (themeMode === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    localStorage.setItem('rfid_theme_mode', themeMode);
+  }, [themeMode]);
+
+  const cycleTheme = () => {
+    if (themeMode === 'auto') setThemeMode('dark');
+    else if (themeMode === 'dark') setThemeMode('light');
+    else setThemeMode('auto');
+  };
 
   const handleWsEvent = (event) => {
     if (event.type === 'hardware_heartbeat' || event.type === 'access_attempt') {
@@ -77,7 +95,29 @@ export const Topbar = () => {
         </div>
       </div>
 
-      <div className="topbar-right">
+      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Selector de Modo Claro / Oscuro / Auto por Dispositivo */}
+        <button
+          onClick={cycleTheme}
+          className="btn btn-secondary btn-sm"
+          title={`Tema: ${themeMode === 'auto' ? 'Automático (según tu dispositivo)' : themeMode === 'light' ? 'Modo Claro' : 'Modo Oscuro'}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            fontSize: '11px',
+            padding: '5px 10px',
+            fontFamily: 'var(--font-mono)'
+          }}
+        >
+          {themeMode === 'auto' && <Laptop size={13} style={{ color: 'var(--accent)' }} />}
+          {themeMode === 'light' && <Sun size={13} style={{ color: '#f59e0b' }} />}
+          {themeMode === 'dark' && <Moon size={13} style={{ color: '#38bdf8' }} />}
+          <span>
+            {themeMode === 'auto' ? 'AUTO' : themeMode === 'light' ? 'CLARO' : 'OSCURO'}
+          </span>
+        </button>
+
         {/* Indicador de Hardware Sensor RFID Real (Sin datos ficticios) */}
         <div
           className="live-indicator"
@@ -92,9 +132,9 @@ export const Topbar = () => {
             padding: '5px 12px',
             borderRadius: '6px',
             fontFamily: 'var(--font-mono)',
-            backgroundColor: isSensorActive ? 'rgba(74, 222, 128, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-            color: isSensorActive ? '#4ade80' : '#f87171',
-            border: `1px solid ${isSensorActive ? 'rgba(74, 222, 128, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+            backgroundColor: isSensorActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+            color: isSensorActive ? '#10b981' : '#ef4444',
+            border: `1px solid ${isSensorActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
           }}
         >
           <div
@@ -103,8 +143,8 @@ export const Topbar = () => {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: isSensorActive ? '#4ade80' : '#ef4444',
-              boxShadow: isSensorActive ? '0 0 8px rgba(74, 222, 128, 0.6)' : 'none'
+              backgroundColor: isSensorActive ? '#10b981' : '#ef4444',
+              boxShadow: isSensorActive ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none'
             }}
           />
           <Cpu size={14} style={{ opacity: 0.9 }} />
