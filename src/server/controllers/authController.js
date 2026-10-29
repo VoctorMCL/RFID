@@ -1,6 +1,6 @@
 // ===================================================================
-// Controlador de Autenticación — Control de Acceso RFID
-// Solo Administradores y Celadores / Personal de Seguridad
+// Controlador de Autenticación — Control de Acceso RFID (PostgreSQL)
+// Restringido estrictamente a Administrador y Celador / Seguridad
 // ===================================================================
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -11,57 +11,34 @@ const login = async (req, res) => {
     let { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Correo y contraseña requeridos' });
+      return res.status(400).json({ success: false, error: 'Correo institucional y contraseña requeridos' });
     }
 
     email = email.trim().toLowerCase();
     // Resolver alias rápidos
     if (email === 'admin') email = 'admin@lasallista.edu.co';
-    if (email === 'celador' || email === 'guardia' || email === 'seguridad') email = 'celador@lasallista.edu.co';
+    if (email === 'celador' || email === 'seguridad' || email === 'vigilancia') email = 'celador@lasallista.edu.co';
 
-    let user = null;
-    let role = null;
+    // 1. Buscar usuario directamente en PostgreSQL
+    const userResult = await db.query(
+      `SELECT u.*, r.name as role_name, r.display_name as role_display, r.global_access
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       WHERE LOWER(u.email) = $1`,
+      [email]
+    );
 
-    if (!db.useMemory && db.pool) {
-      try {
-        const result = await db.pool.query(
-          `SELECT u.*, r.name as role_name, r.display_name as role_display, r.global_access
-           FROM users u
-           JOIN roles r ON u.role_id = r.id
-           WHERE u.email = $1`,
-          [email]
-        );
-        if (result.rows.length > 0) {
-          user = result.rows[0];
-          role = {
-            id: user.role_id,
-            name: user.role_name,
-            display_name: user.role_display,
-            global_access: user.global_access
-          };
-        }
-      } catch (dbErr) {
-        db.setUseMemory(true);
-      }
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Credenciales inválidas o usuario no registrado en PostgreSQL' });
     }
 
-    // Fallback a memoria si no se encontró en PG o está en modo memoria
-    if (!user) {
-      user = db.memoryDb.users.find(u => u.email.toLowerCase() === email);
-      if (user) {
-        role = db.memoryDb.roles.find(r => r.id === user.role_id);
-      }
-    }
+    const user = userResult.rows[0];
 
-    if (!user) {
-      return res.status(401).json({ success: false, error: 'Credenciales inválidas' });
-    }
-
-    // RESTRICCIÓN ESTRICTA DE ROLES EN LOGIN WEB:
-    // Solo Administradores y Celadores / Seguridad pueden ingresar
+    // 2. RESTRICCIÓN ESTRICTA DE ROLES EN LOGIN WEB:
+    // Solo Administradores y Celadores / Seguridad pueden iniciar sesión en el portal
     const allowedWebRoles = ['admin', 'rector', 'security', 'celador'];
-    const userRoleName = (role ? role.name : '').toLowerCase();
-    if (!allowedWebRoles.includes(userRoleName)) {
+    const userRole = (user.role_name || '').toLowerCase();
+    if (!allowedWebRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
         error: 'Acceso denegado: Los estudiantes y profesores no inician sesión en la plataforma web. Su acceso se valida únicamente mediante carnet RFID en las puertas.'
@@ -72,7 +49,7 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Usuario inactivo o suspendido' });
     }
 
-    // Validar contraseña
+    // 3. Validar contraseña
     let isMatch = false;
     if (password === 'acceso2026' || password === 'rfid2026' || password === 'admin2026') {
       isMatch = true;
@@ -81,35 +58,28 @@ const login = async (req, res) => {
     }
 
     if (!isMatch) {
-      return res.status(401).json({ success: false, error: 'Credenciales inválidas' });
+      return res.status(401).json({ success: false, error: 'Contraseña incorrecta' });
     }
 
-    // Generar token JWT
+    // 4. Generar token JWT
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         role_id: user.role_id,
-        role_name: role ? role.name : 'security',
-        global_access: role ? role.global_access : false
+        role_name: user.role_name,
+        global_access: user.global_access
       },
       process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026',
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
-    // Obtener tarjeta RFID asignada
-    let userCard = null;
-    if (!db.useMemory && db.pool) {
-      try {
-        const cardRes = await db.pool.query('SELECT * FROM rfid_cards WHERE user_id = $1 AND is_active = true LIMIT 1', [user.id]);
-        if (cardRes.rows.length > 0) userCard = cardRes.rows[0];
-      } catch (err) {
-        db.setUseMemory(true);
-      }
-    }
-    if (!userCard) {
-      userCard = db.memoryDb.rfid_cards.find(c => c.user_id === user.id && c.is_active);
-    }
+    // 5. Obtener tarjeta RFID asignada
+    const cardResult = await db.query(
+      `SELECT uid, card_type, is_active FROM rfid_cards WHERE user_id = $1 AND is_active = true LIMIT 1`,
+      [user.id]
+    );
+    const userCard = cardResult.rows[0] || null;
 
     return res.json({
       success: true,
@@ -123,60 +93,44 @@ const login = async (req, res) => {
           document_id: user.document_id,
           program: user.program,
           role_id: user.role_id,
-          role: role || { name: 'student', display_name: 'Estudiante', global_access: false },
+          role: {
+            id: user.role_id,
+            name: user.role_name,
+            display_name: user.role_display,
+            global_access: user.global_access
+          },
           status: user.status,
           rfid_tag: userCard ? userCard.uid : null
         }
       }
     });
   } catch (error) {
-    console.error('Error en login:', error);
-    return res.status(500).json({ success: false, error: 'Error interno del servidor' });
+    console.error('Error en login PostgreSQL:', error);
+    return res.status(500).json({ success: false, error: 'Error de conexión a PostgreSQL / Supabase: ' + error.message });
   }
 };
 
 const me = async (req, res) => {
   try {
     const userId = req.user.id;
-    let user = null;
-    let role = null;
+    const userResult = await db.query(
+      `SELECT u.id, u.first_name, u.last_name, u.email, u.document_id, u.program, u.phone, u.status, u.photo_url,
+              r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       WHERE u.id = $1`,
+      [userId]
+    );
 
-    if (!db.useMemory && db.pool) {
-      try {
-        const resUser = await db.pool.query(
-          `SELECT u.*, r.name as role_name, r.display_name as role_display, r.global_access
-           FROM users u
-           JOIN roles r ON u.role_id = r.id
-           WHERE u.id = $1`,
-          [userId]
-        );
-        if (resUser.rows.length > 0) {
-          user = resUser.rows[0];
-          role = {
-            id: user.role_id,
-            name: user.role_name,
-            display_name: user.role_display,
-            global_access: user.global_access
-          };
-        }
-      } catch (err) {
-        db.setUseMemory(true);
-      }
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado en la base de datos' });
     }
 
-    if (!user) {
-      user = db.memoryDb.users.find(u => u.id === userId);
-      if (user) {
-        role = db.memoryDb.roles.find(r => r.id === user.role_id);
-      }
-    }
-
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-    }
-
-    // Tarjeta RFID
-    let card = db.memoryDb.rfid_cards.find(c => c.user_id === user.id && c.is_active);
+    const user = userResult.rows[0];
+    const cardResult = await db.query(
+      `SELECT uid FROM rfid_cards WHERE user_id = $1 AND is_active = true LIMIT 1`,
+      [user.id]
+    );
 
     return res.json({
       success: true,
@@ -188,14 +142,18 @@ const me = async (req, res) => {
         document_id: user.document_id,
         program: user.program,
         role_id: user.role_id,
-        role: role,
+        role: {
+          id: user.role_id,
+          name: user.role_name,
+          display_name: user.role_display,
+          global_access: user.global_access
+        },
         status: user.status,
-        rfid_tag: card ? card.uid : null
+        rfid_tag: cardResult.rows[0]?.uid || null
       }
     });
   } catch (error) {
-    console.error('Error en me:', error);
-    return res.status(500).json({ success: false, error: 'Error interno del servidor' });
+    return res.status(500).json({ success: false, error: 'Error al consultar perfil: ' + error.message });
   }
 };
 
@@ -207,27 +165,23 @@ const changePassword = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const user = db.memoryDb.users.find(u => u.id === userId);
-    if (!user) {
+    const userResult = await db.query(`SELECT id, password_hash FROM users WHERE id = $1`, [userId]);
+    if (userResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
+    const user = userResult.rows[0];
     const match = currentPassword === 'acceso2026' || currentPassword === 'rfid2026' || await bcrypt.compare(currentPassword, user.password_hash);
     if (!match) {
       return res.status(400).json({ success: false, error: 'La contraseña actual no coincide' });
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    user.password_hash = newHash;
+    await db.query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [newHash, userId]);
 
-    if (!db.useMemory && db.pool) {
-      await db.pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
-    }
-
-    return res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+    return res.json({ success: true, message: 'Contraseña actualizada correctamente en PostgreSQL' });
   } catch (error) {
-    console.error('Error en changePassword:', error);
-    return res.status(500).json({ success: false, error: 'Error interno del servidor' });
+    return res.status(500).json({ success: false, error: 'Error al actualizar contraseña: ' + error.message });
   }
 };
 

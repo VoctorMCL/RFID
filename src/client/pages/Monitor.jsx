@@ -252,18 +252,33 @@ export const Monitor = () => {
   }, [isWsConnected]);
 
   useEffect(() => {
-    const fetchDoors = async () => {
+    const fetchDoorsAndStatus = async () => {
       try {
         const res = await apiClient('/doors');
         if (res.success && res.data.length > 0) {
           setDoors(res.data);
           setSelectedDoorId(res.data[0].id.toString());
+
+          // Reactualizar detector al cargar: si la puerta está online en la BD, marcar en VERDE de inmediato
+          const sensorMap = {};
+          res.data.forEach(d => {
+            sensorMap[d.id] = (d.status === 'online');
+          });
+          setHardwareSensors(prev => ({ ...prev, ...sensorMap }));
         }
+
+        // Consultar último escaneo para verificar actividad de hardware
+        try {
+          const latestRes = await apiClient('/access/latest');
+          if (latestRes.success && latestRes.data && latestRes.data.door?.id) {
+            setHardwareSensors(prev => ({ ...prev, [latestRes.data.door.id]: true }));
+          }
+        } catch (e) {}
       } catch (err) {
         console.error('Error cargando puertas:', err);
       }
     };
-    fetchDoors();
+    fetchDoorsAndStatus();
 
     return () => {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
@@ -289,7 +304,9 @@ export const Monitor = () => {
 
   const selectedDoor = doors.find(d => d.id.toString() === selectedDoorId);
   const currentDoorId = parseInt(selectedDoorId, 10) || 1;
-  const isSensorDetected = !!hardwareSensors[currentDoorId];
+  const isSensorDetected = hardwareSensors[currentDoorId] !== undefined
+    ? hardwareSensors[currentDoorId]
+    : (selectedDoor?.status === 'online');
 
   return (
     <div>

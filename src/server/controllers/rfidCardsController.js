@@ -1,145 +1,144 @@
 // ===================================================================
-// Controlador de Tarjetas RFID — Control de Acceso
+// Controlador de Tarjetas RFID y Enrolamiento — PostgreSQL
 // ===================================================================
 const db = require('../config/db');
 
 const getCards = async (req, res) => {
   try {
-    const cards = db.memoryDb.rfid_cards.map(c => {
-      const user = c.user_id ? db.memoryDb.users.find(u => u.id === c.user_id) : null;
-      const role = user ? db.memoryDb.roles.find(r => r.id === user.role_id) : null;
-      return {
-        ...c,
-        user_name: user ? `${user.first_name} ${user.last_name}` : null,
-        user_email: user ? user.email : null,
-        user_document: user ? user.document_id : null,
-        user_role: role ? role.display_name : null
-      };
-    });
-    return res.json({ success: true, data: cards });
+    const { is_active, card_type, search } = req.query;
+
+    let queryText = `
+      SELECT c.*,
+             u.first_name, u.last_name, (u.first_name || ' ' || u.last_name) as user_name,
+             u.document_id as user_document, u.email as user_email,
+             r.display_name as role_name
+      FROM rfid_cards c
+      LEFT JOIN users u ON u.id = c.user_id
+      LEFT JOIN roles r ON r.id = u.role_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (is_active !== undefined) {
+      params.push(is_active === 'true');
+      queryText += ` AND c.is_active = $${params.length}`;
+    }
+    if (card_type) {
+      params.push(card_type);
+      queryText += ` AND c.card_type = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryText += ` AND (LOWER(c.uid) LIKE $${params.length} OR LOWER(u.first_name) LIKE $${params.length} OR LOWER(u.last_name) LIKE $${params.length})`;
+    }
+
+    queryText += ` ORDER BY c.id ASC`;
+
+    const result = await db.query(queryText, params);
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener tarjetas' });
+    return res.status(500).json({ success: false, error: 'Error al consultar tarjetas RFID: ' + error.message });
   }
 };
 
 const getCardById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const card = db.memoryDb.rfid_cards.find(c => c.id === id);
-    if (!card) {
+    const result = await db.query(
+      `SELECT c.*, (u.first_name || ' ' || u.last_name) as user_name, r.display_name as role_name
+       FROM rfid_cards c
+       LEFT JOIN users u ON u.id = c.user_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE c.id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tarjeta no encontrada' });
     }
-    const user = card.user_id ? db.memoryDb.users.find(u => u.id === card.user_id) : null;
-    return res.json({ success: true, data: { ...card, user } });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener tarjeta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const enrollCard = async (req, res) => {
   try {
-    const { uid, user_id, card_type, label } = req.body;
+    const { uid, user_id, card_type = 'standard', label } = req.body;
+
     if (!uid || !uid.trim()) {
       return res.status(400).json({ success: false, error: 'El UID de la tarjeta RFID es obligatorio' });
     }
 
     const cleanUid = uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
+    const userId = user_id ? parseInt(user_id, 10) : null;
 
-    // Comprobar si ya existe
-    let existing = db.memoryDb.rfid_cards.find(c => c.uid === cleanUid);
-    if (existing) {
-      if (user_id) {
-        existing.user_id = parseInt(user_id, 10);
-      }
-      if (card_type) existing.card_type = card_type;
-      if (label) existing.label = label;
-      existing.is_active = true;
-      existing.deactivated_at = null;
-      return res.json({ success: true, message: 'Tarjeta ya existía, actualizada y reasignada', data: existing });
-    }
+    const result = await db.query(
+      `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label, enrolled_at)
+       VALUES ($1, $2, $3, true, $4, NOW())
+       ON CONFLICT (uid) DO UPDATE
+       SET user_id = $2, card_type = $3, is_active = true, label = $4
+       RETURNING *`,
+      [cleanUid, userId, card_type, label || `Carnet ${cleanUid}`]
+    );
 
-    const newCard = {
-      id: db.nextIds.rfid_cards++,
-      uid: cleanUid,
-      user_id: user_id ? parseInt(user_id, 10) : null,
-      card_type: card_type || 'standard',
-      is_active: true,
-      label: label ? label.trim() : `Tarjeta ${cleanUid}`,
-      enrolled_at: new Date().toISOString(),
-      deactivated_at: null
-    };
-
-    db.memoryDb.rfid_cards.push(newCard);
-
-    const user = newCard.user_id ? db.memoryDb.users.find(u => u.id === newCard.user_id) : null;
-    return res.status(201).json({
-      success: true,
-      data: {
-        ...newCard,
-        user_name: user ? `${user.first_name} ${user.last_name}` : null
-      }
-    });
+    return res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Error al enrolar tarjeta:', error);
-    return res.status(500).json({ success: false, error: 'Error al registrar tarjeta' });
+    return res.status(500).json({ success: false, error: 'Error al enrolar tarjeta: ' + error.message });
   }
 };
 
 const updateCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const card = db.memoryDb.rfid_cards.find(c => c.id === id);
-    if (!card) {
+    const { user_id, card_type, is_active, label } = req.body;
+
+    const result = await db.query(
+      `UPDATE rfid_cards
+       SET user_id = COALESCE($1, user_id),
+           card_type = COALESCE($2, card_type),
+           is_active = COALESCE($3, is_active),
+           label = COALESCE($4, label)
+       WHERE id = $5
+       RETURNING *`,
+      [user_id ? parseInt(user_id, 10) : null, card_type, is_active, label, id]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tarjeta no encontrada' });
     }
 
-    const { user_id, card_type, label, is_active } = req.body;
-    if (user_id !== undefined) card.user_id = user_id ? parseInt(user_id, 10) : null;
-    if (card_type) card.card_type = card_type;
-    if (label !== undefined) card.label = label.trim();
-    if (is_active !== undefined) {
-      card.is_active = is_active;
-      if (!is_active) {
-        card.deactivated_at = new Date().toISOString();
-      } else {
-        card.deactivated_at = null;
-      }
-    }
-
-    return res.json({ success: true, data: card });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al actualizar tarjeta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const deactivateCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const card = db.memoryDb.rfid_cards.find(c => c.id === id);
-    if (!card) {
+    const result = await db.query(
+      `UPDATE rfid_cards SET is_active = false, deactivated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tarjeta no encontrada' });
     }
-
-    card.is_active = false;
-    card.deactivated_at = new Date().toISOString();
-    return res.json({ success: true, message: 'Tarjeta desactivada', data: card });
+    return res.json({ success: true, message: 'Tarjeta desactivada', data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al desactivar tarjeta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const deleteCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const index = db.memoryDb.rfid_cards.findIndex(c => c.id === id);
-    if (index === -1) {
+    const result = await db.query(`DELETE FROM rfid_cards WHERE id = $1 RETURNING id`, [id]);
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tarjeta no encontrada' });
     }
-
-    db.memoryDb.rfid_cards.splice(index, 1);
-    return res.json({ success: true, message: 'Tarjeta eliminada exitosamente' });
+    return res.json({ success: true, message: 'Tarjeta eliminada' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al eliminar tarjeta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 

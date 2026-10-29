@@ -1,11 +1,11 @@
 // ===================================================================
-// Motor Central de Validación de Acceso RFID y Alarmas
+// Motor Central de Validación de Acceso RFID y Alarmas — PostgreSQL
 // ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
 
-// Caché en memoria del último evento de escaneo para clientes en polling (Vercel Serverless)
+// Caché en memoria del último evento de escaneo para clientes en polling (Vercel)
 let latestScanEvent = null;
 
 /**
@@ -27,71 +27,94 @@ const validateAccess = async (req, res) => {
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
     const doorId = parseInt(door_id, 10);
 
-    // 1. Obtener la puerta y la sala asociada
-    const door = db.memoryDb.doors.find(d => d.id === doorId);
-    if (!door) {
-      return res.status(404).json({ success: false, error: 'Puerta no registrada en el sistema' });
+    // 1. Obtener la puerta y la sala asociada directamente desde PostgreSQL
+    const doorQuery = await db.query(
+      `SELECT d.*, r.id as room_id, r.name as room_name, r.has_alarm, r.security_status, b.name as block_name
+       FROM doors d
+       JOIN rooms r ON r.id = d.room_id
+       LEFT JOIN blocks b ON b.id = r.block_id
+       WHERE d.id = $1`,
+      [doorId]
+    );
+
+    if (doorQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Puerta no registrada en la base de datos' });
     }
-    const room = db.memoryDb.rooms.find(r => r.id === door.room_id);
-    const block = room ? db.memoryDb.blocks.find(b => b.id === room.block_id) : null;
+
+    const door = doorQuery.rows[0];
+
+    // Marcar la puerta como online y actualizar heartbeat
+    await db.query(`UPDATE doors SET status = 'online', last_heartbeat = NOW() WHERE id = $1`, [door.id]);
 
     let granted = false;
     let denialReason = null;
-    let user = null;
-    let role = null;
     let card = null;
+    let user = null;
 
-    // 2. Buscar la tarjeta RFID en el sistema
-    card = db.memoryDb.rfid_cards.find(c => c.uid === cleanUid);
+    // 2. Buscar la tarjeta RFID en PostgreSQL
+    const cardQuery = await db.query(
+      `SELECT c.*,
+              u.id as user_id, u.first_name, u.last_name, u.document_id, u.program, u.status as user_status, u.access_expiry, u.photo_url,
+              r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
+       FROM rfid_cards c
+       LEFT JOIN users u ON u.id = c.user_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE c.uid = $1`,
+      [cleanUid]
+    );
 
-    if (!card) {
+    if (cardQuery.rows.length === 0) {
       denialReason = 'denegado_no_registrado';
-    } else if (!card.is_active) {
-      denialReason = 'denegado_tarjeta_inactiva';
-    } else if (!card.user_id) {
-      denialReason = 'denegado_sin_usuario_asignado';
     } else {
-      // 3. Buscar usuario
-      user = db.memoryDb.users.find(u => u.id === card.user_id);
-      if (!user) {
-        denialReason = 'denegado_usuario_no_encontrado';
-      } else if (user.status !== 'active') {
+      card = cardQuery.rows[0];
+
+      if (!card.is_active) {
+        denialReason = 'denegado_tarjeta_inactiva';
+      } else if (!card.user_id) {
+        denialReason = 'denegado_sin_usuario_asignado';
+      } else if (card.user_status !== 'active') {
         denialReason = 'denegado_usuario_inactivo';
-      } else if (user.access_expiry && new Date(user.access_expiry) < new Date()) {
+      } else if (card.access_expiry && new Date(card.access_expiry) < new Date()) {
         denialReason = 'denegado_acceso_expirado';
       } else {
-        role = db.memoryDb.roles.find(r => r.id === user.role_id);
+        user = {
+          id: card.user_id,
+          first_name: card.first_name,
+          last_name: card.last_name,
+          name: `${card.first_name} ${card.last_name}`,
+          document_id: card.document_id,
+          program: card.program,
+          role: card.role_display || 'Usuario',
+          role_name: card.role_name,
+          photo_url: card.photo_url
+        };
 
-        // 4. Jerarquía de roles y permisos
+        // 3. Jerarquía de roles y permisos
         // A) Rectora / Vigilante con privilegios globales o ficha maestra
-        if (role && role.global_access) {
+        if (card.global_access || card.card_type === 'master') {
           granted = true;
-        } else if (card.card_type === 'master') {
-          granted = true;
-        } else if (role && role.name === 'admin_staff') {
-          // Administrativos en bloques administrativos
-          if (room && room.room_type === 'administrativo' || (block && block.name.includes('Administrativo'))) {
+        } else if (card.role_name === 'admin_staff') {
+          // Administrativos en áreas administrativas
+          if (door.room_name.toLowerCase().includes('admin') || (door.block_name && door.block_name.toLowerCase().includes('admin'))) {
             granted = true;
           } else {
             denialReason = 'denegado_area_no_autorizada';
           }
         } else {
-          // B) Profesores y Estudiantes: Validación estricta contra articulación horaria
+          // B) Profesores y Estudiantes: Validación estricta contra articulación horaria en PostgreSQL
           const now = new Date();
-          const currentDay = now.getDay(); // 0: Dom, 1: Lun, 2: Mar, ...
+          const currentDay = now.getDay(); // 0=Domingo, 1=Lunes, ...
           const currentHour = now.toTimeString().split(' ')[0]; // 'HH:MM:SS'
 
-          // Buscar horario para el usuario en esta sala
-          const matchingSchedule = db.memoryDb.schedules.find(s =>
-            s.user_id === user.id &&
-            s.room_id === room.id &&
-            s.day_of_week === currentDay &&
-            s.is_active &&
-            s.start_time <= currentHour &&
-            s.end_time >= currentHour
+          const schedResult = await db.query(
+            `SELECT * FROM schedules
+             WHERE user_id = $1 AND room_id = $2 AND day_of_week = $3 AND is_active = true
+               AND start_time <= $4 AND end_time >= $4
+             LIMIT 1`,
+            [user.id, door.room_id, currentDay, currentHour]
           );
 
-          if (matchingSchedule) {
+          if (schedResult.rows.length > 0) {
             granted = true;
           } else {
             denialReason = 'denegado_horario_no_valido';
@@ -100,107 +123,71 @@ const validateAccess = async (req, res) => {
       }
     }
 
-    // 5. Lógica de Alarmas Integradas (Prototipo Sala de Informática 1 y salas aseguradas)
+    // 4. Lógica de Alarmas
     let alarmTriggered = false;
     let alarmDetails = null;
 
-    if (room && room.has_alarm && room.security_status === 'armed') {
-      // Si la sala está armada y el acceso fue denegado o no es personal de seguridad desarmando
-      const isSecurity = role && (role.name === 'security' || role.name === 'rector');
+    if (door.has_alarm && door.security_status === 'armed') {
+      const isSecurity = card && (card.role_name === 'security' || card.role_name === 'celador' || card.role_name === 'rector');
       if (!granted || !isSecurity) {
         alarmTriggered = true;
-        room.security_status = 'alert';
+        await db.query(`UPDATE rooms SET security_status = 'alert' WHERE id = $1`, [door.room_id]);
 
-        const alertObj = {
-          id: db.nextIds.alerts++,
-          door_id: door.id,
-          room_id: room.id,
-          sensor_type: 'alarm_triggered',
-          severity: 'critical',
-          message: `🚨 ALERTA CRÍTICA: Intento de apertura no autorizada en ${room.name} (${door.name}). Alarma física activada. Solo deshabilitable desde el cuarto de control de seguridad.`,
-          timestamp: new Date().toISOString(),
-          is_resolved: false,
-          resolved_by: null,
-          resolved_at: null,
-          resolution_note: null,
-          email_sent: false
-        };
+        const alertMessage = `🚨 ALERTA CRÍTICA: Intento de apertura no autorizada en ${door.room_name} (${door.name}). Solo deshabilitable desde el cuarto de control de seguridad.`;
 
-        db.memoryDb.alerts.unshift(alertObj);
+        const alertInsert = await db.query(
+          `INSERT INTO alerts (door_id, room_id, sensor_type, severity, message, timestamp, is_resolved)
+           VALUES ($1, $2, 'alarm_triggered', 'critical', $3, NOW(), false)
+           RETURNING *`,
+          [door.id, door.room_id, alertMessage]
+        );
 
-        // Envío de correo electrónico a seguridad y administración
+        alarmDetails = alertInsert.rows[0];
+
+        // Envío de correo
         emailService.sendAlertEmail({
           sensor_type: 'alarm_triggered',
           severity: 'critical',
-          message: alertObj.message,
-          room_name: room.name,
+          message: alertMessage,
+          room_name: door.room_name,
           door_name: door.name
-        }).then(res => {
-          if (res && res.sent) alertObj.email_sent = true;
-        });
+        }).catch(console.error);
 
-        // Broadcast WebSocket de la alerta crítica
-        wsService.broadcast('new_alert', alertObj);
-        alarmDetails = alertObj;
+        wsService.broadcast('new_alert', alarmDetails);
       }
     }
 
-    // 6. Desbloqueo físico simulado si se concedió acceso
+    // 5. Desbloqueo si se concedió acceso
     if (granted) {
-      door.is_locked = false;
-      setTimeout(() => {
-        door.is_locked = true;
-        wsService.broadcast('door_status', { doorId: door.id, isLocked: true });
+      await db.query(`UPDATE doors SET is_locked = false WHERE id = $1`, [door.id]);
+      setTimeout(async () => {
+        try {
+          await db.query(`UPDATE doors SET is_locked = true WHERE id = $1`, [door.id]);
+          wsService.broadcast('door_status', { doorId: door.id, isLocked: true });
+        } catch (e) {}
       }, 5000);
     }
 
-    // 7. Registro de log de auditoría
-    const logEntry = {
-      id: db.nextIds.access_logs++,
-      user_id: user ? user.id : null,
-      door_id: door.id,
-      rfid_card_id: card ? card.id : null,
-      rfid_uid_raw: cleanUid,
-      timestamp: new Date().toISOString(),
-      access_method,
-      granted,
-      denial_reason: denialReason,
-      notes: granted ? 'Acceso autorizado' : `Intento fallido: ${denialReason}`
-    };
+    // 6. Registro INMUTABLE en la tabla access_logs de PostgreSQL
+    const logInsert = await db.query(
+      `INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, timestamp, access_method, granted, denial_reason, notes)
+       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        user ? user.id : null,
+        door.id,
+        card ? card.id : null,
+        cleanUid,
+        access_method,
+        granted,
+        denialReason,
+        granted ? 'Acceso autorizado' : `Intento fallido: ${denialReason}`
+      ]
+    );
 
-    db.memoryDb.access_logs.unshift(logEntry);
+    const logEntry = logInsert.rows[0];
 
-    // Persistencia asíncrona en PostgreSQL si la base de datos está conectada
-    if (!db.useMemory && db.pool) {
-      db.pool.query(
-        `INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, timestamp, access_method, granted, denial_reason, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [logEntry.user_id, logEntry.door_id, logEntry.rfid_card_id, logEntry.rfid_uid_raw, logEntry.timestamp, logEntry.access_method, logEntry.granted, logEntry.denial_reason, logEntry.notes]
-      ).catch(e => console.warn('Error guardando log en PostgreSQL:', e.message));
-    }
-
-    // 8. Broadcast de intento de acceso en tiempo real a monitores y cuartos de control
-    const broadcastPayload = {
-      logId: logEntry.id,
-      granted,
-      timestamp: logEntry.timestamp,
-      uid: cleanUid,
-      door: { id: door.id, name: door.name },
-      room: { id: room.id, name: room.name, has_alarm: room.has_alarm, security_status: room.security_status },
-      user: user ? {
-        id: user.id,
-        name: `${user.first_name} ${user.last_name}`,
-        document_id: user.document_id,
-        program: user.program,
-        role: role ? role.display_name : 'Usuario'
-      } : null,
-      denialReason,
-      alarmTriggered
-    };
-
-    wsService.broadcast('access_attempt', broadcastPayload);
-
-    // Actualizar el último escaneo en memoria para clientes en polling (Vercel Serverless)
+    // 7. Preparar payload y actualizar caché para polling
     latestScanEvent = {
       id: logEntry.id,
       logId: logEntry.id,
@@ -208,181 +195,205 @@ const validateAccess = async (req, res) => {
       denial_reason: denialReason,
       timestamp: logEntry.timestamp,
       uid: cleanUid,
-      user: user ? {
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        name: `${user.first_name} ${user.last_name}`,
-        document_id: user.document_id,
-        program: user.program,
-        role: role ? role.display_name : 'Usuario',
-        photo_url: user.photo_url
-      } : null,
+      user,
       door: {
         id: door.id,
         name: door.name,
-        status: door.status
+        status: 'online'
       },
       room: {
-        id: room.id,
-        name: room.name,
-        block_name: block ? block.name : 'Campus',
-        security_status: room.security_status,
-        has_alarm: room.has_alarm
+        id: door.room_id,
+        name: door.room_name,
+        block_name: door.block_name || 'Campus',
+        security_status: door.security_status,
+        has_alarm: door.has_alarm
       },
       alarm_triggered: alarmTriggered,
       alarm: alarmDetails
     };
 
-    return res.json({
-      success: true,
-      data: {
-        granted,
-        denial_reason: denialReason,
-        timestamp: logEntry.timestamp,
-        user: user ? {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          document_id: user.document_id,
-          program: user.program,
-          role: role ? role.display_name : 'Usuario',
-          photo_url: user.photo_url
-        } : null,
-        door: {
-          id: door.id,
-          name: door.name,
-          status: door.status
-        },
-        room: {
-          id: room.id,
-          name: room.name,
-          block_name: block ? block.name : 'Campus',
-          security_status: room.security_status
-        },
-        alarm_triggered: alarmTriggered,
-        alarm: alarmDetails
-      }
-    });
-  } catch (error) {
-    console.error('Error en validateAccess:', error);
-    return res.status(500).json({ success: false, error: 'Error interno en la validación de acceso' });
-  }
-};
-
-/**
- * Obtiene el historial de logs de acceso con paginación y filtros
- * GET /api/access/logs
- */
-const getAccessLogs = async (req, res) => {
-  try {
-    const { page = 1, limit = 50, granted, user_id, door_id, search } = req.query;
-
-    let logs = db.memoryDb.access_logs.map(log => {
-      const user = log.user_id ? db.memoryDb.users.find(u => u.id === log.user_id) : null;
-      const door = log.door_id ? db.memoryDb.doors.find(d => d.id === log.door_id) : null;
-      const room = door ? db.memoryDb.rooms.find(r => r.id === door.room_id) : null;
-      const block = room ? db.memoryDb.blocks.find(b => b.id === room.block_id) : null;
-
-      return {
-        ...log,
-        user_name: user ? `${user.first_name} ${user.last_name}` : 'Desconocido',
-        user_document: user ? user.document_id : '—',
-        user_program: user ? user.program : '—',
-        door_name: door ? door.name : 'Puerta eliminada',
-        room_name: room ? room.name : 'Sala eliminada',
-        block_name: block ? block.name : 'Campus'
-      };
+    wsService.broadcast('access_attempt', {
+      logId: logEntry.id,
+      granted,
+      timestamp: logEntry.timestamp,
+      uid: cleanUid,
+      door: { id: door.id, name: door.name },
+      room: { id: door.room_id, name: door.room_name, has_alarm: door.has_alarm, security_status: door.security_status },
+      user,
+      denialReason,
+      alarmTriggered
     });
 
-    if (granted !== undefined) {
-      const isGranted = granted === 'true';
-      logs = logs.filter(l => l.granted === isGranted);
-    }
-    if (user_id) {
-      logs = logs.filter(l => l.user_id === parseInt(user_id, 10));
-    }
-    if (door_id) {
-      logs = logs.filter(l => l.door_id === parseInt(door_id, 10));
-    }
-    if (search) {
-      const q = search.toLowerCase();
-      logs = logs.filter(l =>
-        (l.rfid_uid_raw && l.rfid_uid_raw.toLowerCase().includes(q)) ||
-        l.user_name.toLowerCase().includes(q) ||
-        l.door_name.toLowerCase().includes(q) ||
-        l.room_name.toLowerCase().includes(q)
-      );
-    }
-
-    const total = logs.length;
-    const p = parseInt(page, 10);
-    const lim = parseInt(limit, 10);
-    const paginated = logs.slice((p - 1) * lim, p * lim);
-
-    return res.json({
-      success: true,
-      data: paginated,
-      pagination: {
-        page: p,
-        limit: lim,
-        total,
-        pages: Math.ceil(total / lim)
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener historial de accesos' });
-  }
-};
-
-/**
- * Obtiene métricas del dashboard
- * GET /api/access/logs/stats
- */
-const getStats = async (req, res) => {
-  try {
-    const today = new Date().toISOString().split('T')[0];
-    const todayLogs = db.memoryDb.access_logs.filter(l => l.timestamp && l.timestamp.startsWith(today));
-
-    const totalToday = todayLogs.length;
-    const grantedToday = todayLogs.filter(l => l.granted).length;
-    const deniedToday = todayLogs.filter(l => !l.granted).length;
-    const activeUsers = db.memoryDb.users.filter(u => u.status === 'active').length;
-    const activeAlerts = db.memoryDb.alerts.filter(a => !a.is_resolved).length;
-    const totalDoors = db.memoryDb.doors.length;
-    const totalRooms = db.memoryDb.rooms.length;
-    const totalBlocks = db.memoryDb.blocks.length;
-
-    return res.json({
-      success: true,
-      data: {
-        totalToday,
-        grantedToday,
-        deniedToday,
-        activeUsers,
-        activeAlerts,
-        totalDoors,
-        totalRooms,
-        totalBlocks
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener estadísticas' });
-  }
-};
-
-/**
- * Obtiene el último evento de escaneo RFID registrado (para polling en Vercel Serverless)
- * GET /api/access/latest
- */
-const getLatestScan = async (req, res) => {
-  try {
     return res.json({
       success: true,
       data: latestScanEvent
     });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener último escaneo' });
+    console.error('Error en validateAccess (PostgreSQL):', error);
+    return res.status(500).json({ success: false, error: 'Error interno en la validación contra PostgreSQL: ' + error.message });
+  }
+};
+
+/**
+ * Obtiene el historial de logs de acceso directamente desde PostgreSQL
+ * GET /api/access/logs
+ */
+const getAccessLogs = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, granted, user_id, door_id, search } = req.query;
+    const p = parseInt(page, 10);
+    const lim = parseInt(limit, 10);
+    const offset = (p - 1) * lim;
+
+    let queryText = `
+      SELECT l.*,
+             (u.first_name || ' ' || u.last_name) as user_name,
+             u.document_id as user_document,
+             u.program as user_program,
+             r.display_name as role_name,
+             d.name as door_name,
+             rm.name as room_name,
+             rm.has_alarm as room_has_alarm,
+             b.name as block_name
+      FROM access_logs l
+      LEFT JOIN users u ON u.id = l.user_id
+      LEFT JOIN roles r ON r.id = u.role_id
+      LEFT JOIN doors d ON d.id = l.door_id
+      LEFT JOIN rooms rm ON rm.id = d.room_id
+      LEFT JOIN blocks b ON b.id = rm.block_id
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (granted !== undefined) {
+      params.push(granted === 'true');
+      queryText += ` AND l.granted = $${params.length}`;
+    }
+    if (user_id) {
+      params.push(parseInt(user_id, 10));
+      queryText += ` AND l.user_id = $${params.length}`;
+    }
+    if (door_id) {
+      params.push(parseInt(door_id, 10));
+      queryText += ` AND l.door_id = $${params.length}`;
+    }
+    if (search) {
+      params.push(`%${search.toLowerCase()}%`);
+      queryText += ` AND (
+        LOWER(l.rfid_uid_raw) LIKE $${params.length} OR
+        LOWER(u.first_name) LIKE $${params.length} OR
+        LOWER(u.last_name) LIKE $${params.length} OR
+        LOWER(d.name) LIKE $${params.length} OR
+        LOWER(rm.name) LIKE $${params.length}
+      )`;
+    }
+
+    queryText += ` ORDER BY l.timestamp DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(lim, offset);
+
+    const result = await db.query(queryText, params);
+    return res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error en getAccessLogs:', error);
+    return res.status(500).json({ success: false, error: 'Error al consultar logs en PostgreSQL: ' + error.message });
+  }
+};
+
+/**
+ * Obtiene métricas reales del dashboard calculadas en PostgreSQL
+ * GET /api/access/logs/stats
+ */
+const getStats = async (req, res) => {
+  try {
+    const [totalToday, grantedToday, activeUsers, activeAlerts, totalDoors, totalRooms, totalBlocks] = await Promise.all([
+      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE`),
+      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE AND granted = true`),
+      db.query(`SELECT COUNT(*)::int as count FROM users WHERE status = 'active'`),
+      db.query(`SELECT COUNT(*)::int as count FROM alerts WHERE is_resolved = false`),
+      db.query(`SELECT COUNT(*)::int as count FROM doors`),
+      db.query(`SELECT COUNT(*)::int as count FROM rooms`),
+      db.query(`SELECT COUNT(*)::int as count FROM blocks`)
+    ]);
+
+    const total = totalToday.rows[0]?.count || 0;
+    const granted = grantedToday.rows[0]?.count || 0;
+
+    return res.json({
+      success: true,
+      data: {
+        totalToday: total,
+        grantedToday: granted,
+        deniedToday: total - granted,
+        activeUsers: activeUsers.rows[0]?.count || 0,
+        activeAlerts: activeAlerts.rows[0]?.count || 0,
+        totalDoors: totalDoors.rows[0]?.count || 0,
+        totalRooms: totalRooms.rows[0]?.count || 0,
+        totalBlocks: totalBlocks.rows[0]?.count || 0
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al obtener estadísticas: ' + error.message });
+  }
+};
+
+/**
+ * Obtiene el último evento de escaneo RFID registrado (para polling en Vercel)
+ * GET /api/access/latest
+ */
+const getLatestScan = async (req, res) => {
+  try {
+    if (latestScanEvent) {
+      return res.json({ success: true, data: latestScanEvent });
+    }
+
+    // Si aún no hubo escaneos en esta instancia serverless, consultar el último de PostgreSQL
+    const lastLogQuery = await db.query(
+      `SELECT l.*,
+              (u.first_name || ' ' || u.last_name) as user_name,
+              u.first_name, u.last_name, u.document_id, u.program, u.photo_url,
+              r.display_name as role_name,
+              d.name as door_name, d.status as door_status,
+              rm.name as room_name, rm.has_alarm as room_has_alarm,
+              b.name as block_name
+       FROM access_logs l
+       LEFT JOIN users u ON u.id = l.user_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       LEFT JOIN doors d ON d.id = l.door_id
+       LEFT JOIN rooms rm ON rm.id = d.room_id
+       LEFT JOIN blocks b ON b.id = rm.block_id
+       ORDER BY l.timestamp DESC
+       LIMIT 1`
+    );
+
+    if (lastLogQuery.rows.length === 0) {
+      return res.json({ success: true, data: null });
+    }
+
+    const last = lastLogQuery.rows[0];
+    return res.json({
+      success: true,
+      data: {
+        id: last.id,
+        logId: last.id,
+        granted: last.granted,
+        denial_reason: last.denial_reason,
+        timestamp: last.timestamp,
+        uid: last.rfid_uid_raw,
+        user: last.user_name ? {
+          first_name: last.first_name,
+          last_name: last.last_name,
+          name: last.user_name,
+          document_id: last.document_id,
+          program: last.program,
+          role: last.role_name
+        } : null,
+        door: { id: last.door_id, name: last.door_name, status: last.door_status },
+        room: { name: last.room_name, block_name: last.block_name },
+        alarm_triggered: !last.granted && last.room_has_alarm
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al consultar último escaneo: ' + error.message });
   }
 };
 

@@ -1,171 +1,106 @@
 // ===================================================================
-// Controlador de Salas / Espacios — Control de Acceso RFID
+// Controlador de Salas y Espacios — PostgreSQL
 // ===================================================================
 const db = require('../config/db');
 
 const getRooms = async (req, res) => {
   try {
     const { block_id } = req.query;
-    let rooms = db.memoryDb.rooms.map(r => {
-      const block = db.memoryDb.blocks.find(b => b.id === r.block_id);
-      const doorsCount = db.memoryDb.doors.filter(d => d.room_id === r.id).length;
-      return {
-        ...r,
-        block_name: block ? block.name : 'Sin Bloque',
-        doors_count: doorsCount
-      };
-    });
-
+    let queryText = `
+      SELECT r.*, b.name as block_name, COUNT(d.id)::int as doors_count
+      FROM rooms r
+      LEFT JOIN blocks b ON b.id = r.block_id
+      LEFT JOIN doors d ON d.room_id = r.id
+    `;
+    const params = [];
     if (block_id) {
-      rooms = rooms.filter(r => r.block_id === parseInt(block_id, 10));
+      params.push(parseInt(block_id, 10));
+      queryText += ` WHERE r.block_id = $1`;
     }
+    queryText += ` GROUP BY r.id, b.name ORDER BY r.id ASC`;
 
-    return res.json({ success: true, data: rooms });
+    const result = await db.query(queryText, params);
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener salas' });
+    return res.status(500).json({ success: false, error: 'Error al consultar salas: ' + error.message });
   }
 };
 
 const getRoomById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const room = db.memoryDb.rooms.find(r => r.id === id);
-    if (!room) {
+    const result = await db.query(
+      `SELECT r.*, b.name as block_name
+       FROM rooms r
+       LEFT JOIN blocks b ON b.id = r.block_id
+       WHERE r.id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Sala no encontrada' });
     }
-    const block = db.memoryDb.blocks.find(b => b.id === room.block_id);
-    const doors = db.memoryDb.doors.filter(d => d.room_id === room.id);
-    const alarmZone = db.memoryDb.alarm_zones.find(az => az.room_id === room.id);
-
-    return res.json({
-      success: true,
-      data: {
-        ...room,
-        block_name: block ? block.name : 'Sin Bloque',
-        doors,
-        alarm_zone: alarmZone || null
-      }
-    });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener sala' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const createRoom = async (req, res) => {
   try {
-    const { block_id, name, floor, room_type, has_alarm, has_camera, motion_sensors, door_sensors, description } = req.body;
-
+    const { block_id, name, floor = 1, room_type = 'general', has_alarm = false, description } = req.body;
     if (!block_id || !name || !name.trim()) {
-      return res.status(400).json({ success: false, error: 'Bloque y nombre de la sala son obligatorios' });
+      return res.status(400).json({ success: false, error: 'Bloque y nombre son obligatorios' });
     }
 
-    const block = db.memoryDb.blocks.find(b => b.id === parseInt(block_id, 10));
-    if (!block) {
-      return res.status(404).json({ success: false, error: 'El bloque asignado no existe' });
-    }
-
-    const newRoom = {
-      id: db.nextIds.rooms++,
-      block_id: parseInt(block_id, 10),
-      name: name.trim(),
-      floor: parseInt(floor || 1, 10),
-      room_type: room_type || 'general',
-      has_alarm: Boolean(has_alarm),
-      has_camera: Boolean(has_camera),
-      motion_sensors: parseInt(motion_sensors || 0, 10),
-      door_sensors: parseInt(door_sensors || 0, 10),
-      security_status: has_alarm ? 'armed' : 'normal',
-      description: description ? description.trim() : '',
-      is_active: true,
-      created_at: new Date().toISOString()
-    };
-
-    db.memoryDb.rooms.push(newRoom);
-
-    // Si tiene alarma, crear zona de alarma automática
-    if (newRoom.has_alarm) {
-      db.memoryDb.alarm_zones.push({
-        id: db.nextIds.alarm_zones++,
-        room_id: newRoom.id,
-        zone_name: `Zona Alarma — ${newRoom.name}`,
-        requires_security_clearance: true,
-        is_armed: true,
-        armed_at: new Date().toISOString()
-      });
-    }
-
-    return res.status(201).json({
-      success: true,
-      data: {
-        ...newRoom,
-        block_name: block.name,
-        doors_count: 0
-      }
-    });
+    const result = await db.query(
+      `INSERT INTO rooms (block_id, name, floor, room_type, has_alarm, security_status, description)
+       VALUES ($1, $2, $3, $4, $5, 'normal', $6)
+       RETURNING *`,
+      [parseInt(block_id, 10), name.trim(), floor, room_type, has_alarm, description]
+    );
+    return res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al crear la sala' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const updateRoom = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const room = db.memoryDb.rooms.find(r => r.id === id);
-    if (!room) {
+    const { name, floor, room_type, has_alarm, security_status, description, is_active } = req.body;
+
+    const result = await db.query(
+      `UPDATE rooms
+       SET name = COALESCE($1, name),
+           floor = COALESCE($2, floor),
+           room_type = COALESCE($3, room_type),
+           has_alarm = COALESCE($4, has_alarm),
+           security_status = COALESCE($5, security_status),
+           description = COALESCE($6, description),
+           is_active = COALESCE($7, is_active)
+       WHERE id = $8
+       RETURNING *`,
+      [name, floor, room_type, has_alarm, security_status, description, is_active, id]
+    );
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Sala no encontrada' });
     }
-
-    const { block_id, name, floor, room_type, has_alarm, has_camera, motion_sensors, door_sensors, security_status, description, is_active } = req.body;
-
-    if (block_id) room.block_id = parseInt(block_id, 10);
-    if (name) room.name = name.trim();
-    if (floor !== undefined) room.floor = parseInt(floor, 10);
-    if (room_type) room.room_type = room_type;
-    if (has_alarm !== undefined) room.has_alarm = Boolean(has_alarm);
-    if (has_camera !== undefined) room.has_camera = Boolean(has_camera);
-    if (motion_sensors !== undefined) room.motion_sensors = parseInt(motion_sensors, 10);
-    if (door_sensors !== undefined) room.door_sensors = parseInt(door_sensors, 10);
-    if (security_status) room.security_status = security_status;
-    if (description !== undefined) room.description = description.trim();
-    if (is_active !== undefined) room.is_active = is_active;
-
-    const block = db.memoryDb.blocks.find(b => b.id === room.block_id);
-    const doorsCount = db.memoryDb.doors.filter(d => d.room_id === room.id).length;
-
-    return res.json({
-      success: true,
-      data: {
-        ...room,
-        block_name: block ? block.name : 'Sin Bloque',
-        doors_count: doorsCount
-      }
-    });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al actualizar sala' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const deleteRoom = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const index = db.memoryDb.rooms.findIndex(r => r.id === id);
-    if (index === -1) {
+    const result = await db.query(`DELETE FROM rooms WHERE id = $1 RETURNING id`, [id]);
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Sala no encontrada' });
     }
-
-    // Eliminar puertas dependientes o advertir
-    const doors = db.memoryDb.doors.filter(d => d.room_id === id);
-    if (doors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No se puede eliminar la sala porque tiene puertas registradas. Elimine las puertas primero.'
-      });
-    }
-
-    db.memoryDb.rooms.splice(index, 1);
-    return res.json({ success: true, message: 'Sala eliminada correctamente' });
+    return res.json({ success: true, message: 'Sala eliminada' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al eliminar sala' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 

@@ -1,78 +1,66 @@
 // ===================================================================
-// Controlador de Alertas y Gestión de Seguridad — Control de Acceso RFID
+// Controlador de Alertas de Seguridad — PostgreSQL
 // ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
-const emailService = require('../services/emailService');
 
 const getAlerts = async (req, res) => {
   try {
-    const { severity, is_resolved } = req.query;
+    const { is_resolved, severity, limit = 50 } = req.query;
 
-    let alerts = db.memoryDb.alerts.map(a => {
-      const door = a.door_id ? db.memoryDb.doors.find(d => d.id === a.door_id) : null;
-      const room = a.room_id ? db.memoryDb.rooms.find(r => r.id === a.room_id) : (door ? db.memoryDb.rooms.find(r => r.id === door.room_id) : null);
-      const resolver = a.resolved_by ? db.memoryDb.users.find(u => u.id === a.resolved_by) : null;
+    let queryText = `
+      SELECT a.*,
+             d.name as door_name,
+             r.name as room_name,
+             b.name as block_name,
+             (u.first_name || ' ' || u.last_name) as resolved_by_name
+      FROM alerts a
+      LEFT JOIN doors d ON d.id = a.door_id
+      LEFT JOIN rooms r ON r.id = a.room_id
+      LEFT JOIN blocks b ON b.id = r.block_id
+      LEFT JOIN users u ON u.id = a.resolved_by
+      WHERE 1=1
+    `;
+    const params = [];
 
-      return {
-        ...a,
-        door_name: door ? door.name : 'General',
-        room_name: room ? room.name : 'Campus',
-        resolver_name: resolver ? `${resolver.first_name} ${resolver.last_name}` : null
-      };
-    });
-
-    if (severity) {
-      alerts = alerts.filter(a => a.severity === severity);
-    }
     if (is_resolved !== undefined) {
-      const resolved = is_resolved === 'true';
-      alerts = alerts.filter(a => a.is_resolved === resolved);
+      params.push(is_resolved === 'true');
+      queryText += ` AND a.is_resolved = $${params.length}`;
+    }
+    if (severity) {
+      params.push(severity);
+      queryText += ` AND a.severity = $${params.length}`;
     }
 
-    return res.json({ success: true, data: alerts });
+    queryText += ` ORDER BY a.timestamp DESC LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit, 10));
+
+    const result = await db.query(queryText, params);
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener alertas' });
+    return res.status(500).json({ success: false, error: 'Error al consultar alertas: ' + error.message });
   }
 };
 
 const createAlert = async (req, res) => {
   try {
-    const { door_id, room_id, sensor_type, severity = 'medium', message } = req.body;
-
-    if (!sensor_type || !message) {
-      return res.status(400).json({ success: false, error: 'Tipo de sensor y mensaje son requeridos' });
+    const { door_id, room_id, sensor_type = 'alarm_triggered', severity = 'high', message } = req.body;
+    if (!message) {
+      return res.status(400).json({ success: false, error: 'Mensaje de alerta requerido' });
     }
 
-    const newAlert = {
-      id: db.nextIds.alerts++,
-      door_id: door_id ? parseInt(door_id, 10) : null,
-      room_id: room_id ? parseInt(room_id, 10) : null,
-      sensor_type,
-      severity,
-      message,
-      timestamp: new Date().toISOString(),
-      is_resolved: false,
-      resolved_by: null,
-      resolved_at: null,
-      resolution_note: null,
-      email_sent: false
-    };
+    const result = await db.query(
+      `INSERT INTO alerts (door_id, room_id, sensor_type, severity, message, timestamp, is_resolved)
+       VALUES ($1, $2, $3, $4, $5, NOW(), false)
+       RETURNING *`,
+      [door_id ? parseInt(door_id, 10) : null, room_id ? parseInt(room_id, 10) : null, sensor_type, severity, message]
+    );
 
-    db.memoryDb.alerts.unshift(newAlert);
-
-    // Si es severidad alta o crítica, enviar email automático
-    if (severity === 'high' || severity === 'critical') {
-      emailService.sendAlertEmail(newAlert).then(r => {
-        if (r && r.sent) newAlert.email_sent = true;
-      });
-    }
-
-    wsService.broadcast('new_alert', newAlert);
-
-    return res.status(201).json({ success: true, data: newAlert });
+    const alert = result.rows[0];
+    wsService.broadcast('new_alert', alert);
+    return res.status(201).json({ success: true, data: alert });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al registrar alerta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -80,63 +68,39 @@ const resolveAlert = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { resolution_note } = req.body;
-    const resolverId = req.user.id;
+    const userId = req.user.id;
 
-    const alert = db.memoryDb.alerts.find(a => a.id === id);
-    if (!alert) {
+    const result = await db.query(
+      `UPDATE alerts
+       SET is_resolved = true,
+           resolved_by = $1,
+           resolved_at = NOW(),
+           resolution_note = $2
+       WHERE id = $3
+       RETURNING *`,
+      [userId, resolution_note || 'Alerta resuelta por personal de seguridad', id]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Alerta no encontrada' });
     }
 
-    alert.is_resolved = true;
-    alert.resolved_by = resolverId;
-    alert.resolved_at = new Date().toISOString();
-    alert.resolution_note = resolution_note ? resolution_note.trim() : 'Resuelta desde el centro de control';
-
-    // Si la alerta involucraba una sala en estado de alerta, restablecer la sala a normal/armada
-    if (alert.room_id) {
-      const room = db.memoryDb.rooms.find(r => r.id === alert.room_id);
-      if (room && room.security_status === 'alert') {
-        room.security_status = room.has_alarm ? 'armed' : 'normal';
-      }
-    }
-
-    wsService.broadcast('alert_resolved', { alertId: alert.id, resolvedBy: resolverId });
-
-    return res.json({ success: true, message: 'Alerta resuelta con éxito', data: alert });
+    const resolved = result.rows[0];
+    wsService.broadcast('alert_resolved', { alertId: id, resolvedBy: userId });
+    return res.json({ success: true, data: resolved });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al resolver alerta' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
 const disarmRoomAlarm = async (req, res) => {
   try {
     const roomId = parseInt(req.params.roomId, 10);
-    const room = db.memoryDb.rooms.find(r => r.id === roomId);
-    if (!room) {
-      return res.status(404).json({ success: false, error: 'Sala no encontrada' });
-    }
-
-    const previousStatus = room.security_status;
-    room.security_status = 'normal';
-
-    const zone = db.memoryDb.alarm_zones.find(z => z.room_id === roomId);
-    if (zone) zone.is_armed = false;
-
-    wsService.broadcast('room_security_change', {
-      roomId: room.id,
-      roomName: room.name,
-      status: 'normal',
-      action: 'disarmed_by_security',
-      user: req.user.email
-    });
-
-    return res.json({
-      success: true,
-      message: `Alarma deshabilitada manualmente para ${room.name} desde el centro de control`,
-      data: room
-    });
+    await db.query(`UPDATE rooms SET security_status = 'normal' WHERE id = $1`, [roomId]);
+    wsService.broadcast('room_security_change', { roomId, status: 'normal' });
+    return res.json({ success: true, message: 'Alarma de sala desarmada por seguridad' });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al desarmar sala' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 

@@ -1,26 +1,27 @@
 // ===================================================================
-// Controlador de Roles — Jerarquía RBAC Control de Acceso RFID
+// Controlador de Roles Institucionales — PostgreSQL
 // ===================================================================
 const db = require('../config/db');
 
 const getRoles = async (req, res) => {
   try {
-    return res.json({ success: true, data: db.memoryDb.roles });
+    const result = await db.query(`SELECT * FROM roles ORDER BY id ASC`);
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener roles' });
+    return res.status(500).json({ success: false, error: 'Error al consultar roles: ' + error.message });
   }
 };
 
 const getRoleById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const role = db.memoryDb.roles.find(r => r.id === id);
-    if (!role) {
+    const result = await db.query(`SELECT * FROM roles WHERE id = $1`, [id]);
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Rol no encontrado' });
     }
-    return res.json({ success: true, data: role });
+    return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al obtener rol' });
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
