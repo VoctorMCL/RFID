@@ -402,27 +402,25 @@ export const Monitor = () => {
                   border: '1px solid var(--status-ok-border)',
                   color: 'var(--status-ok-text)',
                   borderRadius: 'var(--radius)',
-                  fontWeight: 800,
-                  fontSize: '16px',
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  marginBottom: '28px'
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  marginBottom: '24px'
                 }}>
-                  ACCESO PERMITIDO
+                  Acceso Autorizado
                 </div>
 
                 {/* Avatar / Fotografía de Verificación Visual */}
                 <div style={{
-                  width: '100px',
-                  height: '100px',
+                  width: '92px',
+                  height: '92px',
                   borderRadius: '50%',
                   backgroundColor: 'var(--bg-tertiary)',
-                  border: '3px solid var(--status-ok-border)',
+                  border: '2px solid var(--status-ok-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '32px',
-                  fontWeight: 800,
+                  fontSize: '28px',
+                  fontWeight: 700,
                   color: 'var(--text-primary)',
                   margin: '0 auto 16px',
                   boxShadow: 'var(--shadow-sm)'
@@ -430,20 +428,20 @@ export const Monitor = () => {
                   {getInitials(lastScan.user?.first_name, lastScan.user?.last_name)}
                 </div>
 
-                <div style={{ fontSize: '12px', color: 'var(--accent)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--accent)', fontWeight: 600 }}>
                   {lastScan.user?.role || 'Personal Institucional'}
                 </div>
 
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
                   {lastScan.user?.first_name} {lastScan.user?.last_name}
                 </div>
 
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Doc: {lastScan.user?.document_id} · {lastScan.user?.program || 'Sin programa'}
+                  Documento: {lastScan.user?.document_id} · {lastScan.user?.program || 'Sin programa'}
                 </div>
 
                 <div style={{
-                  marginTop: '24px',
+                  marginTop: '20px',
                   paddingTop: '16px',
                   borderTop: '1px solid var(--border)',
                   display: 'grid',
@@ -452,12 +450,12 @@ export const Monitor = () => {
                   textAlign: 'left'
                 }}>
                   <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Puerta Habilitada</div>
-                    <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{lastScan.door?.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Punto de acceso</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{lastScan.door?.name}</div>
                   </div>
                   <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Espacio / Sala</div>
-                    <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{lastScan.room?.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Espacio / Sala</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{lastScan.room?.name}</div>
                   </div>
                 </div>
               </div>
@@ -472,20 +470,18 @@ export const Monitor = () => {
                   border: '1px solid var(--status-denied-border)',
                   color: 'var(--status-denied-text)',
                   borderRadius: 'var(--radius)',
-                  fontWeight: 800,
-                  fontSize: '16px',
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  marginBottom: '28px'
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  marginBottom: '24px'
                 }}>
-                  ACCESO DENEGADO
+                  Acceso Denegado
                 </div>
 
                 <div
                   className="denied-icon-wrap"
                   style={{
-                    width: '90px',
-                    height: '90px',
+                    width: '84px',
+                    height: '84px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--bg-tertiary)',
                     border: '2px solid var(--status-denied-border)',
@@ -496,16 +492,16 @@ export const Monitor = () => {
                     color: 'var(--status-denied-text)'
                   }}
                 >
-                  <XCircle size={44} />
+                  <XCircle size={40} />
                 </div>
 
-                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Restricción de Acceso
                 </div>
 
                 <div style={{
                   fontSize: '13px',
-                  color: '#b0b0b8',
+                  color: 'var(--text-secondary)',
                   maxWidth: '380px',
                   margin: '8px auto 0',
                   padding: '10px 14px',

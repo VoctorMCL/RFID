@@ -18,19 +18,14 @@ import {
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
-  Shield,
   Activity,
   CheckCircle2,
   XCircle,
   Users,
-  AlertTriangle,
   Building2,
   DoorClosed,
   Radio,
   Cpu,
-  BarChart3,
-  Layers,
-  Clock,
   RefreshCw,
   SlidersHorizontal,
   GraduationCap,
@@ -39,7 +34,9 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 
 ChartJS.register(
@@ -89,7 +86,7 @@ export const Dashboard = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Selector de Visibilidad de Paneles / Gráficas de Grafana
+  // Visibilidad de paneles de analítica
   const [visiblePanels, setVisiblePanels] = useState(() => {
     try {
       const saved = localStorage.getItem('grafana_visible_panels');
@@ -103,7 +100,6 @@ export const Dashboard = () => {
     };
   });
 
-  // URL de servidor Grafana externo opcional (iframe embed)
   const [grafanaEmbedUrl, setGrafanaEmbedUrl] = useState(() => localStorage.getItem('grafana_embed_url') || '');
   const [showEmbedModal, setShowEmbedModal] = useState(false);
 
@@ -115,7 +111,6 @@ export const Dashboard = () => {
     });
   };
 
-  // Escuchar eventos en vivo vía WebSocket
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
@@ -135,14 +130,14 @@ export const Dashboard = () => {
       setRecentLogs(prev => [
         {
           id: data.logId || Date.now(),
-          user_name: data.user ? `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim() : 'Desconocido',
+          user_name: data.user ? `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim() : 'No registrado',
           user_document: data.user?.document_id || '—',
           user_program: data.user?.program || '—',
           role_name: data.user?.role || 'Estudiante',
           rfid_uid_raw: data.uid,
           door_id: data.door?.id,
-          door_name: data.door ? data.door.name : 'Punto de Acceso',
-          room_name: data.room ? data.room.name : 'Espacio',
+          door_name: data.door ? data.door.name : 'Punto de acceso',
+          room_name: data.room ? data.room.name : 'Espacio institucional',
           granted: data.granted,
           denial_reason: data.denialReason || null,
           timestamp: data.timestamp || new Date().toISOString()
@@ -150,7 +145,6 @@ export const Dashboard = () => {
         ...prev.slice(0, 11)
       ]);
 
-      // Refrescar analítica en vivo
       loadAnalytics();
     } else if (event.type === 'new_alert') {
       setActiveAlerts(prev => [event.data, ...prev]);
@@ -170,7 +164,7 @@ export const Dashboard = () => {
         setAnalytics(res.data);
       }
     } catch (e) {
-      console.warn('Error cargando analítica de acceso:', e);
+      console.warn('Error al cargar analítica:', e);
     }
   };
 
@@ -192,7 +186,7 @@ export const Dashboard = () => {
       await loadAnalytics();
       setLastRefreshTime(new Date());
     } catch (err) {
-      console.error('Error cargando telemetría del dashboard:', err);
+      console.error('Error cargando datos del dashboard:', err);
     } finally {
       if (!silent) setLoading(false);
       setIsRefreshing(false);
@@ -212,51 +206,55 @@ export const Dashboard = () => {
   };
 
   const isHardwareSensorOnline = stats.activeSensors > 0 || doors.some(d => d.is_hardware_active);
-  const successRateColor = stats.successRate >= 95 ? '#10b981' : stats.successRate >= 80 ? '#f59e0b' : '#ef4444';
+  const successRateColor = stats.successRate >= 95 ? 'var(--status-ok-text)' : stats.successRate >= 80 ? 'var(--status-alert-text)' : 'var(--status-denied-text)';
 
-  // =========================================================================
-  // CONFIGURACIÓN DE GRÁFICAS CHART.JS (ESTILO Y ESTÉTICA GRAFANA OFICIAL)
-  // =========================================================================
-
-  const grafanaChartOptions = {
+  // Opciones de estilo limpias y tipografía legible para Chart.js
+  const chartCommonOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 400 },
+    animation: { duration: 300 },
     plugins: {
       legend: {
         labels: {
-          color: '#94a3b8',
-          font: { family: 'var(--font-mono)', size: 11, weight: 'bold' }
+          color: 'var(--text-secondary)',
+          font: { family: 'var(--font-ui)', size: 12.5, weight: '500' },
+          boxWidth: 12,
+          boxHeight: 12,
+          usePointStyle: true,
+          pointStyle: 'circle'
         }
       },
       tooltip: {
-        backgroundColor: '#0f172a',
-        titleColor: '#f8fafc',
-        bodyColor: '#cbd5e1',
-        borderColor: '#334155',
+        backgroundColor: 'var(--bg-secondary)',
+        titleColor: 'var(--text-primary)',
+        bodyColor: 'var(--text-secondary)',
+        borderColor: 'var(--border)',
         borderWidth: 1,
-        titleFont: { family: 'var(--font-mono)', size: 12 },
-        bodyFont: { family: 'var(--font-mono)', size: 11 }
+        padding: 10,
+        boxPadding: 4,
+        cornerRadius: 6,
+        titleFont: { family: 'var(--font-ui)', size: 13, weight: '600' },
+        bodyFont: { family: 'var(--font-ui)', size: 12 }
       }
     },
     scales: {
       x: {
-        grid: { color: 'rgba(148, 163, 184, 0.08)' },
-        ticks: { color: '#94a3b8', font: { family: 'var(--font-mono)', size: 10 } }
+        grid: { color: 'var(--border)' },
+        ticks: { color: 'var(--text-muted)', font: { family: 'var(--font-ui)', size: 12 } }
       },
       y: {
         beginAtZero: true,
-        grid: { color: 'rgba(148, 163, 184, 0.08)' },
+        grid: { color: 'var(--border)' },
         ticks: {
-          color: '#94a3b8',
-          font: { family: 'var(--font-mono)', size: 10 },
+          color: 'var(--text-muted)',
+          font: { family: 'var(--font-ui)', size: 12 },
           precision: 0
         }
       }
     }
   };
 
-  // 1. Datos Gráfica de Picos (TimeSeries: Por Hora o Por Minuto)
+  // 1. Datos gráfica de picos (Por hora o Por minuto)
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
@@ -266,20 +264,20 @@ export const Dashboard = () => {
     labels: timeSlots,
     datasets: [
       {
-        label: 'Accesos Autorizados',
+        label: 'Accesos autorizados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.granted) : new Array(timeSlots.length).fill(0),
-        borderColor: '#2563eb', // Azul Unilasallista activo
-        backgroundColor: 'rgba(37, 99, 235, 0.18)',
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.08)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
         pointRadius: timeGranularity === 'minute' ? 1.5 : 3
       },
       {
-        label: 'Accesos Denegados (Picos de Alarma)',
+        label: 'Intentos denegados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.denied) : new Array(timeSlots.length).fill(0),
         borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+        backgroundColor: 'rgba(239, 68, 68, 0.06)',
         fill: true,
         tension: 0.35,
         borderWidth: 2,
@@ -288,7 +286,7 @@ export const Dashboard = () => {
     ]
   };
 
-  // 2. Datos Gráfica: Estudiantes Actualmente en Campus por Carrera
+  // 2. Datos gráfica de estudiantes en campus por carrera
   const studentsPrograms = analytics.studentsByProgram?.length > 0
     ? analytics.studentsByProgram
     : [];
@@ -297,10 +295,10 @@ export const Dashboard = () => {
     labels: studentsPrograms.length > 0 ? studentsPrograms.map(p => p.program) : ['Sin registros de carrera'],
     datasets: [
       {
-        label: 'Estudiantes en Campus Ahora',
+        label: 'Estudiantes presentes',
         data: studentsPrograms.length > 0 ? studentsPrograms.map(p => p.active_students) : [0],
         backgroundColor: [
-          '#002855', // Azul Oscuro Unilasallista
+          '#002855',
           '#1d4ed8',
           '#2563eb',
           '#3b82f6',
@@ -308,15 +306,12 @@ export const Dashboard = () => {
           '#10b981',
           '#8b5cf6'
         ],
-        borderColor: '#1e293b',
-        borderWidth: 1,
         borderRadius: 4
       }
     ]
   };
 
-  // 3. Datos Gráfica: Afluencia Semanal por Carrera
-  // Agrupar días y programas únicos
+  // 3. Afluencia semanal
   const weeklyDays = Array.from(new Set(analytics.weeklyByProgram?.map(w => w.day_label) || []));
   const uniquePrograms = Array.from(new Set(analytics.weeklyByProgram?.map(w => w.program) || []));
 
@@ -338,7 +333,7 @@ export const Dashboard = () => {
     labels: weeklyDays.length > 0 ? weeklyDays : ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
     datasets: weeklyDatasets.length > 0 ? weeklyDatasets : [
       {
-        label: 'Afluencia Semanal',
+        label: 'Afluencia semanal',
         data: [0, 0, 0, 0, 0, 0],
         backgroundColor: '#002855',
         borderRadius: 4
@@ -346,7 +341,7 @@ export const Dashboard = () => {
     ]
   };
 
-  // 4. Datos Gráfica: Tráfico por Bloque
+  // 4. Tráfico por bloque
   const blockStats = analytics.byBlock?.length > 0
     ? analytics.byBlock
     : [
@@ -362,102 +357,114 @@ export const Dashboard = () => {
       {
         data: blockStats.map(b => b.count > 0 ? b.count : 0),
         backgroundColor: ['#002855', '#2563eb', '#38bdf8', '#8b5cf6'],
-        borderColor: '#1e293b',
-        borderWidth: 2
+        borderWidth: 1,
+        borderColor: 'var(--border)'
       }
     ]
   };
 
   return (
-    <div style={{ paddingBottom: '36px' }}>
-      {/* Barra de Herramientas Estilo Grafana con Paleta Unilasallista */}
+    <div style={{ paddingBottom: '40px' }}>
+      {/* Barra superior de estado y acciones */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '12px 18px',
+        borderRadius: 'var(--radius)',
+        padding: '14px 20px',
         marginBottom: '20px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '12px'
+        gap: '14px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <BarChart3 size={20} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '0.5px', color: 'var(--text-primary)' }}>
-              TELEMETRÍA GRAFANA UNILASALLISTA
-            </span>
+          <div>
+            <h1 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              Panel de control y analítica
+            </h1>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Monitoreo en tiempo real del campus institucional
+            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-              AZUL UNILASALLISTA
-            </span>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-              POSTGRESQL REAL
-            </span>
-            <span style={{ fontSize: '10.5px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: isHardwareSensorOnline ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)', color: isHardwareSensorOnline ? '#10b981' : '#ef4444', border: `1px solid ${isHardwareSensorOnline ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
-              {isHardwareSensorOnline ? '● CROWPI EN LÍNEA' : '○ CROWPI DESCONECTADO'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: 500,
+              padding: '4px 10px',
+              borderRadius: '6px',
+              backgroundColor: isHardwareSensorOnline ? 'var(--status-ok-bg)' : 'var(--status-denied-bg)',
+              color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
+              border: `1px solid ${isHardwareSensorOnline ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
+            }}>
+              <span style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: isHardwareSensorOnline ? '#10b981' : '#ef4444'
+              }} />
+              {isHardwareSensorOnline ? 'Lector RFID en línea' : 'Lector RFID desconectado'}
             </span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            Auto-refresh: <b>4s</b> ({formatTime(lastRefreshTime)})
-          </div>
+          <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+            Actualización: 4s ({formatTime(lastRefreshTime)})
+          </span>
 
-          {/* Botón para Configurar Servidor Grafana Externo */}
           <button
             onClick={() => setShowEmbedModal(!showEmbedModal)}
             className="btn btn-secondary btn-sm"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}
+            style={{ fontSize: '12.5px', padding: '6px 12px' }}
           >
-            <ExternalLink size={13} />
-            <span>{grafanaEmbedUrl ? 'Ver Servidor Grafana' : 'Conectar Grafana Externo'}</span>
+            <ExternalLink size={14} />
+            <span>{grafanaEmbedUrl ? 'Servidor Grafana' : 'Integrar Grafana'}</span>
           </button>
 
           <button
             onClick={() => loadData()}
             className="btn btn-secondary btn-sm"
             disabled={isRefreshing}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}
+            style={{ fontSize: '12.5px', padding: '6px 12px' }}
           >
-            <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />
+            <RefreshCw size={14} className={isRefreshing ? 'spin' : ''} />
             <span>Refrescar</span>
           </button>
 
-          <Link to="/monitor" className="btn btn-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px' }}>
+          <Link to="/monitor" className="btn btn-primary btn-sm" style={{ fontSize: '12.5px', padding: '6px 14px' }}>
             <Radio size={14} />
-            <span>Escáner en Vivo</span>
+            <span>Escáner en vivo</span>
           </Link>
         </div>
       </div>
 
-      {/* Modal/Panel de Conexión de Servidor Grafana Externo */}
+      {/* Modal de Servidor Grafana Externo */}
       {showEmbedModal && (
         <div style={{
           backgroundColor: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
-          borderRadius: '8px',
-          padding: '16px 20px',
+          borderRadius: 'var(--radius)',
+          padding: '18px 20px',
           marginBottom: '20px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)' }}>
-              🔌 Conexión con Servidor Oficial de Grafana (Embed de Paneles)
+            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>
+              Integración con servidor de Grafana
             </div>
-            <button onClick={() => setShowEmbedModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '3px 8px' }}>✕</button>
+            <button onClick={() => setShowEmbedModal(false)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px' }}>✕</button>
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.5 }}>
-            Puedes incrustar un dashboard completo de tu servidor <b>Grafana (Cloud o Local)</b> conectado a tu PostgreSQL en Supabase. Pega la URL pública o con <code>kiosk</code>:
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.5 }}>
+            Pegue la URL pública o con parámetro <code>kiosk</code> de su panel de Grafana conectado a PostgreSQL:
           </p>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
             <input
               type="text"
-              placeholder="https://tu-grafana.com/d-solo/xxx/rfid?orgId=1&kiosk"
+              placeholder="https://su-grafana.com/d-solo/xxx/rfid?orgId=1&kiosk"
               value={grafanaEmbedUrl}
               onChange={(e) => {
                 setGrafanaEmbedUrl(e.target.value);
@@ -468,10 +475,9 @@ export const Dashboard = () => {
                 padding: '8px 12px',
                 borderRadius: '6px',
                 border: '1px solid var(--border)',
-                backgroundColor: 'var(--bg-tertiary)',
+                backgroundColor: 'var(--bg-primary)',
                 color: 'var(--text-primary)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '12px'
+                fontSize: '13px'
               }}
             />
             {grafanaEmbedUrl && (
@@ -482,7 +488,7 @@ export const Dashboard = () => {
                 }}
                 className="btn btn-secondary btn-sm"
               >
-                Limpiar
+                Quitar enlace
               </button>
             )}
           </div>
@@ -494,19 +500,19 @@ export const Dashboard = () => {
                 width="100%"
                 height="100%"
                 frameBorder="0"
-                title="Servidor Grafana Oficial"
+                title="Servidor Grafana"
               />
             </div>
           )}
         </div>
       )}
 
-      {/* Selector de Visibilidad de Gráficas (Show/Hide individual panels) */}
+      {/* Selector de Paneles Visibles */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '10px 16px',
+        borderRadius: 'var(--radius)',
+        padding: '10px 18px',
         marginBottom: '20px',
         display: 'flex',
         alignItems: 'center',
@@ -514,17 +520,17 @@ export const Dashboard = () => {
         flexWrap: 'wrap',
         gap: '10px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
           <SlidersHorizontal size={15} style={{ color: 'var(--accent)' }} />
-          <span>Paneles de Grafana Activos:</span>
+          <span>Gráficas en pantalla:</span>
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[
-            { key: 'picos', label: 'Picos por Hora/Minuto' },
-            { key: 'carreras', label: 'Estudiantes por Carrera' },
-            { key: 'semanal', label: 'Afluencia Semanal' },
-            { key: 'bloques', label: 'Tráfico por Bloque' }
+            { key: 'picos', label: 'Picos de acceso' },
+            { key: 'carreras', label: 'Estudiantes por carrera' },
+            { key: 'semanal', label: 'Afluencia semanal' },
+            { key: 'bloques', label: 'Tráfico por bloque' }
           ].map(p => (
             <button
               key={p.key}
@@ -532,69 +538,67 @@ export const Dashboard = () => {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '4px 10px',
+                gap: '6px',
+                padding: '5px 12px',
                 borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: 600,
+                fontSize: '12.5px',
+                fontWeight: 500,
                 cursor: 'pointer',
                 border: visiblePanels[p.key] ? '1px solid var(--accent)' : '1px solid var(--border)',
-                backgroundColor: visiblePanels[p.key] ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
+                backgroundColor: visiblePanels[p.key] ? 'var(--accent-soft)' : 'var(--bg-primary)',
                 color: visiblePanels[p.key] ? 'var(--accent)' : 'var(--text-muted)'
               }}
             >
-              {visiblePanels[p.key] ? <Eye size={12} /> : <EyeOff size={12} />}
+              {visiblePanels[p.key] ? <Eye size={13} /> : <EyeOff size={13} />}
               <span>{p.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* FILA 1: Paneles de Métricas Clave (Grafana Stat Cards) */}
+      {/* Tarjetas de Métricas Clave (KPIs) */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
         gap: '14px',
-        marginBottom: '20px'
+        marginBottom: '24px'
       }}>
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: '4px solid #002855', // Azul Oscuro Unilasallista
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Accesos Hoy
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Accesos de hoy
             </span>
-            <Activity size={16} style={{ color: '#002855' }} />
+            <Activity size={17} style={{ color: 'var(--accent)' }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.totalToday}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Registros reales en PostgreSQL
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Registros totales del día
           </div>
         </div>
 
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: `4px solid ${successRateColor}`,
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Tasa Aprobación
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Tasa de aprobación
             </span>
-            <CheckCircle2 size={16} style={{ color: successRateColor }} />
+            <CheckCircle2 size={17} style={{ color: successRateColor }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: successRateColor, fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: successRateColor, marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.totalToday > 0 ? `${stats.successRate}%` : '100%'}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
             {stats.grantedToday} autorizados de {stats.totalToday}
           </div>
         </div>
@@ -602,41 +606,39 @@ export const Dashboard = () => {
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: stats.deniedToday > 0 ? '4px solid #ef4444' : '4px solid var(--border-light)',
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Denegados
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Accesos denegados
             </span>
-            <XCircle size={16} style={{ color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-muted)' }} />
+            <XCircle size={17} style={{ color: stats.deniedToday > 0 ? 'var(--status-denied-text)' : 'var(--text-muted)' }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: stats.deniedToday > 0 ? 'var(--status-denied-text)' : 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.deniedToday}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Infracciones reales registradas
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Intentos no autorizados hoy
           </div>
         </div>
 
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: '4px solid #002855',
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Puntos de Acceso
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Puntos de control
             </span>
-            <DoorClosed size={16} style={{ color: 'var(--accent)' }} />
+            <DoorClosed size={17} style={{ color: 'var(--text-secondary)' }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.totalDoors}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
             En {stats.totalRooms} salas y 4 bloques
           </div>
         </div>
@@ -644,181 +646,179 @@ export const Dashboard = () => {
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: `4px solid ${isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)'}`,
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Sensor RFID (CrowPi)
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Sensor RFID
             </span>
-            <Cpu size={16} style={{ color: isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)' }} />
+            <Cpu size={17} style={{ color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--text-muted)' }} />
           </div>
-          <div style={{ fontSize: '19px', fontWeight: 800, color: isHardwareSensorOnline ? '#10b981' : 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '12px' }}>
-            {isHardwareSensorOnline ? 'EN LÍNEA' : 'OFFLINE'}
+          <div style={{
+            fontSize: '18px',
+            fontWeight: 700,
+            color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--text-muted)',
+            marginTop: '12px'
+          }}>
+            {isHardwareSensorOnline ? 'En línea' : 'Desconectado'}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            {isHardwareSensorOnline ? 'Pulsos de hardware activos' : 'Sin latidos en <30s'}
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {isHardwareSensorOnline ? 'Pulsos de hardware recibidos' : 'Sin comunicación en <30s'}
           </div>
         </div>
 
         <div style={{
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border)',
-          borderLeft: '4px solid #1d4ed8',
-          borderRadius: '6px',
-          padding: '14px 16px'
+          borderRadius: 'var(--radius)',
+          padding: '16px 18px'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Usuarios Matriculados
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Usuarios registrados
             </span>
-            <Users size={16} style={{ color: '#1d4ed8' }} />
+            <Users size={17} style={{ color: 'var(--accent)' }} />
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
             {stats.activeUsers}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Enrolados en la institución
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Personal y estudiantes activos
           </div>
         </div>
       </div>
 
-      {/* GRÁFICAS INTERACTIVAS DE GRAFANA */}
+      {/* Gráficas de analítica */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '24px' }}>
 
-        {/* GRÁFICA 1: Picos de Acceso en Tiempo Real (Por Minuto / Por Hora) */}
+        {/* Gráfica 1: Picos de acceso por hora / minuto */}
         {visiblePanels.picos && (
           <div style={{
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '18px 20px'
+            borderRadius: 'var(--radius)',
+            padding: '20px 22px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TrendingUp size={17} style={{ color: 'var(--accent)' }} />
-                  <span>Curva de Afluencia y Detección de Picos (Grafana TimeSeries)</span>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <TrendingUp size={18} style={{ color: 'var(--accent)' }} />
+                  <span>Curva de afluencia y picos de tráfico</span>
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Visualiza las horas pico y el tráfico minuto a minuto en puertas y torniquetes
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Comportamiento del flujo de ingreso a lo largo del tiempo
                 </div>
               </div>
 
-              {/* Selector de Granularidad: Por Minuto vs Por Hora */}
+              {/* Selector de Granularidad */}
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
                   onClick={() => setTimeGranularity('hour')}
                   style={{
-                    padding: '4px 12px',
-                    borderRadius: '5px',
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    padding: '5px 14px',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    fontWeight: 500,
                     cursor: 'pointer',
                     border: timeGranularity === 'hour' ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    backgroundColor: timeGranularity === 'hour' ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
+                    backgroundColor: timeGranularity === 'hour' ? 'var(--accent-soft)' : 'var(--bg-primary)',
                     color: timeGranularity === 'hour' ? 'var(--accent)' : 'var(--text-muted)'
                   }}
                 >
-                  Por Hora (Hoy)
+                  Por hora (hoy)
                 </button>
                 <button
                   onClick={() => setTimeGranularity('minute')}
                   style={{
-                    padding: '4px 12px',
-                    borderRadius: '5px',
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    padding: '5px 14px',
+                    borderRadius: '6px',
+                    fontSize: '12.5px',
+                    fontWeight: 500,
                     cursor: 'pointer',
                     border: timeGranularity === 'minute' ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    backgroundColor: timeGranularity === 'minute' ? 'var(--accent-soft)' : 'var(--bg-tertiary)',
+                    backgroundColor: timeGranularity === 'minute' ? 'var(--accent-soft)' : 'var(--bg-primary)',
                     color: timeGranularity === 'minute' ? 'var(--accent)' : 'var(--text-muted)'
                   }}
                 >
-                  Por Minuto (Última Hora)
+                  Por minuto (reciente)
                 </button>
               </div>
             </div>
 
             <div style={{ height: '260px' }}>
-              <Line data={picosData} options={grafanaChartOptions} />
+              <Line data={picosData} options={chartCommonOptions} />
             </div>
             {timeSeriesSource.length === 0 && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '8px' }}>
-                ℹ️ Base de datos lista: sin lecturas de acceso aún para graficar picos hoy.
+              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '10px' }}>
+                Sin lecturas registradas aún para graficar la curva de hoy.
               </div>
             )}
           </div>
         )}
 
-        {/* FILA DE 2 GRÁFICAS: Estudiantes por Carrera + Tráfico por Bloque */}
+        {/* Fila de 2 Gráficas: Estudiantes por Carrera + Tráfico por Bloque */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: visiblePanels.carreras && visiblePanels.bloques ? '1.4fr 1fr' : '1fr',
+          gridTemplateColumns: visiblePanels.carreras && visiblePanels.bloques ? '1.3fr 1fr' : '1fr',
           gap: '20px'
         }}>
-          {/* GRÁFICA 2: Estudiantes Actualmente en Campus por Carrera */}
+          {/* Gráfica 2: Estudiantes presentes por carrera */}
           {visiblePanels.carreras && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
-              padding: '18px 20px'
+              borderRadius: 'var(--radius)',
+              padding: '20px 22px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <GraduationCap size={17} style={{ color: 'var(--accent)' }} />
-                    <span>Estudiantes Actualmente en Campus por Carrera</span>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <GraduationCap size={18} style={{ color: 'var(--accent)' }} />
+                    <span>Estudiantes en campus por carrera</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Censo en tiempo real de población estudiantil presente según carnet RFID
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                    Población estudiantil actualmente dentro de las instalaciones
                   </div>
                 </div>
-                <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--accent)', fontWeight: 700 }}>
-                  Tiempo Real
-                </span>
               </div>
 
-              <div style={{ height: '230px' }}>
+              <div style={{ height: '240px' }}>
                 <Bar
                   data={carrerasData}
                   options={{
-                    ...grafanaChartOptions,
+                    ...chartCommonOptions,
                     indexAxis: 'y'
                   }}
                 />
               </div>
               {studentsPrograms.length === 0 && (
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '6px' }}>
-                  ℹ️ 0 estudiantes dentro del campus en este momento.
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '10px' }}>
+                  No hay estudiantes registrados dentro del campus en este momento.
                 </div>
               )}
             </div>
           )}
 
-          {/* GRÁFICA 3: Tráfico Acumulado por Bloque Institucional */}
+          {/* Gráfica 3: Tráfico por Bloque */}
           {visiblePanels.bloques && (
             <div style={{
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border)',
-              borderRadius: '8px',
-              padding: '18px 20px'
+              borderRadius: 'var(--radius)',
+              padding: '20px 22px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Building2 size={17} style={{ color: 'var(--accent)' }} />
-                    <span>Distribución por Bloque</span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Volumen de entradas en los 4 bloques
-                  </div>
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Building2 size={18} style={{ color: 'var(--accent)' }} />
+                  <span>Distribución por bloque</span>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Volumen de accesos en los 4 bloques
                 </div>
               </div>
 
-              <div style={{ height: '230px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Doughnut
                   data={bloquesData}
                   options={{
@@ -828,8 +828,11 @@ export const Dashboard = () => {
                       legend: {
                         position: 'bottom',
                         labels: {
-                          color: '#94a3b8',
-                          font: { family: 'var(--font-mono)', size: 10 }
+                          color: 'var(--text-secondary)',
+                          font: { family: 'var(--font-ui)', size: 12 },
+                          boxWidth: 12,
+                          boxHeight: 12,
+                          usePointStyle: true
                         }
                       }
                     }
@@ -840,133 +843,132 @@ export const Dashboard = () => {
           )}
         </div>
 
-        {/* GRÁFICA 4: Comparativa de Afluencia Semanal por Día y Carrera */}
+        {/* Gráfica 4: Afluencia semanal */}
         {visiblePanels.semanal && (
           <div style={{
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '18px 20px'
+            borderRadius: 'var(--radius)',
+            padding: '20px 22px'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Calendar size={17} style={{ color: 'var(--accent)' }} />
-                  <span>Afluencia Semanal por Día y Carrera (Grafana Multi-Bar)</span>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calendar size={18} style={{ color: 'var(--accent)' }} />
+                  <span>Afluencia semanal por día y carrera</span>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  Identifica qué carrera asiste más a la universidad según el día de la semana
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '3px' }}>
+                  Comparativa de asistencia en los últimos 7 días
                 </div>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                Últimos 7 Días
-              </span>
             </div>
 
             <div style={{ height: '240px' }}>
-              <Bar data={semanalData} options={grafanaChartOptions} />
+              <Bar data={semanalData} options={chartCommonOptions} />
             </div>
             {weeklyDays.length === 0 && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '6px' }}>
-                ℹ️ Sin registros en la última semana para generar la comparativa diaria.
+              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '10px' }}>
+                Sin registros durante la última semana para generar la comparativa diaria.
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* FILA: Tabla de Logs de Auditoría en Tiempo Real (Grafana Live Stream) */}
+      {/* Tabla de Registros de Acceso Recientes */}
       <div style={{
         backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '16px 20px'
+        borderRadius: 'var(--radius)',
+        padding: '18px 20px'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '13.5px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={16} style={{ color: 'var(--accent)' }} />
-              <span>Registro de Eventos y Auditoría en Vivo (Loki Stream)</span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Últimas transacciones capturadas por el lector RFID
-            </div>
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              Últimos registros de acceso
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Transacciones capturadas en tiempo real por el sistema de control
+            </p>
           </div>
-          <Link to="/logs" style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <span>Abrir Auditoría Completa</span>
-            <ChevronRight size={14} />
+          <Link
+            to="/logs"
+            style={{
+              fontSize: '13px',
+              color: 'var(--accent)',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>Ver historial completo</span>
+            <ChevronRight size={15} />
           </Link>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'var(--font-mono)' }}>
+          <table className="data-table">
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: '11px' }}>
-                <th style={{ padding: '8px 10px' }}>TIMESTAMP</th>
-                <th style={{ padding: '8px 10px' }}>ESTADO</th>
-                <th style={{ padding: '8px 10px' }}>PUNTO DE ACCESO</th>
-                <th style={{ padding: '8px 10px' }}>ESPACIO & BLOQUE</th>
-                <th style={{ padding: '8px 10px' }}>PERSONA / DOCUMENTO</th>
-                <th style={{ padding: '8px 10px' }}>CARRERA / PROGRAMA</th>
-                <th style={{ padding: '8px 10px' }}>ROL</th>
-                <th style={{ padding: '8px 10px' }}>UID RAW</th>
-                <th style={{ padding: '8px 10px' }}>OBSERVACIONES</th>
+              <tr>
+                <th>Hora</th>
+                <th>Estado</th>
+                <th>Punto de acceso</th>
+                <th>Ubicación</th>
+                <th>Persona</th>
+                <th>Carrera / Área</th>
+                <th>Rol</th>
+                <th>Tarjeta RFID</th>
+                <th>Detalle</th>
               </tr>
             </thead>
             <tbody>
               {recentLogs.length === 0 ? (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                    No hay eventos de acceso registrados en la base de datos hoy.
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <ShieldCheck size={28} style={{ opacity: 0.5 }} />
+                      <div style={{ fontSize: '13.5px', fontWeight: 500 }}>No hay eventos de acceso registrados hoy</div>
+                      <div style={{ fontSize: '12.5px' }}>Pase una tarjeta por el lector o abra el escáner para comenzar.</div>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 recentLogs.map((log, idx) => (
-                  <tr
-                    key={log.id || idx}
-                    style={{
-                      borderBottom: '1px solid var(--border)',
-                      backgroundColor: idx % 2 === 0 ? 'transparent' : 'var(--bg-tertiary)'
-                    }}
-                  >
-                    <td style={{ padding: '8px 10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  <tr key={log.id || idx}>
+                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                       {formatTime(log.timestamp)}
                     </td>
-                    <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
-                      <span
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          padding: '2px 7px',
-                          borderRadius: '3px',
-                          backgroundColor: log.granted ? 'var(--status-ok-bg)' : 'var(--status-denied-bg)',
-                          color: log.granted ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
-                          border: `1px solid ${log.granted ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
-                        }}
-                      >
-                        {log.granted ? 'GRANTED' : 'DENIED'}
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className={`badge ${log.granted ? 'badge-ok' : 'badge-denied'}`}>
+                        {log.granted ? 'Autorizado' : 'Denegado'}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {log.door_name || `Acceso #${log.door_id}`}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    <td style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                       {log.room_name || '—'}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                      {log.user_name || 'No enrolado'} {log.user_document && log.user_document !== '—' ? `[${log.user_document}]` : ''}
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ fontWeight: 500 }}>{log.user_name || 'No enrolado'}</span>
+                      {log.user_document && log.user_document !== '—' && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '6px' }}>
+                          ({log.user_document})
+                        </span>
+                      )}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--accent)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <td style={{ color: 'var(--accent)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                       {log.user_program && log.user_program !== '—' ? log.user_program : 'General'}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--text-muted)', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                    <td style={{ color: 'var(--text-secondary)', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
                       {log.role_name || 'Estudiante'}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--accent)', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {log.rfid_uid_raw || '—'}
                     </td>
-                    <td style={{ padding: '8px 10px', color: log.granted ? 'var(--text-muted)' : 'var(--status-denied-text)', fontSize: '11px' }}>
-                      {log.granted ? 'Acceso autorizado' : (log.denial_reason || 'Rechazado')}
+                    <td style={{ color: log.granted ? 'var(--text-muted)' : 'var(--status-denied-text)', fontSize: '13px' }}>
+                      {log.granted ? 'Ingreso permitido' : (log.denial_reason || 'Rechazado')}
                     </td>
                   </tr>
                 ))

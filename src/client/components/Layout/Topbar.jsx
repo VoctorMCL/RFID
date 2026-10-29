@@ -88,8 +88,8 @@ export const Topbar = () => {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <div className="breadcrumb" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>Acceso RFID</span>
+        <div className="breadcrumb" style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Control de Acceso</span>
           &nbsp;›&nbsp;
           <span style={{ color: 'var(--text-primary)' }}>{currentTitle}</span>
         </div>
@@ -104,17 +104,16 @@ export const Topbar = () => {
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '5px',
-            fontSize: '11px',
-            padding: '5px 10px',
-            fontFamily: 'var(--font-mono)'
+            gap: '6px',
+            fontSize: '12.5px',
+            padding: '6px 12px'
           }}
         >
-          {themeMode === 'auto' && <Laptop size={13} style={{ color: 'var(--accent)' }} />}
-          {themeMode === 'light' && <Sun size={13} style={{ color: '#f59e0b' }} />}
-          {themeMode === 'dark' && <Moon size={13} style={{ color: '#38bdf8' }} />}
+          {themeMode === 'auto' && <Laptop size={14} style={{ color: 'var(--accent)' }} />}
+          {themeMode === 'light' && <Sun size={14} style={{ color: '#f59e0b' }} />}
+          {themeMode === 'dark' && <Moon size={14} style={{ color: '#38bdf8' }} />}
           <span>
-            {themeMode === 'auto' ? 'AUTO' : themeMode === 'light' ? 'CLARO' : 'OSCURO'}
+            {themeMode === 'auto' ? 'Tema automático' : themeMode === 'light' ? 'Tema claro' : 'Tema oscuro'}
           </span>
         </button>
 
@@ -126,15 +125,13 @@ export const Topbar = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            fontSize: '11.5px',
-            fontWeight: 700,
-            letterSpacing: '0.3px',
-            padding: '5px 12px',
+            fontSize: '12.5px',
+            fontWeight: 500,
+            padding: '6px 14px',
             borderRadius: '6px',
-            fontFamily: 'var(--font-mono)',
-            backgroundColor: isSensorActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-            color: isSensorActive ? '#10b981' : '#ef4444',
-            border: `1px solid ${isSensorActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+            backgroundColor: isSensorActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.08)',
+            color: isSensorActive ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
+            border: `1px solid ${isSensorActive ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
           }}
         >
           <div
@@ -147,11 +144,11 @@ export const Topbar = () => {
               boxShadow: isSensorActive ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none'
             }}
           />
-          <Cpu size={14} style={{ opacity: 0.9 }} />
+          <Cpu size={14} style={{ opacity: 0.85 }} />
           <span>
             {isSensorActive
-              ? `SENSOR RFID: EN LÍNEA ${activeSensorDoor ? `(${activeSensorDoor})` : ''}`
-              : 'SENSOR RFID: DESCONECTADO'}
+              ? `Lector en línea ${activeSensorDoor ? `(${activeSensorDoor})` : ''}`
+              : 'Lector desconectado'}
           </span>
         </div>
       </div>
