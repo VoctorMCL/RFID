@@ -527,6 +527,35 @@ const getAnalytics = async (req, res) => {
       ORDER BY b.id ASC
     `);
 
+    // 6. Heatmap de intensidad de accesos (Día de la semana vs Hora)
+    const heatmapQuery = await db.query(`
+      SELECT
+        EXTRACT(DOW FROM l.timestamp)::int as dow,
+        EXTRACT(HOUR FROM l.timestamp)::int as hour,
+        COUNT(*)::int as count
+      FROM access_logs l
+      WHERE l.timestamp >= CURRENT_DATE - INTERVAL '14 days'
+      GROUP BY dow, hour
+      ORDER BY dow, hour
+    `);
+
+    // 7. Puertas con mayor tráfico hoy
+    const topDoorsQuery = await db.query(`
+      SELECT
+        d.id,
+        d.name as door_name,
+        rm.name as room_name,
+        b.name as block_name,
+        COUNT(l.id)::int as count
+      FROM doors d
+      JOIN rooms rm ON rm.id = d.room_id
+      JOIN blocks b ON b.id = rm.block_id
+      LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+      GROUP BY d.id, d.name, rm.name, b.name
+      ORDER BY count DESC
+      LIMIT 6
+    `);
+
     return res.json({
       success: true,
       data: {
@@ -534,7 +563,9 @@ const getAnalytics = async (req, res) => {
         minute: minuteQuery.rows || [],
         studentsByProgram: studentsByProgramQuery.rows || [],
         weeklyByProgram: weeklyByProgramQuery.rows || [],
-        byBlock: byBlockQuery.rows || []
+        byBlock: byBlockQuery.rows || [],
+        heatmap: heatmapQuery.rows || [],
+        topDoors: topDoorsQuery.rows || []
       }
     });
   } catch (error) {

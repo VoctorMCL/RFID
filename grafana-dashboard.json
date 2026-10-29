@@ -1,0 +1,190 @@
+{
+  "title": "Control de Acceso RFID y Telemetría Institucional",
+  "uid": "unilasallista-rfid-access",
+  "tags": ["rfid", "unilasallista", "access-control", "seguridad"],
+  "timezone": "America/Bogota",
+  "schemaVersion": 41,
+  "refresh": "5s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "door_id",
+        "type": "query",
+        "label": "Punto de Acceso",
+        "query": "SELECT id as __value, name as __text FROM doors ORDER BY name",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2
+      },
+      {
+        "name": "program",
+        "type": "query",
+        "label": "Programa Académico",
+        "query": "SELECT DISTINCT program as __text, program as __value FROM users WHERE program IS NOT NULL ORDER BY program",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Accesos Hoy",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as \"Total Hoy\" FROM access_logs WHERE timestamp::date = CURRENT_DATE;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Tasa de Aprobación",
+      "type": "gauge",
+      "gridPos": { "x": 4, "y": 0, "w": 5, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "rawSql": "SELECT ROUND((COUNT(CASE WHEN granted THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100), 1) as value FROM access_logs WHERE timestamp::date = CURRENT_DATE;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "Infracciones / Denegados",
+      "type": "stat",
+      "gridPos": { "x": 9, "y": 0, "w": 5, "h": 4 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as \"Denegados\" FROM access_logs WHERE timestamp::date = CURRENT_DATE AND granted = false;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Población Estudiantil en Campus",
+      "type": "stat",
+      "gridPos": { "x": 14, "y": 0, "w": 5, "h": 4 },
+      "targets": [{
+        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (user_id) user_id, granted FROM access_logs WHERE timestamp::date = CURRENT_DATE ORDER BY user_id, timestamp DESC) SELECT COUNT(*) FROM last_student WHERE granted = true;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 5,
+      "title": "Puntos de Control Activos",
+      "type": "stat",
+      "gridPos": { "x": 19, "y": 0, "w": 5, "h": 4 },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) FROM doors;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "Curva de Afluencia y Detección de Picos",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "targets": [
+        {
+          "rawSql": "SELECT DATE_TRUNC('hour', timestamp) as \"time\", COUNT(CASE WHEN granted THEN 1 END) as \"Autorizados\", COUNT(CASE WHEN NOT granted THEN 1 END) as \"Denegados\" FROM access_logs WHERE timestamp >= NOW() - INTERVAL '24 hours' GROUP BY 1 ORDER BY 1;",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Distribución por Bloque",
+      "type": "piechart",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT b.name as metric, COUNT(l.id) as value FROM blocks b LEFT JOIN rooms r ON r.block_id = b.id LEFT JOIN doors d ON d.room_id = r.id LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE GROUP BY b.name ORDER BY value DESC;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 8,
+      "title": "Censo de Estudiantes por Carrera",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "targets": [{
+        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (l.user_id) l.user_id, l.granted, u.program FROM access_logs l JOIN users u ON u.id = l.user_id WHERE l.timestamp::date = CURRENT_DATE ORDER BY l.user_id, l.timestamp DESC) SELECT COALESCE(NULLIF(TRIM(program), ''), 'General') as metric, COUNT(*) as value FROM last_student WHERE granted = true GROUP BY metric ORDER BY value DESC;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 9,
+      "title": "Heatmap de Horas Pico e Intensidad",
+      "type": "heatmap",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('hour', timestamp) as time, COUNT(*) as count FROM access_logs WHERE timestamp >= NOW() - INTERVAL '14 days' GROUP BY 1 ORDER BY 1;",
+        "format": "time_series",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 10,
+      "title": "Registro de Transacciones en Vivo (Loki / PostgreSQL)",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT l.timestamp as \"Hora\", CASE WHEN l.granted THEN 'AUTORIZADO' ELSE 'DENEGADO' END as \"Estado\", d.name as \"Puerta\", (u.first_name || ' ' || u.last_name) as \"Persona\", u.program as \"Carrera\", l.rfid_uid_raw as \"UID\", COALESCE(l.denial_reason, 'OK') as \"Detalle\" FROM access_logs l LEFT JOIN users u ON u.id = l.user_id LEFT JOIN doors d ON d.id = l.door_id ORDER BY l.timestamp DESC LIMIT 50;",
+        "format": "table",
+        "refId": "A"
+      }]
+    }
+  ]
+}
