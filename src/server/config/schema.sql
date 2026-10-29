@@ -1,13 +1,13 @@
 -- =============================================================================
--- BASE DE DATOS POSTGRESQL — CONTROL DE ACCESO INSTITUCIONAL RFID
+-- BASE DE DATOS POSTGRESQL — SUPABASE (CONTROL DE ACCESO RFID)
 -- Corporación Universitaria Lasallista
--- Compatible 100% con Supabase SQL Editor
+-- Esquema Oficial sin sensores de cámaras ni movimiento PIR
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Limpiar tablas previas si existen (en orden de dependencia)
+-- Limpieza limpia de tablas previas si existen
 DROP TABLE IF EXISTS alerts CASCADE;
 DROP TABLE IF EXISTS access_logs CASCADE;
 DROP TABLE IF EXISTS schedules CASCADE;
@@ -19,7 +19,7 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
 
 -- =============================================================================
--- 1. ROLES — Jerarquía de Permisos Institucionales
+-- 1. TABLA: ROLES (Jerarquía de Permisos Institucionales)
 -- =============================================================================
 CREATE TABLE roles (
     id SERIAL PRIMARY KEY,
@@ -31,7 +31,7 @@ CREATE TABLE roles (
 );
 
 -- =============================================================================
--- 2. USUARIOS — Estudiantes, Profesores, Administrativos y Seguridad
+-- 2. TABLA: USUARIOS (Solo Administrador y Celador iniciales para acceso web)
 -- =============================================================================
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -55,7 +55,7 @@ CREATE INDEX idx_users_role ON users(role_id);
 CREATE INDEX idx_users_document ON users(document_id);
 
 -- =============================================================================
--- 3. BLOQUES — Estructura Física del Campus Institucional
+-- 3. TABLA: BLOQUES DEL CAMPUS (Datos Fijos Institucionales)
 -- =============================================================================
 CREATE TABLE blocks (
     id SERIAL PRIMARY KEY,
@@ -67,15 +67,14 @@ CREATE TABLE blocks (
 );
 
 -- =============================================================================
--- 4. SALAS / ESPACIOS — Áreas Académicas y Administrativas
--- (Sin sensores de cámaras ni movimiento PIR)
+-- 4. TABLA: SALAS Y ESPACIOS (Salones, Salas de PCs y Laboratorio de Animales)
 -- =============================================================================
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
     block_id INTEGER NOT NULL REFERENCES blocks(id) ON DELETE CASCADE,
     name VARCHAR(150) NOT NULL,
     floor INTEGER DEFAULT 1,
-    room_type VARCHAR(50) DEFAULT 'general',
+    room_type VARCHAR(50) DEFAULT 'general' CHECK (room_type IN ('general', 'lab_pcs', 'lab_animales', 'biblioteca', 'administrativo', 'auditorio')),
     has_alarm BOOLEAN DEFAULT FALSE,
     security_status VARCHAR(30) DEFAULT 'normal' CHECK (security_status IN ('normal', 'armed', 'alert', 'lockdown')),
     description TEXT,
@@ -86,13 +85,13 @@ CREATE TABLE rooms (
 CREATE INDEX idx_rooms_block ON rooms(block_id);
 
 -- =============================================================================
--- 5. PUERTAS — Puntos de Control con Lector RFID
+-- 5. TABLA: PUERTAS Y PUNTOS DE CONTROL (Entrada Principal y Salones)
 -- =============================================================================
 CREATE TABLE doors (
     id SERIAL PRIMARY KEY,
     room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
-    door_type VARCHAR(30) DEFAULT 'main',
+    name VARCHAR(150) NOT NULL,
+    door_type VARCHAR(30) DEFAULT 'main' CHECK (door_type IN ('main', 'lateral', 'standard', 'emergency')),
     hardware_ip VARCHAR(45) DEFAULT '192.168.1.100',
     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
@@ -104,7 +103,7 @@ CREATE TABLE doors (
 CREATE INDEX idx_doors_room ON doors(room_id);
 
 -- =============================================================================
--- 6. TARJETAS RFID — Carnets Físicos Enrolados
+-- 6. TABLA: TARJETAS RFID (Carnets Físicos — Vacía inicialmente)
 -- =============================================================================
 CREATE TABLE rfid_cards (
     id SERIAL PRIMARY KEY,
@@ -121,13 +120,13 @@ CREATE INDEX idx_rfid_uid ON rfid_cards(uid);
 CREATE INDEX idx_rfid_user ON rfid_cards(user_id);
 
 -- =============================================================================
--- 7. ARTICULACIÓN HORARIA — Horarios de Acceso a Salas
+-- 7. TABLA: ARTICULACIÓN HORARIA (Schedules — Vacía inicialmente)
 -- =============================================================================
 CREATE TABLE schedules (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6), -- 0=Domingo, 1=Lunes ... 6=Sábado
+    day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     semester VARCHAR(20) DEFAULT '2026-1',
@@ -140,7 +139,7 @@ CREATE TABLE schedules (
 CREATE INDEX idx_schedules_lookup ON schedules(user_id, room_id, day_of_week, is_active);
 
 -- =============================================================================
--- 8. AUDITORÍA DE ACCESOS — Registro Inmutable de Escaneos RFID
+-- 8. TABLA: AUDITORÍA DE ACCESOS (Logs de lectura RFID — Vacía inicialmente)
 -- =============================================================================
 CREATE TABLE access_logs (
     id BIGSERIAL PRIMARY KEY,
@@ -160,7 +159,7 @@ CREATE INDEX idx_access_logs_user ON access_logs(user_id);
 CREATE INDEX idx_access_logs_door ON access_logs(door_id);
 
 -- =============================================================================
--- 9. ALERTAS DE SEGURIDAD — Notificaciones de Incidentes
+-- 9. TABLA: ALERTAS DE SEGURIDAD (Vacía inicialmente)
 -- =============================================================================
 CREATE TABLE alerts (
     id BIGSERIAL PRIMARY KEY,
@@ -180,75 +179,76 @@ CREATE TABLE alerts (
 CREATE INDEX idx_alerts_unresolved ON alerts(is_resolved, timestamp DESC);
 
 -- =============================================================================
--- DATOS SEMILLA INICIALES (Credenciales de acceso web y estructura inicial)
--- Contraseña para admin y celador: acceso2026
--- Hash bcrypt: $2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq
+-- DATOS FIJOS DEL CAMPUS
 -- =============================================================================
 
+-- 1. Roles del Sistema
 INSERT INTO roles (id, name, display_name, global_access, description) VALUES
-(1, 'admin', 'Administrador del Sistema', TRUE, 'Acceso total a la configuración y gestión del campus.'),
-(2, 'celador', 'Celador / Personal de Seguridad', TRUE, 'Control de accesos, monitoreo y fichas maestras.'),
-(3, 'rector', 'Rectora / Alta Dirección', TRUE, 'Acceso institucional irrestricto a todas las puertas.'),
-(4, 'professor', 'Profesor / Docente', FALSE, 'Acceso condicionado a la articulación horaria de clases.'),
+(1, 'admin', 'Administrador del Sistema', TRUE, 'Acceso total a la administración y enrolamiento.'),
+(2, 'celador', 'Celador / Personal de Seguridad', TRUE, 'Control y monitoreo de accesos.'),
+(3, 'rector', 'Rectora / Alta Dirección', TRUE, 'Acceso total a todas las dependencias del campus.'),
+(4, 'professor', 'Profesor / Docente', FALSE, 'Acceso condicionado a articulación horaria de clases.'),
 (5, 'student', 'Estudiante', FALSE, 'Acceso a salas de biblioteca y laboratorios según horario.'),
-(6, 'admin_staff', 'Personal Administrativo', FALSE, 'Acceso a bloques administrativos según cargo.');
+(6, 'admin_staff', 'Personal Administrativo', FALSE, 'Acceso a oficinas y bloques administrativos.');
 
 SELECT setval('roles_id_seq', (SELECT MAX(id) FROM roles));
 
+-- 2. Usuarios Iniciales para Acceso Web (Contraseña: acceso2026)
+-- Hash bcrypt oficial: $2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq
 INSERT INTO users (id, first_name, last_name, email, password_hash, document_id, role_id, program, status) VALUES
 (1, 'Administrador', 'General', 'admin@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1000000001', 1, 'Sistemas', 'active'),
-(2, 'Celador', 'de Seguridad', 'celador@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1000000002', 2, 'Seguridad', 'active'),
-(3, 'María Elena', 'Gómez', 'rectora@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1000000003', 3, 'Rectoría', 'active'),
-(4, 'Carlos Andrés', 'López Mejía', 'carlos.lopez@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1000000004', 4, 'Ingeniería de Software', 'active'),
-(5, 'Victor Manuel', 'Cordoba Larez', 'victor.cordoba@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1152345678', 5, 'Ingeniería de Software', 'active'),
-(6, 'Jeronimo', 'Arboleda Galeano', 'jeronimo.arboleda@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1152987654', 5, 'Ingeniería de Software', 'active');
+(2, 'Celador', 'de Seguridad', 'celador@lasallista.edu.co', '$2b$10$8K1p/a0dL1LXMIgoEDFrwOfMQStaE.dRqEMx5dLbZ0GqL/jgqJDYq', '1000000002', 2, 'Seguridad', 'active');
 
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 
+-- 3. Bloques Fijos del Campus (4 Bloques)
 INSERT INTO blocks (id, name, description, location_info) VALUES
-(1, 'Bloque A', 'Laboratorios de Informática e Ingeniería', 'Costado Norte'),
-(2, 'Bloque B', 'Aulas de Clase y Biblioteca Central', 'Costado Sur'),
-(3, 'Bloque C', 'Auditorio y Áreas Comunes', 'Costado Occidental'),
-(4, 'Bloque Administrativo', 'Decanatura, RRHH, Oficinas de Profesores', 'Edificio Central');
+(1, 'Bloque A', 'Aulas generales de clase', 'Costado Norte'),
+(2, 'Bloque B', 'Aulas de clase y Biblioteca Central', 'Costado Sur'),
+(3, 'Bloque C', 'Aulas de clase y Salas de Cómputo / PCs', 'Costado Occidental'),
+(4, 'Bloque Administrativo', 'Oficinas, Salas de PCs y Laboratorios de Animales / Veterinaria', 'Edificio Central');
 
 SELECT setval('blocks_id_seq', (SELECT MAX(id) FROM blocks));
 
+-- 4. Salas y Espacios Fijos por Bloque
 INSERT INTO rooms (id, block_id, name, floor, room_type, has_alarm, security_status, description) VALUES
-(1, 1, 'Sala de Informática 1', 1, 'lab_informatica', TRUE, 'armed', 'Laboratorio principal de software y redes.'),
-(2, 1, 'Sala de Informática 2', 1, 'lab_informatica', FALSE, 'normal', 'Laboratorio de cómputo general.'),
-(3, 1, 'Taller de Ingeniería', 1, 'lab_ingenieria', FALSE, 'normal', 'Taller de electrónica y diseño.'),
-(4, 2, 'Biblioteca Central', 1, 'biblioteca', FALSE, 'normal', 'Acceso general en horarios de servicio.'),
-(5, 4, 'Decanatura y Profesores', 2, 'administrativo', FALSE, 'normal', 'Oficinas docentes y administrativas.');
+-- Bloque A (Aulas)
+(1, 1, 'Salón A-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(2, 1, 'Salón A-102', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(3, 1, 'Salón A-201', 2, 'general', FALSE, 'normal', 'Aula de clase general - Piso 2'),
+
+-- Bloque B (Aulas y Biblioteca)
+(4, 2, 'Salón B-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(5, 2, 'Salón B-102', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(6, 2, 'Biblioteca Central', 1, 'biblioteca', FALSE, 'normal', 'Biblioteca institucional y salas de estudio'),
+
+-- Bloque C (Aulas y Salas de PCs)
+(7, 3, 'Salón C-101', 1, 'general', FALSE, 'normal', 'Aula de clase general - Piso 1'),
+(8, 3, 'Sala de Cómputo C-1', 1, 'lab_pcs', TRUE, 'armed', 'Laboratorio principal de informática y desarrollo'),
+(9, 3, 'Sala de Cómputo C-2', 2, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo y redes - Piso 2'),
+
+-- Bloque Administrativo (Oficinas, PCs y Lab Animales)
+(10, 4, 'Entrada Principal Campus', 1, 'general', FALSE, 'normal', 'Acceso general institucional al campus'),
+(11, 4, 'Decanatura y Profesores', 2, 'administrativo', FALSE, 'normal', 'Oficinas docentes y administrativas'),
+(12, 4, 'Sala de Cómputo Administrativa', 1, 'lab_pcs', FALSE, 'normal', 'Sala de cómputo para personal administrativo'),
+(13, 4, 'Laboratorio de Animales y Veterinaria', 1, 'lab_animales', TRUE, 'armed', 'Laboratorio especializado de Medicina Veterinaria y Zootecnia');
 
 SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
 
+-- 5. Puertas Inteligentes Preparadas para Escaneo RFID (ID 1 es la Entrada Principal vinculada al CrowPi)
 INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
-(1, 1, 'Puerta Principal — Sala Informática 1', 'main', 'online', TRUE),
-(2, 3, 'Puerta Lateral Derecha — Lab. Ingeniería', 'lateral', 'online', TRUE);
+(1, 10, 'Entrada Principal', 'main', 'online', TRUE),
+(2, 1, 'Puerta Salón A-101', 'standard', 'online', TRUE),
+(3, 2, 'Puerta Salón A-102', 'standard', 'online', TRUE),
+(4, 3, 'Puerta Salón A-201', 'standard', 'online', TRUE),
+(5, 4, 'Puerta Salón B-101', 'standard', 'online', TRUE),
+(6, 5, 'Puerta Salón B-102', 'standard', 'online', TRUE),
+(7, 6, 'Puerta Biblioteca Central', 'standard', 'online', TRUE),
+(8, 7, 'Puerta Salón C-101', 'standard', 'online', TRUE),
+(9, 8, 'Puerta Sala de Cómputo C-1', 'main', 'online', TRUE),
+(10, 9, 'Puerta Sala de Cómputo C-2', 'standard', 'online', TRUE),
+(11, 11, 'Puerta Decanatura y Profesores', 'standard', 'online', TRUE),
+(12, 12, 'Puerta Sala de Cómputo Administrativa', 'standard', 'online', TRUE),
+(13, 13, 'Puerta Laboratorio de Animales y Veterinaria', 'main', 'online', TRUE);
 
 SELECT setval('doors_id_seq', (SELECT MAX(id) FROM doors));
-
-INSERT INTO rfid_cards (id, uid, user_id, card_type, is_active, label) VALUES
-(1, 'A1B2C3D4', 1, 'master', TRUE, 'Ficha Maestra Administración'),
-(2, 'E5F6A7B8', 4, 'standard', TRUE, 'Carnet Prof. Carlos López'),
-(3, '11223344', 5, 'standard', TRUE, 'Carnet Estudiante Victor Cordoba'),
-(4, 'AABBCCDD', 2, 'master', TRUE, 'Ficha Maestra Vigilancia');
-
-SELECT setval('rfid_cards_id_seq', (SELECT MAX(id) FROM rfid_cards));
-
-INSERT INTO schedules (user_id, room_id, day_of_week, start_time, end_time, semester, subject_name) VALUES
-(4, 1, 1, '06:00:00', '22:00:00', '2026-1', 'Programación Avanzada'),
-(4, 1, 2, '06:00:00', '22:00:00', '2026-1', 'Programación Avanzada'),
-(4, 1, 3, '06:00:00', '22:00:00', '2026-1', 'Programación Avanzada'),
-(4, 1, 4, '06:00:00', '22:00:00', '2026-1', 'Programación Avanzada'),
-(4, 1, 5, '06:00:00', '22:00:00', '2026-1', 'Programación Avanzada'),
-(5, 4, 1, '07:00:00', '21:00:00', '2026-1', 'Acceso Biblioteca Central'),
-(5, 4, 2, '07:00:00', '21:00:00', '2026-1', 'Acceso Biblioteca Central'),
-(5, 4, 3, '07:00:00', '21:00:00', '2026-1', 'Acceso Biblioteca Central'),
-(5, 4, 4, '07:00:00', '21:00:00', '2026-1', 'Acceso Biblioteca Central'),
-(5, 4, 5, '07:00:00', '21:00:00', '2026-1', 'Acceso Biblioteca Central');
-
-INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, granted, denial_reason, notes) VALUES
-(4, 1, 2, 'E5F6A7B8', TRUE, NULL, 'Ingreso autorizado a clase'),
-(5, 1, 3, '11223344', FALSE, 'denegado_area_no_autorizada', 'Sin clase asignada en Sala 1'),
-(2, 1, 4, 'AABBCCDD', TRUE, NULL, 'Ficha Maestra - Ronda de Seguridad');
