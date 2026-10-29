@@ -12,7 +12,11 @@ const getDoors = async (req, res) => {
              r.name as room_name,
              r.has_alarm as room_has_alarm,
              r.security_status as room_security_status,
-             b.name as block_name
+             b.name as block_name,
+             CASE
+               WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '30 seconds' THEN true
+               ELSE false
+             END as is_hardware_active
       FROM doors d
       LEFT JOIN rooms r ON r.id = d.room_id
       LEFT JOIN blocks b ON b.id = r.block_id
@@ -42,7 +46,11 @@ const getDoorById = async (req, res) => {
               r.name as room_name,
               r.has_alarm as room_has_alarm,
               r.security_status as room_security_status,
-              b.name as block_name
+              b.name as block_name,
+              CASE
+                WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '30 seconds' THEN true
+                ELSE false
+              END as is_hardware_active
        FROM doors d
        LEFT JOIN rooms r ON r.id = d.room_id
        LEFT JOIN blocks b ON b.id = r.block_id

@@ -305,14 +305,52 @@ const getAccessLogs = async (req, res) => {
  */
 const getStats = async (req, res) => {
   try {
-    const [totalToday, grantedToday, activeUsers, activeAlerts, totalDoors, totalRooms, totalBlocks] = await Promise.all([
+    const [
+      totalToday,
+      grantedToday,
+      activeUsers,
+      activeAlerts,
+      totalDoors,
+      totalRooms,
+      totalBlocks,
+      activeSensors,
+      byBlockRes,
+      byRoleRes,
+      byReasonRes
+    ] = await Promise.all([
       db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE`),
       db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE AND granted = true`),
       db.query(`SELECT COUNT(*)::int as count FROM users WHERE status = 'active'`),
       db.query(`SELECT COUNT(*)::int as count FROM alerts WHERE is_resolved = false`),
       db.query(`SELECT COUNT(*)::int as count FROM doors`),
       db.query(`SELECT COUNT(*)::int as count FROM rooms`),
-      db.query(`SELECT COUNT(*)::int as count FROM blocks`)
+      db.query(`SELECT COUNT(*)::int as count FROM blocks`),
+      db.query(`SELECT COUNT(*)::int as count FROM doors WHERE last_heartbeat IS NOT NULL AND last_heartbeat > NOW() - INTERVAL '30 seconds'`),
+      db.query(`
+        SELECT b.id, b.name, COUNT(l.id)::int as count
+        FROM blocks b
+        LEFT JOIN rooms r ON r.block_id = b.id
+        LEFT JOIN doors d ON d.room_id = r.id
+        LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+        GROUP BY b.id, b.name
+        ORDER BY b.id ASC
+      `),
+      db.query(`
+        SELECT r.id, r.name, r.display_name, COUNT(l.id)::int as count
+        FROM roles r
+        LEFT JOIN users u ON u.role_id = r.id
+        LEFT JOIN access_logs l ON l.user_id = u.id AND l.timestamp::date = CURRENT_DATE
+        GROUP BY r.id, r.name, r.display_name
+        ORDER BY count DESC
+      `),
+      db.query(`
+        SELECT COALESCE(denial_reason, 'Horario no permitido') as reason, COUNT(*)::int as count
+        FROM access_logs
+        WHERE granted = false AND timestamp::date = CURRENT_DATE
+        GROUP BY denial_reason
+        ORDER BY count DESC
+        LIMIT 5
+      `)
     ]);
 
     const total = totalToday.rows[0]?.count || 0;
@@ -324,11 +362,16 @@ const getStats = async (req, res) => {
         totalToday: total,
         grantedToday: granted,
         deniedToday: total - granted,
+        successRate: total > 0 ? Number(((granted / total) * 100).toFixed(1)) : 100,
         activeUsers: activeUsers.rows[0]?.count || 0,
         activeAlerts: activeAlerts.rows[0]?.count || 0,
         totalDoors: totalDoors.rows[0]?.count || 0,
         totalRooms: totalRooms.rows[0]?.count || 0,
-        totalBlocks: totalBlocks.rows[0]?.count || 0
+        totalBlocks: totalBlocks.rows[0]?.count || 0,
+        activeSensors: activeSensors.rows[0]?.count || 0,
+        byBlock: byBlockRes.rows || [],
+        byRole: byRoleRes.rows || [],
+        byReason: byReasonRes.rows || []
       }
     });
   } catch (error) {

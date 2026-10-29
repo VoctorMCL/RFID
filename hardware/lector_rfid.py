@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import ssl
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -35,6 +36,33 @@ DEFAULT_API_URL = os.environ.get(
 DEFAULT_DOOR_ID = 1  # 1 = Puerta Principal — Sala de Informática 1
 SEGUNDOS_ENTRE_LECTURAS = 1.5
 # =======================================================================
+
+
+def bucle_heartbeat(api_url, door_id):
+    """Mantiene el estado del sensor activo en el Dashboard enviando latidos cada 8s"""
+    url = api_url.strip().rstrip('/')
+    base = url.replace('/access/validate', '')
+    if not base.endswith('/api'):
+        base = f"{base}/api" if '/api' not in base else base
+    heartbeat_url = f"{base}/doors/{int(door_id)}/heartbeat"
+
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
+
+    while True:
+        try:
+            req = urllib.request.Request(
+                heartbeat_url,
+                data=b"{}",
+                headers={"Content-Type": "application/json", "User-Agent": "CrowPi3-Heartbeat/1.0"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
+                pass
+        except Exception:
+            pass
+        time.sleep(8)
 
 
 def norm_uid(uid_bytes):
@@ -112,6 +140,10 @@ def main():
     print(f"📡 Backend: {args.server}")
     print(f"🚪 Puerta ID: {args.door}")
     print("================================================================")
+
+    # Iniciar latido en segundo plano para notificar presencia al dashboard
+    threading.Thread(target=bucle_heartbeat, args=(args.server, args.door), daemon=True).start()
+    print(f"💓 Telemetría activa: enviando pulsos de hardware a puerta {args.door}")
 
     if not HARDWARE_DISPONIBLE:
         print("ℹ️  Librerías RPi.GPIO / mfrc522 no detectadas en este host.")

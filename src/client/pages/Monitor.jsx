@@ -28,11 +28,8 @@ export const Monitor = () => {
   const [isVibrating, setIsVibrating] = useState(false);
 
   // Estado del sensor de hardware RFID (CrowPi 3 / RC522)
-  // Por defecto está en falso (ROJO) hasta que se confirme lectura física real
-  const [hardwareSensors, setHardwareSensors] = useState({
-    1: false, // Puerta Principal
-    2: false  // Puerta Lateral
-  });
+  // Por defecto está en falso (ROJO) hasta que se confirme comunicación física real
+  const [hardwareSensors, setHardwareSensors] = useState({});
 
   const resetTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -259,19 +256,22 @@ export const Monitor = () => {
           setDoors(res.data);
           setSelectedDoorId(res.data[0].id.toString());
 
-          // Reactualizar detector al cargar: si la puerta está online en la BD, marcar en VERDE de inmediato
+          // El sensor solo pasa a VERDE si hay latidos reales de hardware en los últimos 30s
           const sensorMap = {};
           res.data.forEach(d => {
-            sensorMap[d.id] = (d.status === 'online');
+            sensorMap[d.id] = Boolean(d.is_hardware_active);
           });
-          setHardwareSensors(prev => ({ ...prev, ...sensorMap }));
+          setHardwareSensors(sensorMap);
         }
 
-        // Consultar último escaneo para verificar actividad de hardware
+        // Consultar último escaneo: solo marca verde si ocurrió hace menos de 30 segundos
         try {
           const latestRes = await apiClient('/access/latest');
           if (latestRes.success && latestRes.data && latestRes.data.door?.id) {
-            setHardwareSensors(prev => ({ ...prev, [latestRes.data.door.id]: true }));
+            const scanTime = new Date(latestRes.data.timestamp).getTime();
+            if (Date.now() - scanTime < 30000) {
+              setHardwareSensors(prev => ({ ...prev, [latestRes.data.door.id]: true }));
+            }
           }
         } catch (e) {}
       } catch (err) {
