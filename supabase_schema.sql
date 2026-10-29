@@ -91,7 +91,7 @@ CREATE TABLE doors (
     id SERIAL PRIMARY KEY,
     room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     name VARCHAR(150) NOT NULL,
-    door_type VARCHAR(30) DEFAULT 'main' CHECK (door_type IN ('main', 'lateral', 'standard', 'emergency')),
+    door_type VARCHAR(30) DEFAULT 'puerta_sencilla' CHECK (door_type IN ('puerta_sencilla', 'puerta_doble')),
     hardware_ip VARCHAR(45) DEFAULT '192.168.1.100',
     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
@@ -237,18 +237,18 @@ SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
 
 -- 5. Puertas Inteligentes Preparadas para Escaneo RFID (ID 1 es la Entrada Principal vinculada al CrowPi)
 INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
-(1, 10, 'Entrada Principal', 'main', 'online', TRUE),
-(2, 1, 'Puerta Salón A-101', 'standard', 'online', TRUE),
-(3, 2, 'Puerta Salón A-102', 'standard', 'online', TRUE),
-(4, 3, 'Puerta Salón A-201', 'standard', 'online', TRUE),
-(5, 4, 'Puerta Salón B-101', 'standard', 'online', TRUE),
-(6, 5, 'Puerta Salón B-102', 'standard', 'online', TRUE),
-(7, 6, 'Puerta Biblioteca Central', 'standard', 'online', TRUE),
-(8, 7, 'Puerta Salón C-101', 'standard', 'online', TRUE),
-(9, 8, 'Puerta Sala de Cómputo C-1', 'main', 'online', TRUE),
-(10, 9, 'Puerta Sala de Cómputo C-2', 'standard', 'online', TRUE),
-(11, 11, 'Puerta Decanatura y Profesores', 'standard', 'online', TRUE),
-(12, 12, 'Puerta Sala de Cómputo Administrativa', 'standard', 'online', TRUE),
-(13, 13, 'Puerta Laboratorio de Animales y Veterinaria', 'main', 'online', TRUE);
+(1, 10, 'Entrada Principal', 'puerta_sencilla', 'online', TRUE),
+(2, 1, 'Puerta Salón A-101', 'puerta_sencilla', 'online', TRUE),
+(3, 2, 'Puerta Salón A-102', 'puerta_sencilla', 'online', TRUE),
+(4, 3, 'Puerta Salón A-201', 'puerta_sencilla', 'online', TRUE),
+(5, 4, 'Puerta Salón B-101', 'puerta_sencilla', 'online', TRUE),
+(6, 5, 'Puerta Salón B-102', 'puerta_sencilla', 'online', TRUE),
+(7, 6, 'Puerta Biblioteca Central', 'puerta_doble', 'online', TRUE),
+(8, 7, 'Puerta Salón C-101', 'puerta_sencilla', 'online', TRUE),
+(9, 8, 'Puerta Sala de Cómputo C-1', 'puerta_doble', 'online', TRUE),
+(10, 9, 'Puerta Sala de Cómputo C-2', 'puerta_sencilla', 'online', TRUE),
+(11, 11, 'Puerta Decanatura y Profesores', 'puerta_sencilla', 'online', TRUE),
+(12, 12, 'Puerta Sala de Cómputo Administrativa', 'puerta_sencilla', 'online', TRUE),
+(13, 13, 'Puerta Laboratorio de Animales y Veterinaria', 'puerta_doble', 'online', TRUE);
 
 SELECT setval('doors_id_seq', (SELECT MAX(id) FROM doors));

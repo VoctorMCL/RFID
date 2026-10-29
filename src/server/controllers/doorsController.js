@@ -62,7 +62,7 @@ const getDoorById = async (req, res) => {
 
 const createDoor = async (req, res) => {
   try {
-    const { room_id, name, door_type = 'main', hardware_ip = '192.168.1.100', mac_address = 'AA:BB:CC:DD:EE:01' } = req.body;
+    const { room_id, name, door_type = 'puerta_sencilla', hardware_ip = '192.168.1.100', mac_address = 'AA:BB:CC:DD:EE:01' } = req.body;
 
     if (!room_id || !name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Sala y nombre de la puerta son obligatorios' });

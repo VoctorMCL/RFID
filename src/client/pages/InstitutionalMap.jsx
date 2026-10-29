@@ -45,7 +45,7 @@ export const InstitutionalMap = () => {
   });
   const [doorForm, setDoorForm] = useState({
     name: '',
-    door_type: 'standard',
+    door_type: 'puerta_sencilla',
     hardware_ip: '192.168.1.100',
     mac_address: 'AA:BB:CC:DD:EE:01'
   });
@@ -144,7 +144,7 @@ export const InstitutionalMap = () => {
         setIsDoorModalOpen(false);
         setDoorForm({
           name: '',
-          door_type: 'standard',
+          door_type: 'puerta_sencilla',
           hardware_ip: '192.168.1.100',
           mac_address: 'AA:BB:CC:DD:EE:01'
         });
@@ -407,7 +407,9 @@ export const InstitutionalMap = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{d.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tipo: {d.door_type}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        Tipo: {d.door_type === 'puerta_doble' ? 'Puerta Doble' : 'Puerta de una'}
+                      </div>
                     </div>
                     <span className="badge badge-ok">ONLINE</span>
                   </div>
@@ -602,10 +604,8 @@ export const InstitutionalMap = () => {
               value={doorForm.door_type}
               onChange={e => setDoorForm({ ...doorForm, door_type: e.target.value })}
             >
-              <option value="main">Puerta Principal</option>
-              <option value="lateral">Puerta Lateral</option>
-              <option value="emergency">Salida de Emergencia</option>
-              <option value="standard">Puerta Estándar</option>
+              <option value="puerta_sencilla">Puerta de una (Sencilla)</option>
+              <option value="puerta_doble">Puerta Doble</option>
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

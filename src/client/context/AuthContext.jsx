@@ -45,8 +45,11 @@ export const AuthProvider = ({ children }) => {
         body: { email: resolvedEmail, password: password || 'acceso2026' }
       });
 
-      if (res && res.success && res.data) {
-        const { token: newToken, user: newUser } = res.data;
+      const authData = (res && res.data) ? res.data : res;
+      const newToken = authData?.token;
+      const newUser = authData?.user;
+
+      if (newToken && newUser) {
         setToken(newToken);
         setUser(newUser);
         localStorage.setItem('rfid_token', newToken);
@@ -70,11 +73,31 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('rfid_user');
   };
 
-  const isAdmin = user && (user.role?.name === 'admin' || user.role?.global_access);
-  const isSecurity = user && (user.role?.name === 'security' || user.role?.name === 'celador');
+  const roleName = user?.role?.name || '';
+  const isAuthenticated = Boolean(token && user);
+  const isAdmin = Boolean(user && (roleName === 'admin' || user?.role?.global_access));
+  const isCelador = Boolean(user && (roleName === 'celador' || roleName === 'security'));
+  const isSecurity = isCelador;
+  const isProfessor = Boolean(user && roleName === 'professor');
+  const canManageInfrastructure = isAdmin;
+  const canManageSecurity = Boolean(isAdmin || isCelador || roleName === 'rector');
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAdmin, isSecurity }}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      loading,
+      login,
+      logout,
+      isAuthenticated,
+      roleName,
+      isAdmin,
+      isCelador,
+      isSecurity,
+      isProfessor,
+      canManageInfrastructure,
+      canManageSecurity
+    }}>
       {children}
     </AuthContext.Provider>
   );

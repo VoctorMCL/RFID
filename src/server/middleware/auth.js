@@ -35,36 +35,19 @@ const authenticate = async (req, res, next) => {
 
     let user = null;
 
-    if (!db.useMemory && db.pool) {
-      try {
-        const result = await db.pool.query(
-          `SELECT u.id, u.email, u.role_id, u.status, r.name AS role_name, r.global_access
-           FROM users u
-           JOIN roles r ON u.role_id = r.id
-           WHERE u.id = $1`,
-          [decoded.id]
-        );
-        if (result.rows.length > 0) {
-          user = result.rows[0];
-        }
-      } catch (err) {
-        // Fallback a memoria si la consulta PG falla
+    try {
+      const result = await db.query(
+        `SELECT u.id, u.email, u.role_id, u.status, r.name AS role_name, r.global_access
+         FROM users u
+         JOIN roles r ON u.role_id = r.id
+         WHERE u.id = $1`,
+        [decoded.id]
+      );
+      if (result.rows.length > 0) {
+        user = result.rows[0];
       }
-    }
-
-    if (!user) {
-      const memUser = db.memoryDb.users.find(u => u.id === decoded.id);
-      if (memUser) {
-        const role = db.memoryDb.roles.find(r => r.id === memUser.role_id);
-        user = {
-          id: memUser.id,
-          email: memUser.email,
-          role_id: memUser.role_id,
-          status: memUser.status,
-          role_name: role ? role.name : 'student',
-          global_access: role ? role.global_access : false
-        };
-      }
+    } catch (dbErr) {
+      console.error('Error verificando usuario en PostgreSQL:', dbErr.message);
     }
 
     if (!user) {
