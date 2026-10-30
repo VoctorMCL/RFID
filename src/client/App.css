@@ -514,66 +514,89 @@ input, select, textarea {
   gap: 8px;
 }
 
-/* Botones */
+/* Botones y Acciones */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 36px;
   padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
+  border-radius: 8px;
+  font-size: 13.5px;
   font-weight: 600;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.2;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn:active {
+  transform: translateY(1px);
 }
 
 .btn-primary {
   background-color: var(--accent);
   color: var(--accent-text);
+  box-shadow: 0 1px 3px rgba(0, 40, 85, 0.15);
 }
 
 .btn-primary:hover {
   background-color: var(--accent-hover);
+  box-shadow: 0 2px 6px rgba(0, 40, 85, 0.22);
 }
 
 .btn-secondary {
   background-color: var(--bg-tertiary);
-  border-color: var(--border-light);
+  border-color: var(--border);
   color: var(--text-primary);
 }
 
 .btn-secondary:hover {
   background-color: var(--bg-hover);
-  border-color: var(--text-muted);
+  border-color: var(--border-light);
+  color: var(--text-primary);
 }
 
-.btn-danger-grey {
-  background-color: #26262a;
-  border-color: #40404a;
-  color: #c0c0c8;
-}
-
-.btn-danger-grey:hover {
-  background-color: #323238;
-  border-color: #555562;
+.btn-danger {
+  background-color: #dc2626;
   color: #ffffff;
 }
 
+.btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+.btn-danger-grey {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--status-denied-text);
+}
+
+.btn-danger-grey:hover {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
 .btn-sm {
-  padding: 5px 10px;
-  font-size: 12px;
+  min-height: 30px;
+  padding: 4px 11px;
+  font-size: 12.5px;
+  border-radius: 6px;
+  gap: 6px;
 }
 
 /* Inputs y Formularios */
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .form-label {
   display: block;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
@@ -583,22 +606,23 @@ input, select, textarea {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 9px 12px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(0, 40, 85, 0.1);
 }
 
 /* Tablas */
 .table-container {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background-color: var(--bg-card);
 }
 
@@ -610,7 +634,7 @@ input, select, textarea {
 }
 
 .data-table th {
-  padding: 12px 16px;
+  padding: 10px 14px;
   background-color: var(--bg-secondary);
   color: var(--text-secondary);
   font-size: 12.5px;
@@ -621,7 +645,7 @@ input, select, textarea {
 }
 
 .data-table td {
-  padding: 12px 16px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -635,17 +659,18 @@ input, select, textarea {
   background-color: var(--bg-hover);
 }
 
-/* Badges y Chips */
+/* Badges y Chips en Sentence Case */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 9999px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
+  white-space: nowrap;
 }
 
 .badge-ok {

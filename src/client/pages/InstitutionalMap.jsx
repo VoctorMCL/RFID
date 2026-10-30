@@ -408,50 +408,50 @@ export const InstitutionalMap = () => {
                     borderRadius: 'var(--radius-sm)'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{d.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        Acceso ID: {d.id} ({d.door_type || 'acceso'})
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{d.name}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Acceso #{d.id} · {d.door_type === 'acceso' ? 'Entrada principal' : (d.door_type || 'Acceso')}
                       </div>
                     </div>
-                    <span className="badge badge-ok">ONLINE</span>
+                    <span className="badge badge-ok">En línea</span>
                   </div>
 
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: '11.5px',
                     fontFamily: 'var(--font-mono)',
-                    color: 'var(--text-muted)',
+                    color: 'var(--text-secondary)',
                     backgroundColor: 'var(--bg-tertiary)',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
                     marginBottom: '10px'
                   }}>
-                    IP: {d.hardware_ip || '192.168.1.100'} · MAC: {d.mac_address || 'AA:BB:CC:DD:EE:01'}
+                    IP {d.hardware_ip || '192.168.1.100'} · MAC {d.mac_address || 'AA:BB:CC:DD:EE:01'}
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: canManageSecurity ? '1.2fr 1fr' : '1fr', gap: '8px' }}>
                     <button
                       onClick={() => {
                         setSimDoorId(d.id);
                         setIsSimModalOpen(true);
                       }}
                       className="btn btn-primary btn-sm"
-                      style={{ width: '100%', justifyContent: 'center' }}
                       title="Simular ingreso RFID en esta puerta para ver la validación en pantalla completa"
                     >
-                      <Radio size={14} />
-                      <span>Simular Ingreso RFID</span>
+                      <Radio size={13} />
+                      <span>Simular ingreso</span>
                     </button>
 
                     {canManageSecurity && (
                       <button
                         onClick={() => handleUnlockDoor(d.id)}
                         className="btn btn-secondary btn-sm"
-                        style={{ width: '100%', justifyContent: 'center' }}
+                        title="Desbloquear cerradura electromecánica por 5 segundos"
                       >
-                        <Unlock size={14} />
-                        <span>Apertura Remota de Emergencia</span>
+                        <Unlock size={13} />
+                        <span>Apertura</span>
                       </button>
                     )}
                   </div>

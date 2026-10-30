@@ -426,29 +426,29 @@ export const GlobalAccessModal = () => {
                 <span
                   style={{
                     position: 'absolute',
-                    bottom: '-4px',
-                    right: '-4px',
-                    padding: '2px 6px',
-                    borderRadius: '10px',
-                    fontSize: '9.5px',
-                    fontWeight: 800,
-                    backgroundColor: granted ? '#10b981' : '#ef4444',
+                    bottom: '-2px',
+                    right: '-2px',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: granted ? '#16a34a' : '#dc2626',
                     color: '#ffffff',
-                    border: '2px solid #ffffff'
+                    border: '2px solid var(--bg-card, #ffffff)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
                   }}
                 >
-                  {granted ? 'VÁLIDO' : 'RECHAZO'}
+                  {granted ? 'Válido' : 'Rechazo'}
                 </span>
               </div>
 
               {/* Información Personal y Académica */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span
                     style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
+                      fontSize: '12px',
+                      fontWeight: 600,
                       padding: '2px 8px',
                       borderRadius: '4px',
                       backgroundColor: 'var(--accent-soft, rgba(0, 40, 85, 0.08))',
@@ -457,15 +457,15 @@ export const GlobalAccessModal = () => {
                   >
                     {user.role || 'Estudiante'}
                   </span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>·</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>·</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
                     C.C. {user.document_id || '—'}
                   </span>
                 </div>
 
                 <div
                   style={{
-                    fontSize: '19px',
+                    fontSize: '20px',
                     fontWeight: 800,
                     color: 'var(--text-primary, #0f172a)',
                     lineHeight: 1.25,
@@ -484,12 +484,12 @@ export const GlobalAccessModal = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    fontSize: '13px',
+                    fontSize: '13.5px',
                     fontWeight: 600,
                     color: 'var(--accent, #002855)'
                   }}
                 >
-                  <GraduationCap size={15} />
+                  <GraduationCap size={16} />
                   <span>{user.program || 'Programa Académico General'}</span>
                 </div>
               </div>
@@ -548,7 +548,7 @@ export const GlobalAccessModal = () => {
             {/* UID Tarjeta */}
             <div
               style={{
-                padding: '10px 12px',
+                padding: '12px 14px',
                 borderRadius: '8px',
                 backgroundColor: 'var(--bg-tertiary, #f8fafc)',
                 border: '1px solid var(--border, #e2e8f0)',
@@ -559,10 +559,10 @@ export const GlobalAccessModal = () => {
             >
               <CreditCard size={18} style={{ color: 'var(--accent, #002855)', flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-                  UID Tarjeta RFID
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  UID de tarjeta RFID
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '13px', color: 'var(--text-primary)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>
                   {scanEvent.uid || '—'}
                 </div>
               </div>
@@ -571,7 +571,7 @@ export const GlobalAccessModal = () => {
             {/* Hora Transacción */}
             <div
               style={{
-                padding: '10px 12px',
+                padding: '12px 14px',
                 borderRadius: '8px',
                 backgroundColor: 'var(--bg-tertiary, #f8fafc)',
                 border: '1px solid var(--border, #e2e8f0)',
@@ -582,10 +582,10 @@ export const GlobalAccessModal = () => {
             >
               <Clock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <div>
-                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-                  Hora del Escaneo
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Hora del escaneo
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                   {formatTime(scanEvent.timestamp)}
                 </div>
               </div>
@@ -595,7 +595,7 @@ export const GlobalAccessModal = () => {
             <div
               style={{
                 gridColumn: '1 / -1',
-                padding: '10px 12px',
+                padding: '12px 14px',
                 borderRadius: '8px',
                 backgroundColor: 'var(--bg-tertiary, #f8fafc)',
                 border: '1px solid var(--border, #e2e8f0)',
@@ -606,10 +606,10 @@ export const GlobalAccessModal = () => {
             >
               <DoorClosed size={18} style={{ color: 'var(--accent, #002855)', flexShrink: 0 }} />
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-                  Punto de Acceso & Ubicación Institucional
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Punto de acceso institucional
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>
+                <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginTop: '1px' }}>
                   {door?.name || `Puerta #${door?.id || '—'}`}
                   {room?.name && (
                     <span style={{ fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '6px' }}>
@@ -639,7 +639,7 @@ export const GlobalAccessModal = () => {
               }}
             >
               <AlertTriangle size={18} color="#dc2626" />
-              <span>🚨 Alerta perimetral activada: la sala tiene alarma armada y se reportó el incidente.</span>
+              <span>Alerta perimetral activada: la sala tiene alarma armada y se reportó el incidente.</span>
             </div>
           )}
         </div>

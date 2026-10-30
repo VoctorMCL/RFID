@@ -1171,44 +1171,43 @@ export const Dashboard = () => {
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* Barra superior de Grafana (Top Bar 100% SVG, adaptable a modo claro y oscuro) */}
+      {/* Barra superior de Grafana y controles */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        padding: '12px 18px',
-        marginBottom: '16px',
+        borderRadius: '10px',
+        padding: '14px 18px',
+        marginBottom: '18px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '12px'
+        gap: '14px',
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           {/* Logo SVG estilizado */}
           <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '6px',
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #002855 0%, #1e40af 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
-            border: '1px solid rgba(59, 130, 246, 0.3)'
+            boxShadow: '0 2px 8px rgba(0, 40, 85, 0.25)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            flexShrink: 0
           }}>
-            <Flame size={17} color="#ffffff" />
+            <Flame size={18} color="#ffffff" />
           </div>
 
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Control de Acceso RFID y Telemetría Institucional
-              </h1>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>▾</span>
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '1px' }}>
-              19 paneles analíticos en vivo desde Supabase · Grids redimensionables
+            <h1 style={{ fontSize: '16.5px', fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.2px' }}>
+              Telemetría y analítica de control de acceso
+            </h1>
+            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              19 paneles analíticos en tiempo real con cuadrículas redimensionables
             </div>
           </div>
 
@@ -1218,48 +1217,54 @@ export const Dashboard = () => {
             gap: '6px',
             fontSize: '12px',
             fontWeight: 600,
-            padding: '3px 10px',
-            borderRadius: '4px',
-            backgroundColor: isHardwareSensorOnline ? (isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.12)') : (isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)'),
-            color: isHardwareSensorOnline ? (isLight ? '#065f46' : '#22c55e') : (isLight ? '#991b1b' : '#ef4444'),
-            border: `1px solid ${isHardwareSensorOnline ? (isLight ? '#a7f3d0' : 'rgba(34, 197, 94, 0.3)') : (isLight ? '#fecaca' : 'rgba(239, 68, 68, 0.3)')}`
+            padding: '4px 10px',
+            borderRadius: '9999px',
+            backgroundColor: isHardwareSensorOnline ? 'var(--status-ok-bg)' : 'var(--status-denied-bg)',
+            color: isHardwareSensorOnline ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
+            border: `1px solid ${isHardwareSensorOnline ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
           }}>
             <span style={{
               width: '7px',
               height: '7px',
               borderRadius: '50%',
-              backgroundColor: isHardwareSensorOnline ? '#22c55e' : '#ef4444'
+              backgroundColor: isHardwareSensorOnline ? '#16a34a' : '#dc2626'
             }} />
-            {isHardwareSensorOnline ? 'Lector RFID en línea' : 'Lector RFID desconectado'}
+            {isHardwareSensorOnline ? 'Lector activo' : 'Lector desconectado'}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Refresco: <b>4s</b> ({formatTime(lastRefreshTime)})
+          <span style={{
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+            backgroundColor: 'var(--bg-tertiary)',
+            padding: '5px 10px',
+            borderRadius: '6px',
+            border: '1px solid var(--border)'
+          }}>
+            Refresco <b>4s</b> ({formatTime(lastRefreshTime)})
           </span>
 
           <button
             onClick={resetLayout}
             className="btn btn-secondary btn-sm"
             title="Restablecer cuadrícula a tamaño y posición por defecto"
-            style={{ fontSize: '12px', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
           >
             <RotateCcw size={13} />
-            <span>Restablecer Grids</span>
+            <span>Restablecer cuadrícula</span>
           </button>
 
           <button
             onClick={() => loadData()}
             className="btn btn-secondary btn-sm"
             disabled={isRefreshing}
-            style={{ fontSize: '12px', padding: '5px 12px' }}
+            title="Refrescar datos del dashboard"
           >
             <RefreshCw size={13} className={isRefreshing ? 'spin' : ''} />
             <span>Refrescar</span>
           </button>
 
-          <Link to="/monitor" className="btn btn-primary btn-sm" style={{ fontSize: '12px', padding: '5px 14px' }}>
+          <Link to="/monitor" className="btn btn-primary btn-sm">
             <Radio size={14} />
             <span>Escáner en vivo</span>
           </Link>
@@ -1284,7 +1289,7 @@ export const Dashboard = () => {
             {/* 1. Stat Card: Accesos de Hoy */}
             <div key="panel_total_stat" className="grafana-panel" style={{ borderLeft: '3px solid #2563eb' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Accesos Hoy</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Total de accesos hoy</span>
                 <Activity size={15} style={{ color: '#2563eb' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
@@ -1303,7 +1308,7 @@ export const Dashboard = () => {
             {/* 2. Stat Card: Infracciones / Denegados */}
             <div key="panel_denied_stat" className="grafana-panel" style={{ borderLeft: stats.deniedToday > 0 ? '3px solid #ef4444' : '3px solid var(--border)' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Infracciones / Denegados</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Infracciones y rechazos</span>
                 <XCircle size={15} style={{ color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-muted)' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
@@ -1322,7 +1327,7 @@ export const Dashboard = () => {
             {/* 3. Stat Card: Población en Campus */}
             <div key="panel_campus_stat" className="grafana-panel" style={{ borderLeft: '3px solid #22c55e' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Población en Campus</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Población en campus</span>
                 <Users size={15} style={{ color: '#22c55e' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
@@ -1343,7 +1348,7 @@ export const Dashboard = () => {
             {/* 4. Stat Card: Permanencia Promedio en Campus */}
             <div key="panel_stay_stat" className="grafana-panel" style={{ borderLeft: '3px solid #3b82f6' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Permanencia en Campus</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Tiempo de permanencia promedio</span>
                 <Clock size={15} style={{ color: '#3b82f6' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
@@ -1366,7 +1371,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <GaugeIcon size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tasa de Aprobación</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tasa de aprobación institucional</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
@@ -1384,7 +1389,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <TrendingUp size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Curva de Afluencia y Detección de Picos</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Afluencia horaria y picos de acceso</span>
                 </div>
                 <div style={{ display: 'flex', gap: '5px' }}>
                   <button
@@ -1431,7 +1436,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <BarChart3 size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Volumen Semanal Comparativo (Día a Día)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Volumen semanal comparativo</span>
                 </div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Últimos 7 días</span>
               </div>
@@ -1447,7 +1452,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <SlidersHorizontal size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Comparativa Directa: Hoy vs Ayer</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Comparativa de flujo: hoy vs. ayer</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
@@ -1461,7 +1466,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <GraduationCap size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Estudiantes por Carrera (Bar Gauge)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Estudiantes en campus por carrera</span>
                 </div>
                 <span style={{ fontSize: '11.5px', color: '#22c55e', fontWeight: 600 }}>
                   {totalStudentsInCampus} alumnos en campus
@@ -1477,7 +1482,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Building2 size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Distribución por Bloque</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Distribución por bloque del campus</span>
                 </div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Total: {totalBlockAccesses}</span>
               </div>
@@ -1496,7 +1501,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <PieChart size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tráfico por Tipo de Espacio</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tráfico por categoría de espacio</span>
                 </div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Total: {totalSpaces}</span>
               </div>
@@ -1515,7 +1520,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertTriangle size={15} style={{ color: '#ef4444' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Auditoría de Infracciones (Pareto)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Auditoría de infracciones (Pareto)</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Causas principales</span>
               </div>
@@ -1529,7 +1534,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Filter size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Embudo de Control de Acceso</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Embudo de validación de seguridad</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>Tasa 93.9%</span>
               </div>
@@ -1548,7 +1553,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <HardDrive size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Salud de Infraestructura RFID</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Salud de cerraduras e infraestructura</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>53 Cerraduras</span>
               </div>
@@ -1567,7 +1572,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Flame size={15} style={{ color: '#f59e0b' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Mapa de Calor de Horas Pico (Heatmap)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Mapa de calor por franja horaria</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
@@ -1581,7 +1586,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Layers size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Top Salones y Laboratorios</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Salones y laboratorios con mayor ocupación</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
@@ -1595,7 +1600,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <DoorClosed size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Puertas Más Transitadas</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Puertas más transitadas</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
@@ -1657,7 +1662,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Clock size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Registro de Transacciones en Tiempo Real (Loki Table)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Registro de transacciones en tiempo real</span>
                 </div>
                 <Link to="/logs" style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   <span>Auditoría completa</span>
@@ -1695,7 +1700,7 @@ export const Dashboard = () => {
                             color: log.granted ? (isLight ? '#065f46' : '#22c55e') : (isLight ? '#991b1b' : '#ef4444'),
                             border: `1px solid ${log.granted ? (isLight ? '#a7f3d0' : 'rgba(34, 197, 94, 0.35)') : (isLight ? '#fecaca' : 'rgba(239, 68, 68, 0.35)')}`
                           }}>
-                            {log.granted ? 'AUTORIZADO' : 'DENEGADO'}
+                            {log.granted ? 'Autorizado' : 'Denegado'}
                           </span>
                         </td>
                         <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>

@@ -59,7 +59,7 @@ export const AccessLogs = () => {
       l.rfid_uid_raw,
       l.door_name,
       l.room_name,
-      l.granted ? 'CONCEDIDO' : 'DENEGADO',
+      l.granted ? 'Concedido' : 'Denegado',
       l.denial_reason || '—'
     ]);
 
@@ -172,7 +172,7 @@ export const AccessLogs = () => {
                   </td>
                   <td>
                     <span className={`badge ${l.granted ? 'badge-ok' : 'badge-denied'}`}>
-                      {l.granted ? 'CONCEDIDO' : 'DENEGADO'}
+                      {l.granted ? 'Concedido' : 'Denegado'}
                     </span>
                   </td>
                   <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>

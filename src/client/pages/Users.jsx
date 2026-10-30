@@ -228,7 +228,7 @@ export const Users = () => {
                   </td>
                   <td>
                     <span className={`badge ${u.status === 'active' ? 'badge-ok' : 'badge-denied'}`}>
-                      {u.status === 'active' ? 'ACTIVO' : 'INACTIVO'}
+                      {u.status === 'active' ? 'Activo' : 'Inactivo'}
                     </span>
                   </td>
                   {canManageInfrastructure && (

@@ -127,7 +127,7 @@ export const Schedules = () => {
         {canManageInfrastructure && (
           <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
             <Plus size={16} />
-            <span>Asignar Horario de Clase</span>
+            <span>Asignar horario de clase</span>
           </button>
         )}
       </div>
@@ -136,13 +136,13 @@ export const Schedules = () => {
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
           <div>
-            <label className="form-label">Filtrar por Persona</label>
+            <label className="form-label">Filtrar por persona</label>
             <select
               className="form-select"
               value={userFilter}
               onChange={e => setUserFilter(e.target.value)}
             >
-              <option value="">Todas las Personas</option>
+              <option value="">Todas las personas</option>
               {users.map(u => (
                 <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
               ))}
@@ -150,13 +150,13 @@ export const Schedules = () => {
           </div>
 
           <div>
-            <label className="form-label">Filtrar por Sala</label>
+            <label className="form-label">Filtrar por sala</label>
             <select
               className="form-select"
               value={roomFilter}
               onChange={e => setRoomFilter(e.target.value)}
             >
-              <option value="">Todas las Salas</option>
+              <option value="">Todas las salas</option>
               {rooms.map(r => (
                 <option key={r.id} value={r.id}>{r.name} ({r.block_name})</option>
               ))}
@@ -164,13 +164,13 @@ export const Schedules = () => {
           </div>
 
           <div>
-            <label className="form-label">Día de la Semana</label>
+            <label className="form-label">Día de la semana</label>
             <select
               className="form-select"
               value={dayFilter}
               onChange={e => setDayFilter(e.target.value)}
             >
-              <option value="">Todos los Días</option>
+              <option value="">Todos los días</option>
               {DAYS_OF_WEEK.map((d, i) => (
                 <option key={i} value={i}>{d}</option>
               ))}
@@ -185,10 +185,10 @@ export const Schedules = () => {
           <thead>
             <tr>
               <th>Día</th>
-              <th>Horario Asignado</th>
-              <th>Docente / Estudiante</th>
-              <th>Sala y Ubicación</th>
-              <th>Asignatura / Actividad</th>
+              <th>Horario asignado</th>
+              <th>Docente o estudiante</th>
+              <th>Sala y ubicación</th>
+              <th>Asignatura o actividad</th>
               <th>Semestre</th>
               {canManageInfrastructure && <th style={{ textAlign: 'right' }}>Acciones</th>}
             </tr>

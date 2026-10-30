@@ -107,46 +107,8 @@ export const Topbar = () => {
         </div>
       </div>
 
-      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {/* Selector de Modo Claro / Oscuro / Auto por Dispositivo */}
-        <button
-          onClick={cycleTheme}
-          className="btn btn-secondary btn-sm"
-          title={`Tema: ${themeMode === 'auto' ? 'Automático (según tu dispositivo)' : themeMode === 'light' ? 'Modo Claro' : 'Modo Oscuro'}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12.5px',
-            padding: '6px 12px'
-          }}
-        >
-          {themeMode === 'auto' && <Laptop size={14} style={{ color: 'var(--accent)' }} />}
-          {themeMode === 'light' && <Sun size={14} style={{ color: '#f59e0b' }} />}
-          {themeMode === 'dark' && <Moon size={14} style={{ color: '#38bdf8' }} />}
-          <span>
-            {themeMode === 'auto' ? 'Tema automático' : themeMode === 'light' ? 'Tema claro' : 'Tema oscuro'}
-          </span>
-        </button>
-
-        {/* Botón Simular Acceso RFID (Prueba rápida desde cualquier pantalla) */}
-        <button
-          onClick={() => setIsSimulatorOpen(true)}
-          className="btn btn-secondary btn-sm"
-          title="Simular lectura de carnet RFID para probar el pop-up institucional"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12.5px',
-            padding: '6px 12px'
-          }}
-        >
-          <Radio size={14} style={{ color: 'var(--accent)' }} />
-          <span>Simular Acceso</span>
-        </button>
-
-        {/* Indicador de Hardware Sensor RFID Real (Sin datos ficticios) */}
+      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Indicador de Hardware Sensor RFID Real */}
         <div
           className="live-indicator"
           title={isSensorActive ? `Lector MFRC522 activo en: ${activeSensorDoor || 'CrowPi'}` : 'Sin comunicación de hardware MFRC522 / CrowPi reciente'}
@@ -155,10 +117,10 @@ export const Topbar = () => {
             alignItems: 'center',
             gap: '8px',
             fontSize: '12.5px',
-            fontWeight: 500,
-            padding: '6px 14px',
-            borderRadius: '6px',
-            backgroundColor: isSensorActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.08)',
+            fontWeight: 600,
+            padding: '5px 12px',
+            borderRadius: '9999px',
+            backgroundColor: isSensorActive ? 'var(--status-ok-bg)' : 'var(--status-denied-bg)',
             color: isSensorActive ? 'var(--status-ok-text)' : 'var(--status-denied-text)',
             border: `1px solid ${isSensorActive ? 'var(--status-ok-border)' : 'var(--status-denied-border)'}`
           }}
@@ -169,17 +131,55 @@ export const Topbar = () => {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: isSensorActive ? '#10b981' : '#ef4444',
-              boxShadow: isSensorActive ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none'
+              backgroundColor: isSensorActive ? '#16a34a' : '#dc2626',
+              boxShadow: isSensorActive ? '0 0 8px rgba(22, 163, 74, 0.5)' : 'none'
             }}
           />
-          <Cpu size={14} style={{ opacity: 0.85 }} />
+          <Cpu size={14} style={{ opacity: 0.9 }} />
           <span>
             {isSensorActive
-              ? `Lector en línea ${activeSensorDoor ? `(${activeSensorDoor})` : ''}`
+              ? `Lector activo ${activeSensorDoor ? `(${activeSensorDoor})` : ''}`
               : 'Lector desconectado'}
           </span>
         </div>
+
+        {/* Botón Simular Acceso RFID */}
+        <button
+          onClick={() => setIsSimulatorOpen(true)}
+          className="btn btn-secondary btn-sm"
+          title="Simular lectura de carnet RFID para probar el pop-up institucional"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12.5px',
+            padding: '5px 12px'
+          }}
+        >
+          <Radio size={14} style={{ color: 'var(--accent)' }} />
+          <span>Simular ingreso</span>
+        </button>
+
+        {/* Selector de Modo Claro / Oscuro / Auto */}
+        <button
+          onClick={cycleTheme}
+          className="btn btn-secondary btn-sm"
+          title={`Tema: ${themeMode === 'auto' ? 'Automático (según dispositivo)' : themeMode === 'light' ? 'Modo claro' : 'Modo oscuro'}`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12.5px',
+            padding: '5px 10px'
+          }}
+        >
+          {themeMode === 'auto' && <Laptop size={14} style={{ color: 'var(--accent)' }} />}
+          {themeMode === 'light' && <Sun size={14} style={{ color: '#d97706' }} />}
+          {themeMode === 'dark' && <Moon size={14} style={{ color: '#38bdf8' }} />}
+          <span style={{ textTransform: 'capitalize' }}>
+            {themeMode === 'auto' ? 'Auto' : themeMode === 'light' ? 'Claro' : 'Oscuro'}
+          </span>
+        </button>
       </div>
 
       {/* Modal de Simulación de Acceso RFID */}

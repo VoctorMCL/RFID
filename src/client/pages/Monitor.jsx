@@ -162,7 +162,7 @@ export const Monitor = () => {
         const rawUid = keyBufferRef.current.trim().toUpperCase();
         keyBufferRef.current = '';
         if (rawUid.length >= 4 && rawUid.length <= 16 && /^[0-9A-F]+$/i.test(rawUid)) {
-          console.log('💳 Lector RFID USB detectado:', rawUid);
+          console.log('[RFID-USB] Lector detectado:', rawUid);
           setIsProcessing(true);
           apiClient('/access/validate', {
             method: 'POST',
@@ -546,9 +546,13 @@ export const Monitor = () => {
                     borderRadius: 'var(--radius-sm)',
                     fontSize: '12px',
                     color: 'var(--status-alert-text)',
-                    fontWeight: 600
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
                   }}>
-                    🚨 ALARMA CRÍTICA DISPARADA: Apertura en sala asegurada. Solo deshabilitable desde el cuarto de control.
+                    <AlertTriangle size={16} />
+                    <span>Alarma crítica disparada: apertura en sala asegurada. Solo deshabilitable desde el cuarto de control.</span>
                   </div>
                 )}
               </div>
@@ -667,7 +671,7 @@ export const Monitor = () => {
                   </div>
 
                   <span className={`badge ${item.granted ? 'badge-ok' : 'badge-denied'}`}>
-                    {item.granted ? 'OK' : 'DENEGADO'}
+                    {item.granted ? 'Autorizado' : 'Denegado'}
                   </span>
                 </div>
               ))

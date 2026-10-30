@@ -135,14 +135,14 @@ export const RFIDCards = () => {
             </div>
             <div>
               <div style={{ fontSize: '13.5px', fontWeight: 600 }}>
-                Puerto Maestro de Configuración y Enrolamiento: ACTIVO
+                Puerto maestro de enrolamiento: Activo
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                Ubicación Física: Portería Principal / Puesto de Control de Seguridad
+                Ubicación física: Portería principal / Puesto de control de seguridad
               </div>
             </div>
           </div>
-          <span className="badge badge-ok">LISTO PARA LECTURA</span>
+          <span className="badge badge-ok">Listo para lectura</span>
         </div>
       </div>
 
@@ -210,16 +210,16 @@ export const RFIDCards = () => {
                   </td>
                   <td>
                     {c.card_type === 'master' ? (
-                      <span className="badge badge-alert" style={{ fontSize: '10.5px' }}>
-                        <ShieldCheck size={11} /> FICHA MAESTRA
+                      <span className="badge badge-alert" style={{ fontSize: '11px' }}>
+                        <ShieldCheck size={12} /> Ficha maestra
                       </span>
                     ) : (
-                      <span className="badge badge-neutral">ESTÁNDAR</span>
+                      <span className="badge badge-neutral">Estándar</span>
                     )}
                   </td>
                   <td>
                     <span className={`badge ${c.is_active ? 'badge-ok' : 'badge-denied'}`}>
-                      {c.is_active ? 'ACTIVA' : 'DESACTIVADA'}
+                      {c.is_active ? 'Activa' : 'Desactivada'}
                     </span>
                   </td>
                   <td className="font-mono" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>

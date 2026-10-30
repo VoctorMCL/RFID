@@ -76,10 +76,10 @@ export const Login = () => {
           }}>
             <Shield size={28} />
           </div>
-          <h1 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '0.5px' }}>
-            CONTROL DE ACCESO RFID
+          <h1 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
+            Control de Acceso RFID
           </h1>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
             Corporación Universitaria Lasallista — Caldas, Antioquia
           </p>
         </div>
@@ -95,9 +95,13 @@ export const Login = () => {
             fontSize: '12px',
             color: 'var(--text-secondary)',
             marginBottom: '20px',
-            lineHeight: 1.4
+            lineHeight: 1.4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            🔒 <b>Acceso Restringido:</b> Esta consola es de uso exclusivo para el <b>Administrador</b> y el <b>Celador / Seguridad</b>. Estudiantes y docentes validan mediante carnet en puerta.
+            <Lock size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <span><b>Acceso restringido:</b> Esta consola es de uso exclusivo para el <b>Administrador</b> y el <b>Celador / Seguridad</b>. Estudiantes y docentes validan mediante carnet en puerta.</span>
           </div>
 
           {error && (
@@ -120,8 +124,8 @@ export const Login = () => {
 
           {/* Accesos Directos 1-Clic para Administrador y Celador */}
           <div style={{ marginBottom: '22px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', fontWeight: 700 }}>
-              Seleccione su Rol de Ingreso:
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600 }}>
+              Seleccione su rol de ingreso:
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <button
@@ -152,7 +156,7 @@ export const Login = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', gap: '10px' }}>
             <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>O con credenciales</span>
+            <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>O con credenciales</span>
             <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
           </div>
 

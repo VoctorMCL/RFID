@@ -124,7 +124,7 @@ export const Alerts = () => {
             <ShieldAlert size={18} />
             <span>Panel de Control de Alarmas Físicas — Sala de Informática 1 y Áreas Críticas</span>
           </div>
-          <span className="badge badge-alert">CENTRO DE CONTROL ACTIVO</span>
+          <span className="badge badge-alert">Centro de control activo</span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
@@ -150,7 +150,17 @@ export const Alerts = () => {
                 </div>
                 <div style={{ marginTop: '6px' }}>
                   <span className={`badge ${r.security_status === 'alert' ? 'badge-alert' : 'badge-neutral'}`}>
-                    {r.security_status === 'alert' ? '🚨 ALARMA DISPARADA' : 'SISTEMA ARMADO'}
+                    {r.security_status === 'alert' ? (
+                      <>
+                        <AlertTriangle size={12} />
+                        <span>Alarma activada</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={12} />
+                        <span>Sistema armado</span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -237,10 +247,10 @@ export const Alerts = () => {
                       a.severity === 'critical' ? 'badge-alert' :
                       a.severity === 'high' ? 'badge-alert' : 'badge-neutral'
                     }`}>
-                      {a.severity.toUpperCase()}
+                      {a.severity === 'critical' ? 'Crítica' : a.severity === 'high' ? 'Alta' : a.severity === 'medium' ? 'Media' : 'Baja'}
                     </span>
                     <span className={`badge ${a.is_resolved ? 'badge-ok' : 'badge-denied'}`}>
-                      {a.is_resolved ? 'RESUELTA' : 'PENDIENTE'}
+                      {a.is_resolved ? 'Resuelta' : 'Pendiente'}
                     </span>
                     <span className="font-mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                       {formatDate(a.timestamp)}
