@@ -15,7 +15,7 @@ const isCloud = databaseUrl &&
 
 const pool = new Pool({
   connectionString: databaseUrl,
-  connectionTimeoutMillis: 7000,
+  connectionTimeoutMillis: 12000,
   idleTimeoutMillis: 30000,
   max: 15,
   ...(isCloud ? { ssl: { rejectUnauthorized: false } } : {})

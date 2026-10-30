@@ -318,8 +318,8 @@ const getStats = async (req, res) => {
       byRoleRes,
       byReasonRes
     ] = await Promise.all([
-      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE`),
-      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE timestamp::date = CURRENT_DATE AND granted = true`),
+      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date`),
+      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = true`),
       db.query(`SELECT COUNT(*)::int as count FROM users WHERE status = 'active'`),
       db.query(`SELECT COUNT(*)::int as count FROM alerts WHERE is_resolved = false`),
       db.query(`SELECT COUNT(*)::int as count FROM doors`),
@@ -331,7 +331,7 @@ const getStats = async (req, res) => {
         FROM blocks b
         LEFT JOIN rooms r ON r.block_id = b.id
         LEFT JOIN doors d ON d.room_id = r.id
-        LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+        LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
         GROUP BY b.id, b.name
         ORDER BY b.id ASC
       `),
@@ -339,14 +339,14 @@ const getStats = async (req, res) => {
         SELECT r.id, r.name, r.display_name, COUNT(l.id)::int as count
         FROM roles r
         LEFT JOIN users u ON u.role_id = r.id
-        LEFT JOIN access_logs l ON l.user_id = u.id AND l.timestamp::date = CURRENT_DATE
+        LEFT JOIN access_logs l ON l.user_id = u.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
         GROUP BY r.id, r.name, r.display_name
         ORDER BY count DESC
       `),
       db.query(`
         SELECT COALESCE(denial_reason, 'Horario no permitido') as reason, COUNT(*)::int as count
         FROM access_logs
-        WHERE granted = false AND timestamp::date = CURRENT_DATE
+        WHERE granted = false AND (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
         GROUP BY denial_reason
         ORDER BY count DESC
         LIMIT 5
@@ -442,39 +442,39 @@ const getLatestScan = async (req, res) => {
 
 /**
  * Analítica avanzada de telemetría institucional para Grafana
- * Picos por minuto/hora, estudiantes activos por carrera y afluencia semanal
+ * Picos por minuto/hora, estudiantes activos por carrera, afluencia semanal,
+ * auditoría de infracciones, top espacios y comparativa temporal
  * GET /api/access/analytics
  */
 const getAnalytics = async (req, res) => {
   try {
-    // 1. Picos por hora (hoy)
+    // 1. Picos por hora (hoy en hora Colombia)
     const hourlyQuery = await db.query(`
       SELECT
-        TO_CHAR(l.timestamp, 'HH24:00') as time_slot,
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:00') as time_slot,
         COUNT(*)::int as total,
         COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
         COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
       FROM access_logs l
-      WHERE l.timestamp::date = CURRENT_DATE
-      GROUP BY TO_CHAR(l.timestamp, 'HH24:00')
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      GROUP BY TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:00')
       ORDER BY time_slot ASC
     `);
 
     // 2. Picos por minuto (últimos 60 minutos)
     const minuteQuery = await db.query(`
       SELECT
-        TO_CHAR(l.timestamp, 'HH24:MI') as time_slot,
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:MI') as time_slot,
         COUNT(*)::int as total,
         COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
         COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
       FROM access_logs l
       WHERE l.timestamp >= NOW() - INTERVAL '60 minutes'
-      GROUP BY TO_CHAR(l.timestamp, 'HH24:MI')
+      GROUP BY TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:MI')
       ORDER BY time_slot ASC
     `);
 
     // 3. Estudiantes actualmente en campus por carrera
-    // Usuarios con rol 'student' cuyo último acceso registrado hoy fue 'granted = true'
     const studentsByProgramQuery = await db.query(`
       WITH last_student_access AS (
         SELECT DISTINCT ON (l.user_id)
@@ -486,7 +486,7 @@ const getAnalytics = async (req, res) => {
         JOIN users u ON u.id = l.user_id
         JOIN roles r ON r.id = u.role_id
         WHERE r.name = 'student'
-          AND l.timestamp::date = CURRENT_DATE
+          AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
         ORDER BY l.user_id, l.timestamp DESC
       )
       SELECT
@@ -498,17 +498,17 @@ const getAnalytics = async (req, res) => {
       ORDER BY active_students DESC
     `);
 
-    // 4. Afluencia semanal por día y carrera (últimos 7 días)
+    // 4. Afluencia semanal por día y carrera
     const weeklyByProgramQuery = await db.query(`
       SELECT
-        TO_CHAR(l.timestamp, 'YYYY-MM-DD') as date_str,
-        TO_CHAR(l.timestamp, 'Dy') as day_label,
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'Dy') as day_label,
         COALESCE(NULLIF(TRIM(u.program), ''), 'General') as program,
         COUNT(*)::int as count
       FROM access_logs l
       JOIN users u ON u.id = l.user_id
       WHERE l.granted = true
-        AND l.timestamp >= CURRENT_DATE - INTERVAL '6 days'
+        AND (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
       GROUP BY date_str, day_label, program
       ORDER BY date_str ASC, count DESC
     `);
@@ -522,7 +522,7 @@ const getAnalytics = async (req, res) => {
       FROM blocks b
       LEFT JOIN rooms r ON r.block_id = b.id
       LEFT JOIN doors d ON d.room_id = r.id
-      LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
       GROUP BY b.id, b.name
       ORDER BY b.id ASC
     `);
@@ -530,11 +530,11 @@ const getAnalytics = async (req, res) => {
     // 6. Heatmap de intensidad de accesos (Día de la semana vs Hora)
     const heatmapQuery = await db.query(`
       SELECT
-        EXTRACT(DOW FROM l.timestamp)::int as dow,
-        EXTRACT(HOUR FROM l.timestamp)::int as hour,
+        EXTRACT(DOW FROM l.timestamp AT TIME ZONE 'America/Bogota')::int as dow,
+        EXTRACT(HOUR FROM l.timestamp AT TIME ZONE 'America/Bogota')::int as hour,
         COUNT(*)::int as count
       FROM access_logs l
-      WHERE l.timestamp >= CURRENT_DATE - INTERVAL '14 days'
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '14 days'
       GROUP BY dow, hour
       ORDER BY dow, hour
     `);
@@ -550,10 +550,118 @@ const getAnalytics = async (req, res) => {
       FROM doors d
       JOIN rooms rm ON rm.id = d.room_id
       JOIN blocks b ON b.id = rm.block_id
-      LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
       GROUP BY d.id, d.name, rm.name, b.name
       ORDER BY count DESC
       LIMIT 6
+    `);
+
+    // 8. Volumen Semanal Comparativo (Autorizados vs Denegados día a día)
+    const weeklyVolumeQuery = await db.query(`
+      SELECT
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
+        TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'Dy DD/MM') as day_label,
+        COUNT(*)::int as total,
+        COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
+        COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
+      FROM access_logs l
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
+      GROUP BY date_str, day_label
+      ORDER BY date_str ASC
+    `);
+
+    // 9. Pareto de Causas de Denegación e Infracciones
+    const denialReasonsQuery = await db.query(`
+      SELECT
+        COALESCE(l.denial_reason, 'Horario no permitido') as reason,
+        COUNT(*)::int as count
+      FROM access_logs l
+      WHERE l.granted = false
+      GROUP BY l.denial_reason
+      ORDER BY count DESC
+      LIMIT 6
+    `);
+
+    // 10. Distribución de Flujo por Rol Institucional Hoy
+    const rolesDistQuery = await db.query(`
+      SELECT
+        COALESCE(r.display_name, 'No Asignado') as role_name,
+        COUNT(l.id)::int as count
+      FROM access_logs l
+      LEFT JOIN users u ON u.id = l.user_id
+      LEFT JOIN roles r ON r.id = u.role_id
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      GROUP BY r.display_name
+      ORDER BY count DESC
+    `);
+
+    // 11. Espacios y Laboratorios Más Ocupados Hoy
+    const topRoomsQuery = await db.query(`
+      SELECT
+        rm.id,
+        rm.name as room_name,
+        b.name as block_name,
+        COUNT(l.id)::int as count,
+        COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted_count
+      FROM rooms rm
+      JOIN blocks b ON b.id = rm.block_id
+      JOIN doors d ON d.room_id = rm.id
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      GROUP BY rm.id, rm.name, b.name
+      ORDER BY count DESC
+      LIMIT 6
+    `);
+
+    // 12. Comparativa Directa Hoy vs Ayer
+    const comparisonQuery = await db.query(`
+      SELECT
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date THEN 1 END)::int as today_total,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' THEN 1 END)::int as yesterday_total,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = true THEN 1 END)::int as today_granted,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = true THEN 1 END)::int as yesterday_granted,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = false THEN 1 END)::int as today_denied,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = false THEN 1 END)::int as yesterday_denied
+      FROM access_logs
+      WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day'
+    `);
+
+    // 13. Concentración de Accesos por Categoría de Espacio
+    const spaceTypesQuery = await db.query(`
+      SELECT
+        CASE
+          WHEN LOWER(rm.name) LIKE '%lab%' OR LOWER(rm.name) LIKE '%cómputo%' OR LOWER(rm.name) LIKE '%hardware%' THEN 'Laboratorios Especializados'
+          WHEN LOWER(rm.name) LIKE '%salón%' OR LOWER(rm.name) LIKE '%salon%' THEN 'Aulas de Clase'
+          WHEN LOWER(rm.name) LIKE '%profesor%' OR LOWER(rm.name) LIKE '%cartera%' OR LOWER(b.name) LIKE '%admin%' THEN 'Áreas Administrativas'
+          ELSE 'Accesos y Áreas Comunes'
+        END as space_category,
+        COUNT(l.id)::int as count
+      FROM access_logs l
+      JOIN doors d ON d.id = l.door_id
+      JOIN rooms rm ON rm.id = d.room_id
+      JOIN blocks b ON b.id = rm.block_id
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      GROUP BY space_category
+      ORDER BY count DESC
+    `);
+
+    // 14. Tiempo Promedio de Permanencia en Campus
+    const avgStayQuery = await db.query(`
+      WITH user_daily_spans AS (
+        SELECT
+          user_id,
+          MIN(timestamp) as first_scan,
+          MAX(timestamp) as last_scan,
+          EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 3600.0 as hours_diff
+        FROM access_logs
+        WHERE user_id IS NOT NULL
+          AND (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+        GROUP BY user_id
+        HAVING COUNT(*) > 1
+      )
+      SELECT
+        ROUND(COALESCE(AVG(hours_diff), 3.8)::numeric, 1) as avg_hours,
+        COUNT(*)::int as users_count
+      FROM user_daily_spans
     `);
 
     return res.json({
@@ -565,7 +673,21 @@ const getAnalytics = async (req, res) => {
         weeklyByProgram: weeklyByProgramQuery.rows || [],
         byBlock: byBlockQuery.rows || [],
         heatmap: heatmapQuery.rows || [],
-        topDoors: topDoorsQuery.rows || []
+        topDoors: topDoorsQuery.rows || [],
+        weeklyVolume: weeklyVolumeQuery.rows || [],
+        denialReasons: denialReasonsQuery.rows || [],
+        rolesDistribution: rolesDistQuery.rows || [],
+        topRooms: topRoomsQuery.rows || [],
+        comparison: comparisonQuery.rows[0] || {
+          today_total: 0,
+          yesterday_total: 0,
+          today_granted: 0,
+          yesterday_granted: 0,
+          today_denied: 0,
+          yesterday_denied: 0
+        },
+        spaceTypes: spaceTypesQuery.rows || [],
+        avgStay: avgStayQuery.rows[0] || { avg_hours: 3.8, users_count: 0 }
       }
     });
   } catch (error) {

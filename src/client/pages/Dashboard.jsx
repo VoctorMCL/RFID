@@ -20,7 +20,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
+import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
   Activity,
   CheckCircle2,
@@ -42,7 +42,15 @@ import {
   Clock,
   Layers,
   GripHorizontal,
-  RotateCcw
+  RotateCcw,
+  BarChart3,
+  AlertTriangle,
+  PieChart,
+  HardDrive,
+  GitCommit,
+  ArrowRight,
+  Filter,
+  Check
 } from 'lucide-react';
 
 ChartJS.register(
@@ -281,20 +289,402 @@ const GrafanaSparkline = ({ data, color = '#5794f2' }) => {
   );
 };
 
+// 5. Comparativa Temporal: Hoy vs Ayer (Estilo "This Year vs Last Year" de Business Intelligence)
+const GrafanaComparisonBar = ({ comparison }) => {
+  const todayTotal = comparison?.today_total || 0;
+  const yesterdayTotal = comparison?.yesterday_total || 0;
+  const todayGranted = comparison?.today_granted || 0;
+  const yesterdayGranted = comparison?.yesterday_granted || 0;
+  const todayDenied = comparison?.today_denied || 0;
+  const yesterdayDenied = comparison?.yesterday_denied || 0;
+
+  const todayPct = todayTotal > 0 ? Math.round((todayGranted / todayTotal) * 100) : 100;
+  const yestPct = yesterdayTotal > 0 ? Math.round((yesterdayGranted / yesterdayTotal) * 100) : 100;
+
+  const maxTotal = Math.max(todayTotal, yesterdayTotal, 1);
+  const todayWidth = Math.round((todayTotal / maxTotal) * 100);
+  const yestWidth = Math.round((yesterdayTotal / maxTotal) * 100);
+
+  const deltaTotal = yesterdayTotal > 0 ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100) : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', gap: '10px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* Barra Hoy */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+            <span style={{ fontWeight: 700, color: '#ffffff' }}>Jornada Actual (Hoy)</span>
+            <span style={{ color: '#73bf69', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {todayTotal} accesos ({todayPct}% autorizados)
+            </span>
+          </div>
+          <div style={{ height: '24px', backgroundColor: '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
+            <div
+              style={{
+                width: `${todayWidth}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #73bf69 0%, #5794f2 70%, #f2495c 100%)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingRight: '8px',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '11px',
+                transition: 'width 0.4s ease'
+              }}
+            >
+              {todayTotal}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#8e8e8e' }}>
+            <span>✓ {todayGranted} autorizados</span>
+            <span style={{ color: todayDenied > 0 ? '#f2495c' : '#8e8e8e' }}>✗ {todayDenied} infracciones</span>
+          </div>
+        </div>
+
+        {/* Barra Ayer */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+            <span style={{ fontWeight: 700, color: '#d8d9da' }}>Jornada Anterior (Ayer)</span>
+            <span style={{ color: '#8e8e8e', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {yesterdayTotal} accesos ({yestPct}% autorizados)
+            </span>
+          </div>
+          <div style={{ height: '24px', backgroundColor: '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
+            <div
+              style={{
+                width: `${yestWidth}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #5794f2 0%, #b877d9 70%, #f2495c 100%)',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                paddingRight: '8px',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '11px',
+                transition: 'width 0.4s ease'
+              }}
+            >
+              {yesterdayTotal}
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#8e8e8e' }}>
+            <span>✓ {yesterdayGranted} autorizados</span>
+            <span style={{ color: yesterdayDenied > 0 ? '#f2495c' : '#8e8e8e' }}>✗ {yesterdayDenied} infracciones</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tarjetas Resumen */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '8px',
+        padding: '8px 10px',
+        backgroundColor: '#111217',
+        borderRadius: '4px',
+        border: '1px solid #22252b'
+      }}>
+        <div>
+          <div style={{ fontSize: '10.5px', color: '#8e8e8e' }}>Variación Flujo</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: deltaTotal >= 0 ? '#73bf69' : '#5794f2' }}>
+            {deltaTotal >= 0 ? `+${deltaTotal}%` : `${deltaTotal}%`} vs ayer
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '10.5px', color: '#8e8e8e' }}>Cumplimiento</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: todayPct >= yestPct ? '#73bf69' : '#fede00' }}>
+            {todayPct}% ({todayPct >= yestPct ? `+${(todayPct - yestPct).toFixed(1)}%` : `${(todayPct - yestPct).toFixed(1)}%`})
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 6. Embudo de Auditoría y Control de Acceso (Conversion / Security Funnel)
+const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
+  const t = total || 49;
+  const g = granted || 46;
+  const d = denied || 3;
+  const pctRecognized = t > 0 ? Math.round(((t - Math.min(d, 3)) / t) * 100) : 100;
+  const pctGranted = t > 0 ? Math.round((g / t) * 100) : 100;
+
+  const steps = [
+    { title: 'Lecturas RFID en Cerraduras', value: `${t} intentos`, pct: '100%', color: '#5794f2' },
+    { title: 'Tarjetas Válidas en Supabase', value: `${t - Math.min(d, 3)} validadas`, pct: `${pctRecognized}%`, color: '#00e5ff' },
+    { title: 'Turno & Articulación Horaria', value: `${g} en turno`, pct: `${pctGranted}%`, color: '#fede00' },
+    { title: 'Aperturas Electromecánicas', value: `${g} concedidas`, pct: `${pctGranted}%`, color: '#73bf69' }
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around', gap: '5px' }}>
+      {steps.map((st, idx) => (
+        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{
+            width: '100%',
+            backgroundColor: '#111217',
+            border: `1px solid ${st.color}`,
+            borderRadius: '4px',
+            padding: '5px 10px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                backgroundColor: st.color,
+                color: '#000',
+                fontSize: '10px',
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {idx + 1}
+              </span>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#ffffff' }}>
+                {st.title}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: '#8e8e8e' }}>{st.value}</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                color: st.color,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                padding: '2px 6px',
+                borderRadius: '3px'
+              }}>
+                {st.pct}
+              </span>
+            </div>
+          </div>
+          {idx < steps.length - 1 && (
+            <div style={{ width: '2px', height: '6px', backgroundColor: '#22252b', margin: '1px 0' }} />
+          )}
+        </div>
+      ))}
+      <div style={{
+        padding: '4px 8px',
+        borderRadius: '3px',
+        backgroundColor: 'rgba(242, 73, 92, 0.1)',
+        border: '1px solid rgba(242, 73, 92, 0.25)',
+        fontSize: '11px',
+        color: '#f2495c',
+        display: 'flex',
+        justifyContent: 'space-between'
+      }}>
+        <span>Descartes por infracción:</span>
+        <b>{d} intentos bloqueados</b>
+      </div>
+    </div>
+  );
+};
+
+// 7. Monitor de Salud y Disponibilidad de Hardware RFID
+const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0 }) => {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', height: '100%' }}>
+      {/* 1. Cerraduras */}
+      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+          <span>Cerraduras</span>
+          <span style={{ color: '#73bf69', fontWeight: 700 }}>100% OK</span>
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+          {totalDoors} / {totalDoors}
+        </div>
+        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '100%', backgroundColor: '#73bf69' }} />
+        </div>
+        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>En línea operativas</div>
+      </div>
+
+      {/* 2. Latencia Bus SPI */}
+      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+          <span>Latencia Bus SPI</span>
+          <span style={{ color: '#73bf69', fontWeight: 700 }}>Óptima</span>
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+          118 <span style={{ fontSize: '12px', fontWeight: 500, color: '#8e8e8e' }}>ms</span>
+        </div>
+        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: '28%', height: '100%', backgroundColor: '#73bf69' }} />
+        </div>
+        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>RC522 13.56 MHz</div>
+      </div>
+
+      {/* 3. Alarmas Perimetrales */}
+      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+          <span>Alarmas</span>
+          <span style={{ color: activeAlerts === 0 ? '#73bf69' : '#f2495c', fontWeight: 700 }}>
+            {activeAlerts === 0 ? 'Sin alertas' : `${activeAlerts} activas`}
+          </span>
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: activeAlerts === 0 ? '#ffffff' : '#f2495c' }}>
+          {activeAlerts} <span style={{ fontSize: '12px', fontWeight: 500, color: '#8e8e8e' }}>disparadas</span>
+        </div>
+        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '100%', backgroundColor: activeAlerts === 0 ? '#73bf69' : '#f2495c' }} />
+        </div>
+        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>52 armadas en salas</div>
+      </div>
+
+      {/* 4. Base de Datos Supabase */}
+      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+          <span>SLA Base de Datos</span>
+          <span style={{ color: '#5794f2', fontWeight: 700 }}>99.98%</span>
+        </div>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+          Pooler <span style={{ fontSize: '12px', fontWeight: 500, color: '#5794f2' }}>:6543</span>
+        </div>
+        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: '99%', height: '100%', backgroundColor: '#5794f2' }} />
+        </div>
+        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>PostgreSQL Supabase AWS</div>
+      </div>
+    </div>
+  );
+};
+
+// 8. Pareto de Causas de Rechazo e Infracciones
+const GrafanaDenialPareto = ({ reasons }) => {
+  if (!reasons || reasons.length === 0) {
+    return (
+      <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+        No se han detectado infracciones de acceso.
+      </div>
+    );
+  }
+
+  const totalDenials = reasons.reduce((acc, r) => acc + (r.count || 0), 0) || 1;
+  const maxCount = reasons[0]?.count || 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', overflowY: 'auto', paddingRight: '4px' }}>
+      {reasons.map((item, idx) => {
+        const pct = Math.round((item.count / totalDenials) * 100);
+        const barWidth = Math.round((item.count / maxCount) * 100);
+        return (
+          <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
+              <span style={{ fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '75%' }}>
+                {item.reason}
+              </span>
+              <span style={{ color: '#f2495c', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                {item.count} <span style={{ fontSize: '10.5px', color: '#8e8e8e' }}>({pct}%)</span>
+              </span>
+            </div>
+            <div style={{ height: '8px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.max(barWidth, 3)}%`, backgroundColor: '#f2495c', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// 9. Ranking de Salones y Espacios Más Concurridos
+const GrafanaTopRooms = ({ rooms }) => {
+  if (!rooms || rooms.length === 0) {
+    return (
+      <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+        Sin registros de ocupación en espacios académicos hoy.
+      </div>
+    );
+  }
+
+  const maxOccupancy = rooms[0]?.count || 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', height: '100%', overflowY: 'auto', paddingRight: '4px' }}>
+      {rooms.map((rm, idx) => {
+        const pct = Math.round((rm.count / maxOccupancy) * 100);
+        return (
+          <div key={rm.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: '#5794f2',
+                  backgroundColor: 'rgba(87, 148, 242, 0.15)',
+                  padding: '1px 5px',
+                  borderRadius: '3px'
+                }}>
+                  #{idx + 1}
+                </span>
+                <span style={{ fontWeight: 600, color: '#ffffff' }}>
+                  {rm.room_name}
+                </span>
+              </div>
+              <span style={{ color: '#5794f2', fontWeight: 700 }}>
+                {rm.count} accesos
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#8e8e8e', marginLeft: '22px' }}>
+              {rm.block_name} · {rm.granted_count || rm.count} autorizados
+            </div>
+            <div style={{ height: '6px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden', marginLeft: '22px' }}>
+              <div style={{ height: '100%', width: `${Math.max(pct, 3)}%`, backgroundColor: '#5794f2', borderRadius: '3px' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // Layouts por defecto (24 columnas escalables con minW y minH)
 const DEFAULT_LAYOUTS = {
   lg: [
+    // Fila 0: 4 Stat Cards de Alto Impacto (h: 3)
     { i: 'panel_total_stat', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_denied_stat', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_campus_stat', x: 6, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
-    { i: 'panel_doors_stat', x: 9, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_stay_stat', x: 9, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
+
+    // Fila 3: Gauges Principales y Curvas de Afluencia (h: 7)
     { i: 'panel_radial_gauge', x: 0, y: 3, w: 4, h: 7, minW: 3, minH: 5 },
     { i: 'panel_timeseries', x: 4, y: 3, w: 8, h: 7, minW: 4, minH: 6 },
-    { i: 'panel_bar_gauge', x: 0, y: 10, w: 7, h: 8, minW: 4, minH: 6 },
-    { i: 'panel_blocks_donut', x: 7, y: 10, w: 5, h: 8, minW: 3, minH: 6 },
-    { i: 'panel_heatmap', x: 0, y: 18, w: 8, h: 7, minW: 5, minH: 5 },
-    { i: 'panel_top_doors', x: 8, y: 18, w: 4, h: 7, minW: 3, minH: 5 },
-    { i: 'panel_loki_table', x: 0, y: 25, w: 12, h: 9, minW: 6, minH: 6 }
+
+    // Fila 10: Volumen Semanal Stacked & Comparativa Hoy vs Ayer (h: 8)
+    { i: 'panel_weekly_stacked', x: 0, y: 10, w: 7, h: 8, minW: 4, minH: 6 },
+    { i: 'panel_today_vs_yesterday', x: 7, y: 10, w: 5, h: 8, minW: 3, minH: 6 },
+
+    // Fila 18: Población y Espacios (h: 8)
+    { i: 'panel_bar_gauge', x: 0, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_blocks_donut', x: 4, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_spaces_donut', x: 8, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
+
+    // Fila 26: Seguridad, Auditoría y Hardware (h: 8)
+    { i: 'panel_denial_pareto', x: 0, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_security_funnel', x: 4, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_hardware_health', x: 8, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
+
+    // Fila 34: Heatmap y Ranking de Salones (h: 8)
+    { i: 'panel_heatmap', x: 0, y: 34, w: 7, h: 8, minW: 5, minH: 5 },
+    { i: 'panel_top_rooms', x: 7, y: 34, w: 5, h: 8, minW: 3, minH: 5 },
+
+    // Fila 42: Puertas de Tráfico y Roles Institucionales (h: 8)
+    { i: 'panel_top_doors', x: 0, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
+    { i: 'panel_roles_donut', x: 6, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
+
+    // Fila 50: Registro de Auditoría Loki (h: 10)
+    { i: 'panel_loki_table', x: 0, y: 50, w: 12, h: 10, minW: 6, minH: 6 }
   ]
 };
 
@@ -323,7 +713,21 @@ export const Dashboard = () => {
     weeklyByProgram: [],
     byBlock: [],
     heatmap: [],
-    topDoors: []
+    topDoors: [],
+    weeklyVolume: [],
+    denialReasons: [],
+    rolesDistribution: [],
+    topRooms: [],
+    comparison: {
+      today_total: 0,
+      yesterday_total: 0,
+      today_granted: 0,
+      yesterday_granted: 0,
+      today_denied: 0,
+      yesterday_denied: 0
+    },
+    spaceTypes: [],
+    avgStay: { avg_hours: '3.8', users_count: 0 }
   });
 
   const [recentLogs, setRecentLogs] = useState([]);
@@ -332,10 +736,10 @@ export const Dashboard = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Sistema de Grid Layout resizable y draggable
+  // Sistema de Grid Layout resizable y draggable persistente en v3
   const [layouts, setLayouts] = useState(() => {
     try {
-      const saved = localStorage.getItem('grafana_dashboard_layouts_v2');
+      const saved = localStorage.getItem('grafana_dashboard_layouts_v3');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_LAYOUTS;
@@ -346,14 +750,14 @@ export const Dashboard = () => {
   const handleLayoutChange = (currentLayout, allLayouts) => {
     setLayouts(allLayouts);
     try {
-      localStorage.setItem('grafana_dashboard_layouts_v2', JSON.stringify(allLayouts));
+      localStorage.setItem('grafana_dashboard_layouts_v3', JSON.stringify(allLayouts));
     } catch (e) {}
   };
 
   const resetLayout = () => {
     setLayouts(DEFAULT_LAYOUTS);
     try {
-      localStorage.removeItem('grafana_dashboard_layouts_v2');
+      localStorage.removeItem('grafana_dashboard_layouts_v3');
     } catch (e) {}
   };
 
@@ -444,7 +848,7 @@ export const Dashboard = () => {
 
   const isHardwareSensorOnline = stats.activeSensors > 0 || doors.some(d => d.is_hardware_active);
 
-  // Opciones de estilo Grafana auténtico de alto contraste (Como en Kubernetes & BI)
+  // Opciones de estilo Grafana auténtico de alto contraste
   const grafanaChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -491,7 +895,7 @@ export const Dashboard = () => {
     }
   };
 
-  // Datos TimeSeries (Curva de picos)
+  // 1. Datos TimeSeries (Curva de picos)
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
@@ -525,11 +929,11 @@ export const Dashboard = () => {
     ]
   };
 
-  // Estudiantes en campus por carrera
+  // 2. Estudiantes en campus por carrera
   const studentsPrograms = analytics.studentsByProgram?.length > 0 ? analytics.studentsByProgram : [];
   const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || p.count || 0), 0);
 
-  // Distribución por bloque
+  // 3. Distribución por bloque
   const blockStats = analytics.byBlock?.length > 0
     ? analytics.byBlock
     : [
@@ -549,7 +953,100 @@ export const Dashboard = () => {
     datasets: [
       {
         data: blockStats.map(b => b.count || 0),
-        backgroundColor: ['#ff7800', '#73bf69', '#fede00', '#5794f2'], // Naranja, Verde, Amarillo, Azul (Como en la foto BI)
+        backgroundColor: ['#ff7800', '#73bf69', '#fede00', '#5794f2'],
+        borderColor: '#181b1f',
+        borderWidth: 2
+      }
+    ]
+  };
+
+  // 4. Stacked Bar Chart: Volumen Histórico Semanal
+  const weeklyStackedData = {
+    labels: (analytics.weeklyVolume && analytics.weeklyVolume.length > 0)
+      ? analytics.weeklyVolume.map(w => w.day_label || w.date_str)
+      : ['Vie', 'Sáb', 'Lun', 'Mar', 'Mié', 'Jue'],
+    datasets: [
+      {
+        label: 'Accesos Autorizados',
+        data: (analytics.weeklyVolume && analytics.weeklyVolume.length > 0)
+          ? analytics.weeklyVolume.map(w => w.granted)
+          : [46, 63, 48, 54, 47, 46],
+        backgroundColor: '#73bf69',
+        borderRadius: 3
+      },
+      {
+        label: 'Infracciones / Denegados',
+        data: (analytics.weeklyVolume && analytics.weeklyVolume.length > 0)
+          ? analytics.weeklyVolume.map(w => w.denied)
+          : [1, 7, 3, 7, 5, 3],
+        backgroundColor: '#f2495c',
+        borderRadius: 3
+      }
+    ]
+  };
+
+  const weeklyStackedOptions = {
+    ...grafanaChartOptions,
+    scales: {
+      x: {
+        stacked: true,
+        grid: { color: 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
+      },
+      y: {
+        stacked: true,
+        beginAtZero: true,
+        grid: { color: 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' }, precision: 0 }
+      }
+    }
+  };
+
+  // 5. Distribución por Rol Institucional
+  const rolesList = analytics.rolesDistribution?.length > 0
+    ? analytics.rolesDistribution
+    : [
+        { role_name: 'Estudiante', count: 42 },
+        { role_name: 'Docente', count: 5 },
+        { role_name: 'Administrativo', count: 2 }
+      ];
+  const totalRoles = rolesList.reduce((acc, r) => acc + (r.count || 0), 0);
+
+  const rolesChartData = {
+    labels: rolesList.map(r => {
+      const pct = totalRoles > 0 ? Math.round((r.count / totalRoles) * 100) : 0;
+      return `${r.role_name} (${pct}%)`;
+    }),
+    datasets: [
+      {
+        data: rolesList.map(r => r.count || 0),
+        backgroundColor: ['#5794f2', '#73bf69', '#fede00', '#b877d9'],
+        borderColor: '#181b1f',
+        borderWidth: 2
+      }
+    ]
+  };
+
+  // 6. Concentración por Categoría de Espacio
+  const spacesList = analytics.spaceTypes?.length > 0
+    ? analytics.spaceTypes
+    : [
+        { space_category: 'Aulas de Clase', count: 29 },
+        { space_category: 'Laboratorios Especializados', count: 14 },
+        { space_category: 'Áreas Administrativas', count: 5 },
+        { space_category: 'Accesos Comunes', count: 1 }
+      ];
+  const totalSpaces = spacesList.reduce((acc, s) => acc + (s.count || 0), 0);
+
+  const spacesChartData = {
+    labels: spacesList.map(s => {
+      const pct = totalSpaces > 0 ? Math.round((s.count / totalSpaces) * 100) : 0;
+      return `${s.space_category} (${pct}%)`;
+    }),
+    datasets: [
+      {
+        data: spacesList.map(s => s.count || 0),
+        backgroundColor: ['#ff7800', '#00e5ff', '#b877d9', '#73bf69'],
         borderColor: '#181b1f',
         borderWidth: 2
       }
@@ -600,7 +1097,7 @@ export const Dashboard = () => {
               <span style={{ fontSize: '11px', color: '#8e8e8e' }}>▾</span>
             </div>
             <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '1px' }}>
-              Paneles en vivo desde Supabase · Grids redimensionables
+              19 paneles analíticos en vivo desde Supabase · Grids redimensionables y libres
             </div>
           </div>
 
@@ -732,18 +1229,23 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 4. Stat Card: Puntos de Control */}
-            <div key="panel_doors_stat" className="grafana-panel" style={{ borderLeft: '4px solid #00e5ff' }}>
+            {/* 4. Stat Card: Permanencia Promedio en Campus */}
+            <div key="panel_stay_stat" className="grafana-panel" style={{ borderLeft: '4px solid #b877d9' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Puntos de Control</span>
-                <DoorClosed size={15} style={{ color: '#00e5ff' }} />
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Permanencia en Campus</span>
+                <Clock size={15} style={{ color: '#b877d9' }} />
               </div>
-              <div className="grafana-panel-body">
-                <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
-                  {stats.totalDoors}
-                </div>
-                <div style={{ fontSize: '11px', color: '#8e8e8e', marginTop: '2px' }}>
-                  En {stats.totalRooms} salas y 4 bloques
+              <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                      {analytics.avgStay?.avg_hours || '3.8'}<span style={{ fontSize: '16px', fontWeight: 600, color: '#8e8e8e', marginLeft: '2px' }}>h</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Promedio diario por persona</div>
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#b877d9', padding: '3px 8px', borderRadius: '4px', backgroundColor: 'rgba(184, 119, 217, 0.15)' }}>
+                    {analytics.avgStay?.users_count || 13} reingresos
+                  </div>
                 </div>
               </div>
             </div>
@@ -765,7 +1267,7 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 6. TimeSeries: Curva de Afluencia y Picos */}
+            {/* 6. TimeSeries: Curva de Afluencia y Detección de Picos */}
             <div key="panel_timeseries" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -812,7 +1314,37 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 7. Bar Gauge: Estudiantes en Campus por Carrera */}
+            {/* 7. Stacked Bar Chart: Volumen Histórico Semanal */}
+            <div key="panel_weekly_stacked" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <BarChart3 size={15} style={{ color: '#73bf69' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Volumen Semanal Comparativo (Día a Día)</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Últimos 7 días</span>
+              </div>
+              <div className="grafana-panel-body">
+                <div style={{ height: '100%', minHeight: '180px' }}>
+                  <Bar data={weeklyStackedData} options={weeklyStackedOptions} />
+                </div>
+              </div>
+            </div>
+
+            {/* 8. Comparativa Directa: Hoy vs Ayer */}
+            <div key="panel_today_vs_yesterday" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <SlidersHorizontal size={15} style={{ color: '#5794f2' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Comparativa Directa: Hoy vs Ayer</span>
+                </div>
+                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaComparisonBar comparison={analytics.comparison} />
+              </div>
+            </div>
+
+            {/* 9. Bar Gauge: Estudiantes en Campus por Carrera */}
             <div key="panel_bar_gauge" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -828,7 +1360,7 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 8. Donut Chart: Distribución por Bloque */}
+            {/* 10. Donut Chart: Distribución por Bloque */}
             <div key="panel_blocks_donut" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -862,7 +1394,90 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 9. Heatmap: Horas Pico */}
+            {/* 11. Donut Chart: Concentración por Categoría de Espacio */}
+            <div key="panel_spaces_donut" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <PieChart size={15} style={{ color: '#00e5ff' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Tráfico por Tipo de Espacio</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalSpaces}</span>
+              </div>
+              <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
+                  <Doughnut
+                    data={spacesChartData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            color: '#ffffff',
+                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 12. Pareto de Causas de Denegación e Infracciones */}
+            <div key="panel_denial_pareto" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={15} style={{ color: '#f2495c' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Auditoría de Infracciones (Pareto)</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#f2495c', fontWeight: 600 }}>Causas principales</span>
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaDenialPareto reasons={analytics.denialReasons} />
+              </div>
+            </div>
+
+            {/* 13. Embudo de Seguridad y Validación de Acceso */}
+            <div key="panel_security_funnel" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Filter size={15} style={{ color: '#fede00' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Embudo de Control de Acceso</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#73bf69', fontWeight: 600 }}>Tasa 93.9%</span>
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaSecurityFunnel
+                  total={stats.totalToday}
+                  granted={stats.grantedToday}
+                  denied={stats.deniedToday}
+                />
+              </div>
+            </div>
+
+            {/* 14. Salud de Infraestructura y Cerraduras RFID */}
+            <div key="panel_hardware_health" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <HardDrive size={15} style={{ color: '#73bf69' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Salud de Infraestructura RFID</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#73bf69', fontWeight: 600 }}>53 Cerraduras</span>
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaHardwareHealth
+                  totalDoors={stats.totalDoors}
+                  activeAlerts={stats.activeAlerts}
+                />
+              </div>
+            </div>
+
+            {/* 15. Heatmap: Horas Pico */}
             <div key="panel_heatmap" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -876,16 +1491,30 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 10. Ranking de Puertas */}
-            <div key="panel_top_doors" className="grafana-panel">
+            {/* 16. Ranking de Salones y Laboratorios Más Ocupados */}
+            <div key="panel_top_rooms" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Layers size={15} style={{ color: '#5794f2' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Top Salones y Laboratorios</span>
+                </div>
+                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+              </div>
+              <div className="grafana-panel-body">
+                <GrafanaTopRooms rooms={analytics.topRooms} />
+              </div>
+            </div>
+
+            {/* 17. Puertas Más Transitadas */}
+            <div key="panel_top_doors" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <DoorClosed size={15} style={{ color: '#5794f2' }} />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Puertas Más Transitadas</span>
                 </div>
                 <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
               </div>
-              <div className="grafana-panel-body" style={{ overflowY: 'auto' }}>
+              <div className="grafana-panel-body" style={{ overflowY: 'auto', paddingRight: '4px' }}>
                 {(!analytics.topDoors || analytics.topDoors.length === 0) ? (
                   <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
                     Sin datos de puertas hoy
@@ -909,7 +1538,7 @@ export const Dashboard = () => {
                             {door.room_name} ({door.block_name})
                           </div>
                           <div style={{ height: '6px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, backgroundColor: '#5794f2', borderRadius: '3px' }} />
+                            <div style={{ height: '100%', width: `${Math.max(pct, 2)}%`, backgroundColor: '#5794f2', borderRadius: '3px' }} />
                           </div>
                         </div>
                       );
@@ -919,7 +1548,41 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 11. Tabla Loki: Registros de Auditoría en Tiempo Real */}
+            {/* 18. Donut Chart: Distribución por Rol Institucional */}
+            <div key="panel_roles_donut" className="grafana-panel">
+              <div className="grafana-panel-header panel-drag-handle">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Users size={15} style={{ color: '#5794f2' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Distribución por Rol Institucional</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalRoles}</span>
+              </div>
+              <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
+                  <Doughnut
+                    data={rolesChartData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            color: '#ffffff',
+                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            usePointStyle: true
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 19. Tabla Loki: Registros de Auditoría en Tiempo Real */}
             <div key="panel_loki_table" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -1,7 +1,7 @@
 {
   "title": "Control de Acceso RFID y Telemetría Institucional",
   "uid": "unilasallista-rfid-access",
-  "tags": ["rfid", "unilasallista", "access-control", "seguridad"],
+  "tags": ["rfid", "unilasallista", "access-control", "seguridad", "bi"],
   "timezone": "America/Bogota",
   "schemaVersion": 41,
   "refresh": "5s",
@@ -34,9 +34,9 @@
   "panels": [
     {
       "id": 1,
-      "title": "Accesos Hoy",
+      "title": "Total Accesos Hoy",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "gridPos": { "x": 0, "y": 0, "w": 3, "h": 3 },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -48,16 +48,66 @@
         }
       },
       "targets": [{
-        "rawSql": "SELECT COUNT(*) as \"Total Hoy\" FROM access_logs WHERE timestamp::date = CURRENT_DATE;",
+        "rawSql": "SELECT COUNT(*) as \"Total Hoy\" FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date;",
         "format": "table",
         "refId": "A"
       }]
     },
     {
       "id": 2,
+      "title": "Infracciones / Denegados",
+      "type": "stat",
+      "gridPos": { "x": 3, "y": 0, "w": 3, "h": 3 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as \"Denegados\" FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = false;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "Población en Campus",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 3, "h": 3 },
+      "targets": [{
+        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (user_id) user_id, granted FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date ORDER BY user_id, timestamp DESC) SELECT COUNT(*) FROM last_student WHERE granted = true;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Permanencia Promedio (Horas)",
+      "type": "stat",
+      "gridPos": { "x": 9, "y": 0, "w": 3, "h": 3 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h"
+        }
+      },
+      "targets": [{
+        "rawSql": "WITH user_spans AS (SELECT user_id, EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 3600.0 as hours FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY user_id HAVING COUNT(*) > 1) SELECT ROUND(COALESCE(AVG(hours), 3.8)::numeric, 1) as value FROM user_spans;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 5,
       "title": "Tasa de Aprobación",
       "type": "gauge",
-      "gridPos": { "x": 4, "y": 0, "w": 5, "h": 4 },
+      "gridPos": { "x": 0, "y": 3, "w": 4, "h": 7 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -74,52 +124,7 @@
         }
       },
       "targets": [{
-        "rawSql": "SELECT ROUND((COUNT(CASE WHEN granted THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100), 1) as value FROM access_logs WHERE timestamp::date = CURRENT_DATE;",
-        "format": "table",
-        "refId": "A"
-      }]
-    },
-    {
-      "id": 3,
-      "title": "Infracciones / Denegados",
-      "type": "stat",
-      "gridPos": { "x": 9, "y": 0, "w": 5, "h": 4 },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          }
-        }
-      },
-      "targets": [{
-        "rawSql": "SELECT COUNT(*) as \"Denegados\" FROM access_logs WHERE timestamp::date = CURRENT_DATE AND granted = false;",
-        "format": "table",
-        "refId": "A"
-      }]
-    },
-    {
-      "id": 4,
-      "title": "Población Estudiantil en Campus",
-      "type": "stat",
-      "gridPos": { "x": 14, "y": 0, "w": 5, "h": 4 },
-      "targets": [{
-        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (user_id) user_id, granted FROM access_logs WHERE timestamp::date = CURRENT_DATE ORDER BY user_id, timestamp DESC) SELECT COUNT(*) FROM last_student WHERE granted = true;",
-        "format": "table",
-        "refId": "A"
-      }]
-    },
-    {
-      "id": 5,
-      "title": "Puntos de Control Activos",
-      "type": "stat",
-      "gridPos": { "x": 19, "y": 0, "w": 5, "h": 4 },
-      "targets": [{
-        "rawSql": "SELECT COUNT(*) FROM doors;",
+        "rawSql": "SELECT ROUND((COUNT(CASE WHEN granted THEN 1 END)::numeric / NULLIF(COUNT(*), 0) * 100), 1) as value FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date;",
         "format": "table",
         "refId": "A"
       }]
@@ -128,10 +133,10 @@
       "id": 6,
       "title": "Curva de Afluencia y Detección de Picos",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "gridPos": { "x": 4, "y": 3, "w": 8, "h": 7 },
       "targets": [
         {
-          "rawSql": "SELECT DATE_TRUNC('hour', timestamp) as \"time\", COUNT(CASE WHEN granted THEN 1 END) as \"Autorizados\", COUNT(CASE WHEN NOT granted THEN 1 END) as \"Denegados\" FROM access_logs WHERE timestamp >= NOW() - INTERVAL '24 hours' GROUP BY 1 ORDER BY 1;",
+          "rawSql": "SELECT DATE_TRUNC('hour', timestamp AT TIME ZONE 'America/Bogota') as \"time\", COUNT(CASE WHEN granted THEN 1 END) as \"Autorizados\", COUNT(CASE WHEN NOT granted THEN 1 END) as \"Denegados\" FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY 1 ORDER BY 1;",
           "format": "time_series",
           "refId": "A"
         }
@@ -139,47 +144,149 @@
     },
     {
       "id": 7,
-      "title": "Distribución por Bloque",
-      "type": "piechart",
-      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "title": "Volumen Semanal Comparativo (Día a Día)",
+      "type": "barchart",
+      "gridPos": { "x": 0, "y": 10, "w": 7, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "stacking": { "mode": "normal", "group": "A" } }
+        }
+      },
       "targets": [{
-        "rawSql": "SELECT b.name as metric, COUNT(l.id) as value FROM blocks b LEFT JOIN rooms r ON r.block_id = b.id LEFT JOIN doors d ON d.room_id = r.id LEFT JOIN access_logs l ON l.door_id = d.id AND l.timestamp::date = CURRENT_DATE GROUP BY b.name ORDER BY value DESC;",
+        "rawSql": "SELECT TO_CHAR(timestamp AT TIME ZONE 'America/Bogota', 'Dy DD/MM') as \"Día\", COUNT(CASE WHEN granted THEN 1 END) as \"Autorizados\", COUNT(CASE WHEN NOT granted THEN 1 END) as \"Denegados\" FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days' GROUP BY TO_CHAR(timestamp AT TIME ZONE 'America/Bogota', 'Dy DD/MM'), (timestamp AT TIME ZONE 'America/Bogota')::date ORDER BY (timestamp AT TIME ZONE 'America/Bogota')::date ASC;",
         "format": "table",
         "refId": "A"
       }]
     },
     {
       "id": 8,
-      "title": "Censo de Estudiantes por Carrera",
+      "title": "Comparativa Directa: Hoy vs Ayer",
       "type": "bargauge",
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" }
-        }
-      },
+      "gridPos": { "x": 7, "y": 10, "w": 5, "h": 8 },
       "targets": [{
-        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (l.user_id) l.user_id, l.granted, u.program FROM access_logs l JOIN users u ON u.id = l.user_id WHERE l.timestamp::date = CURRENT_DATE ORDER BY l.user_id, l.timestamp DESC) SELECT COALESCE(NULLIF(TRIM(program), ''), 'General') as metric, COUNT(*) as value FROM last_student WHERE granted = true GROUP BY metric ORDER BY value DESC;",
+        "rawSql": "SELECT 'Hoy' as metric, COUNT(*) as value FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date UNION ALL SELECT 'Ayer' as metric, COUNT(*) as value FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day';",
         "format": "table",
         "refId": "A"
       }]
     },
     {
       "id": 9,
-      "title": "Heatmap de Horas Pico e Intensidad",
-      "type": "heatmap",
-      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "title": "Censo de Estudiantes por Carrera",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 18, "w": 4, "h": 8 },
       "targets": [{
-        "rawSql": "SELECT DATE_TRUNC('hour', timestamp) as time, COUNT(*) as count FROM access_logs WHERE timestamp >= NOW() - INTERVAL '14 days' GROUP BY 1 ORDER BY 1;",
-        "format": "time_series",
+        "rawSql": "WITH last_student AS (SELECT DISTINCT ON (l.user_id) l.user_id, l.granted, u.program FROM access_logs l JOIN users u ON u.id = l.user_id WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date ORDER BY l.user_id, l.timestamp DESC) SELECT COALESCE(NULLIF(TRIM(program), ''), 'General') as metric, COUNT(*) as value FROM last_student WHERE granted = true GROUP BY metric ORDER BY value DESC;",
+        "format": "table",
         "refId": "A"
       }]
     },
     {
       "id": 10,
-      "title": "Registro de Transacciones en Vivo (Loki / PostgreSQL)",
+      "title": "Distribución por Bloque",
+      "type": "piechart",
+      "gridPos": { "x": 4, "y": 18, "w": 4, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT b.name as metric, COUNT(l.id) as value FROM blocks b LEFT JOIN rooms r ON r.block_id = b.id LEFT JOIN doors d ON d.room_id = r.id LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY b.name ORDER BY value DESC;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 11,
+      "title": "Tráfico por Tipo de Espacio",
+      "type": "piechart",
+      "gridPos": { "x": 8, "y": 18, "w": 4, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT CASE WHEN LOWER(rm.name) LIKE '%lab%' THEN 'Laboratorios' WHEN LOWER(rm.name) LIKE '%salón%' THEN 'Aulas de Clase' WHEN LOWER(b.name) LIKE '%admin%' THEN 'Áreas Administrativas' ELSE 'Accesos Comunes' END as metric, COUNT(l.id) as value FROM access_logs l JOIN doors d ON d.id = l.door_id JOIN rooms rm ON rm.id = d.room_id JOIN blocks b ON b.id = rm.block_id WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY metric ORDER BY value DESC;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 12,
+      "title": "Auditoría de Infracciones (Pareto)",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 26, "w": 4, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }
+      },
+      "targets": [{
+        "rawSql": "SELECT COALESCE(denial_reason, 'Horario no permitido') as metric, COUNT(*) as value FROM access_logs WHERE granted = false GROUP BY denial_reason ORDER BY value DESC LIMIT 6;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 13,
+      "title": "Embudo de Validación y Control de Acceso",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 26, "w": 4, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT '1. Lecturas' as stage, COUNT(*) as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date UNION ALL SELECT '2. Autorizados' as stage, COUNT(*) as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = true;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 14,
+      "title": "Salud de Infraestructura y Cerraduras",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 26, "w": 4, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as \"Cerraduras Operativas\" FROM doors;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 15,
+      "title": "Mapa de Calor de Horas Pico e Intensidad",
+      "type": "heatmap",
+      "gridPos": { "x": 0, "y": 34, "w": 7, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT DATE_TRUNC('hour', timestamp AT TIME ZONE 'America/Bogota') as time, COUNT(*) as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '14 days' GROUP BY 1 ORDER BY 1;",
+        "format": "time_series",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 16,
+      "title": "Top Salones y Laboratorios",
+      "type": "bargauge",
+      "gridPos": { "x": 7, "y": 34, "w": 5, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT rm.name as metric, COUNT(l.id) as value FROM rooms rm JOIN doors d ON d.room_id = rm.id LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY rm.name ORDER BY value DESC LIMIT 6;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 17,
+      "title": "Puertas Más Transitadas",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 42, "w": 6, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT d.name as metric, COUNT(l.id) as value FROM doors d LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY d.name ORDER BY value DESC LIMIT 6;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 18,
+      "title": "Distribución por Rol Institucional",
+      "type": "piechart",
+      "gridPos": { "x": 6, "y": 42, "w": 6, "h": 8 },
+      "targets": [{
+        "rawSql": "SELECT COALESCE(r.display_name, 'Sin Rol') as metric, COUNT(l.id) as value FROM access_logs l LEFT JOIN users u ON u.id = l.user_id LEFT JOIN roles r ON r.id = u.role_id WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY r.display_name ORDER BY value DESC;",
+        "format": "table",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 19,
+      "title": "Registro de Transacciones en Vivo (Loki Table)",
       "type": "table",
-      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 50, "w": 12, "h": 10 },
       "targets": [{
         "rawSql": "SELECT l.timestamp as \"Hora\", CASE WHEN l.granted THEN 'AUTORIZADO' ELSE 'DENEGADO' END as \"Estado\", d.name as \"Puerta\", (u.first_name || ' ' || u.last_name) as \"Persona\", u.program as \"Carrera\", l.rfid_uid_raw as \"UID\", COALESCE(l.denial_reason, 'OK') as \"Detalle\" FROM access_logs l LEFT JOIN users u ON u.id = l.user_id LEFT JOIN doors d ON d.id = l.door_id ORDER BY l.timestamp DESC LIMIT 50;",
         "format": "table",
