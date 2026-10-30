@@ -72,6 +72,14 @@ const enrollCard = async (req, res) => {
     const cleanUid = uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
     const userId = user_id ? parseInt(user_id, 10) : null;
 
+    if (userId) {
+      // Regla institucional: un estudiante solo puede tener un único UID activo
+      await db.query(
+        `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND uid != $2`,
+        [userId, cleanUid]
+      );
+    }
+
     const result = await db.query(
       `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label, enrolled_at)
        VALUES ($1, $2, $3, true, $4, NOW())
@@ -91,6 +99,15 @@ const updateCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { user_id, card_type, is_active, label } = req.body;
+    const userId = user_id ? parseInt(user_id, 10) : null;
+
+    if (userId && is_active !== false) {
+      // Regla institucional: un estudiante solo puede tener un único UID activo
+      await db.query(
+        `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND id != $2`,
+        [userId, id]
+      );
+    }
 
     const result = await db.query(
       `UPDATE rfid_cards
@@ -100,7 +117,7 @@ const updateCard = async (req, res) => {
            label = COALESCE($4, label)
        WHERE id = $5
        RETURNING *`,
-      [user_id ? parseInt(user_id, 10) : null, card_type, is_active, label, id]
+      [userId, card_type, is_active, label, id]
     );
 
     if (result.rows.length === 0) {

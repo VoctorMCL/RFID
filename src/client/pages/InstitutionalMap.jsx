@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/ui/Modal';
+import { AccessSimulatorModal } from '../components/AccessSimulatorModal';
 import {
   Building2,
   DoorOpen,
@@ -14,7 +15,8 @@ import {
   AlertTriangle,
   Lock,
   Unlock,
-  Check
+  Check,
+  Radio
 } from 'lucide-react';
 
 export const InstitutionalMap = () => {
@@ -30,6 +32,8 @@ export const InstitutionalMap = () => {
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isDoorModalOpen, setIsDoorModalOpen] = useState(false);
+  const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+  const [simDoorId, setSimDoorId] = useState(null);
 
   // Formularios
   const [blockForm, setBlockForm] = useState({ name: '', description: '', location_info: '' });
@@ -426,16 +430,31 @@ export const InstitutionalMap = () => {
                     IP: {d.hardware_ip || '192.168.1.100'} · MAC: {d.mac_address || 'AA:BB:CC:DD:EE:01'}
                   </div>
 
-                  {canManageSecurity && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <button
-                      onClick={() => handleUnlockDoor(d.id)}
-                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setSimDoorId(d.id);
+                        setIsSimModalOpen(true);
+                      }}
+                      className="btn btn-primary btn-sm"
                       style={{ width: '100%', justifyContent: 'center' }}
+                      title="Simular ingreso RFID en esta puerta para ver la validación en pantalla completa"
                     >
-                      <Unlock size={14} />
-                      <span>Apertura Remota de Emergencia</span>
+                      <Radio size={14} />
+                      <span>Simular Ingreso RFID</span>
                     </button>
-                  )}
+
+                    {canManageSecurity && (
+                      <button
+                        onClick={() => handleUnlockDoor(d.id)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      >
+                        <Unlock size={14} />
+                        <span>Apertura Remota de Emergencia</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -637,6 +656,13 @@ export const InstitutionalMap = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Simulador de Acceso RFID */}
+      <AccessSimulatorModal
+        isOpen={isSimModalOpen}
+        onClose={() => setIsSimModalOpen(false)}
+        defaultDoorId={simDoorId}
+      />
     </div>
   );
 };

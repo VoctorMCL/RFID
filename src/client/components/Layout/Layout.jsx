@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { GlobalAccessModal } from '../GlobalAccessModal';
 
 export const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -25,6 +26,9 @@ export const Layout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Pop-up Global de Escaneo y Validación RFID para toda la pantalla */}
+      <GlobalAccessModal />
     </div>
   );
 };

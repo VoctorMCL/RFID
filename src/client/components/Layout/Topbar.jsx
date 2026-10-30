@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { apiClient } from '../../api/client';
-import { Cpu, Sun, Moon, Laptop } from 'lucide-react';
+import { Cpu, Sun, Moon, Laptop, Radio } from 'lucide-react';
+import { AccessSimulatorModal } from '../AccessSimulatorModal';
 
 const routeTitles = {
   '/dashboard': 'Panel Principal de Telemetría (Grafana)',
@@ -20,6 +21,7 @@ export const Topbar = () => {
   const [activeSensorDoor, setActiveSensorDoor] = useState(null);
   const [isSensorActive, setIsSensorActive] = useState(false);
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('rfid_theme_mode') || 'auto');
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
 
   useEffect(() => {
     if (themeMode === 'light') {
@@ -127,6 +129,23 @@ export const Topbar = () => {
           </span>
         </button>
 
+        {/* Botón Simular Acceso RFID (Prueba rápida desde cualquier pantalla) */}
+        <button
+          onClick={() => setIsSimulatorOpen(true)}
+          className="btn btn-secondary btn-sm"
+          title="Simular lectura de carnet RFID para probar el pop-up institucional"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12.5px',
+            padding: '6px 12px'
+          }}
+        >
+          <Radio size={14} style={{ color: 'var(--accent)' }} />
+          <span>Simular Acceso</span>
+        </button>
+
         {/* Indicador de Hardware Sensor RFID Real (Sin datos ficticios) */}
         <div
           className="live-indicator"
@@ -162,6 +181,12 @@ export const Topbar = () => {
           </span>
         </div>
       </div>
+
+      {/* Modal de Simulación de Acceso RFID */}
+      <AccessSimulatorModal
+        isOpen={isSimulatorOpen}
+        onClose={() => setIsSimulatorOpen(false)}
+      />
     </header>
   );
 };

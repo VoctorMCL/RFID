@@ -68,6 +68,20 @@ const validateAccess = async (req, res) => {
     } else {
       card = cardQuery.rows[0];
 
+      if (card.user_id) {
+        user = {
+          id: card.user_id,
+          first_name: card.first_name,
+          last_name: card.last_name,
+          name: `${card.first_name} ${card.last_name}`.trim(),
+          document_id: card.document_id,
+          program: card.program,
+          role: card.role_display || 'Estudiante',
+          role_name: card.role_name,
+          photo_url: card.photo_url
+        };
+      }
+
       if (!card.is_active) {
         denialReason = 'denegado_tarjeta_inactiva';
       } else if (!card.user_id) {
@@ -77,18 +91,6 @@ const validateAccess = async (req, res) => {
       } else if (card.access_expiry && new Date(card.access_expiry) < new Date()) {
         denialReason = 'denegado_acceso_expirado';
       } else {
-        user = {
-          id: card.user_id,
-          first_name: card.first_name,
-          last_name: card.last_name,
-          name: `${card.first_name} ${card.last_name}`,
-          document_id: card.document_id,
-          program: card.program,
-          role: card.role_display || 'Usuario',
-          role_name: card.role_name,
-          photo_url: card.photo_url
-        };
-
         // 3. Jerarquía de roles y permisos
         // A) Rectora / Vigilante con privilegios globales o ficha maestra
         if (card.global_access || card.card_type === 'master') {
@@ -221,14 +223,28 @@ const validateAccess = async (req, res) => {
 
     wsService.broadcast('access_attempt', {
       logId: logEntry.id,
+      id: logEntry.id,
       granted,
       timestamp: logEntry.timestamp,
       uid: cleanUid,
-      door: { id: door.id, name: door.name },
-      room: { id: door.room_id, name: door.room_name, has_alarm: door.has_alarm, security_status: door.security_status },
+      door: {
+        id: door.id,
+        name: door.name,
+        door_type: door.door_type,
+        block_name: door.block_name || 'Campus'
+      },
+      room: {
+        id: door.room_id,
+        name: door.room_name,
+        block_name: door.block_name || 'Campus',
+        has_alarm: door.has_alarm,
+        security_status: door.security_status
+      },
       user,
       denialReason,
-      alarmTriggered
+      denial_reason: denialReason,
+      alarmTriggered,
+      alarm_triggered: alarmTriggered
     });
 
     return res.json({
@@ -439,7 +455,8 @@ const getLatestScan = async (req, res) => {
           name: last.user_name,
           document_id: last.document_id,
           program: last.program,
-          role: last.role_name
+          role: last.role_name,
+          photo_url: last.photo_url
         } : null,
         door: { id: last.door_id, name: last.door_name, status: last.door_status },
         room: { name: last.room_name, block_name: last.block_name },
