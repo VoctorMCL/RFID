@@ -50,11 +50,17 @@ export const apiClient = async (endpoint, options = {}) => {
     }
   }
 
-  if (response.status === 401 && !endpoint.includes('/auth/login')) {
+  if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/rfid-login')) {
     localStorage.removeItem('rfid_token');
     localStorage.removeItem('rfid_user');
-    window.location.href = '/login';
-    throw new Error('Sesión expirada o no autorizada');
+    const msg = (data && data.error) || 'Sesión expirada o cerrada desde otro dispositivo';
+    try {
+      sessionStorage.setItem('rfid_auth_notice', msg);
+    } catch (e) {}
+    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
+    throw new Error(msg);
   }
 
   if (!response.ok) {

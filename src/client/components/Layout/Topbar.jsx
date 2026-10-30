@@ -101,7 +101,7 @@ export const Topbar = () => {
     <header className="topbar">
       <div className="topbar-left">
         <div className="breadcrumb" style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text-secondary)' }}>
-          <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Control de Acceso</span>
+          <span style={{ color: '#38bdf8', fontWeight: 700, letterSpacing: '0.5px' }}>RADAR</span>
           &nbsp;›&nbsp;
           <span style={{ color: 'var(--text-primary)' }}>{currentTitle}</span>
         </div>

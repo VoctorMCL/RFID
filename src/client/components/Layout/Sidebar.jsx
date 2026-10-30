@@ -1,8 +1,8 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { RadarLogo } from '../RadarLogo';
 import {
-  Shield,
   LayoutDashboard,
   Radio,
   Building2,
@@ -24,37 +24,37 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       to: '/monitor',
       label: 'Escáner y Validación',
       icon: Radio,
-      visible: true // Visible para ambos (Celador y Admin)
+      visible: true // Visible para Celador y Admin
     },
     {
       to: '/dashboard',
       label: 'Panel Principal',
       icon: LayoutDashboard,
-      visible: isAdmin
+      visible: isAdmin // Solo Admin
     },
     {
       to: '/map',
       label: 'Mapa Institucional',
       icon: Building2,
-      visible: isAdmin
+      visible: isAdmin // Solo Admin
     },
     {
       to: '/users',
       label: 'Personas y Estudiantes',
       icon: Users,
-      visible: isAdmin
+      visible: isAdmin // Solo Admin
     },
     {
       to: '/rfid-cards',
-      label: 'Tarjetas RFID',
+      label: 'Tarjetas RFID y Pases',
       icon: CreditCard,
-      visible: isAdmin
+      visible: true // Visible para Celador y Admin (Rework)
     },
     {
       to: '/schedules',
       label: 'Articulación Horaria',
       icon: Calendar,
-      visible: isAdmin
+      visible: isAdmin // Solo Admin
     },
     {
       to: '/logs',
@@ -66,7 +66,7 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       to: '/alerts',
       label: 'Centro de Alarmas',
       icon: AlertTriangle,
-      visible: true // Visible para Celador y Admin
+      visible: isAdmin // Solo Admin
     }
   ];
 
@@ -79,13 +79,21 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       {/* Encabezado con Botón de Toggle */}
       <div className="sidebar-header" style={{ position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-          <div className="brand-icon">
-            <Shield size={20} />
+          <div className="brand-icon" style={{ padding: 0, background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <RadarLogo size={32} animated />
           </div>
           {!isCollapsed && (
             <div className="brand-text" style={{ minWidth: 0, overflow: 'hidden' }}>
-              <div className="brand-title" style={{ fontSize: '14px', fontWeight: 800 }}>Acceso RFID</div>
-              <div className="brand-subtitle" style={{ fontSize: '10px' }}>Validación Visual</div>
+              <div className="brand-title" style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '0.6px', color: '#38bdf8' }}>
+                RADAR
+              </div>
+              <div
+                className="brand-subtitle"
+                style={{ fontSize: '9.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                title="Red de Acceso y Detección mediante Autenticación RFID"
+              >
+                Red de Acceso y Detección RFID
+              </div>
             </div>
           )}
         </div>

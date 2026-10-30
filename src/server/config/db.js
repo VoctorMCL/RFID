@@ -2,6 +2,7 @@
 // Cliente de Base de Datos PostgreSQL / Supabase
 // Conexión Directa y Obligatoria — Control de Acceso RFID Institucional
 // ===================================================================
+require('dotenv').config();
 const dns = require('dns');
 try { dns.setDefaultResultOrder('ipv4first'); } catch (e) {}
 

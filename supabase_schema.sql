@@ -47,6 +47,9 @@ CREATE TABLE users (
     phone VARCHAR(30),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
     access_expiry DATE,
+    active_session_id VARCHAR(100),
+    last_login_at TIMESTAMPTZ,
+    last_login_device TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -178,6 +181,30 @@ CREATE TABLE alerts (
 );
 
 CREATE INDEX idx_alerts_unresolved ON alerts(is_resolved, timestamp DESC);
+
+-- =============================================================================
+-- 10. TABLA: PASES DE VISITANTES Y PRÉSTAMOS TEMPORALES RFID
+-- =============================================================================
+CREATE TABLE visitor_passes (
+    id SERIAL PRIMARY KEY,
+    card_uid VARCHAR(50) NOT NULL,
+    person_type VARCHAR(50) NOT NULL CHECK (person_type IN ('student', 'visitor', 'professor', 'contractor')),
+    full_name VARCHAR(150) NOT NULL,
+    document_id VARCHAR(50) NOT NULL,
+    phone VARCHAR(30),
+    destination VARCHAR(150),
+    reason TEXT NOT NULL,
+    missing_card_reason VARCHAR(100),
+    issued_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    entry_time TIMESTAMPTZ DEFAULT NOW(),
+    exit_time TIMESTAMPTZ,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'returned', 'lost')),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_visitor_passes_status ON visitor_passes(status);
+CREATE INDEX idx_visitor_passes_card_uid ON visitor_passes(card_uid);
 
 -- =============================================================================
 -- DATOS FIJOS DEL CAMPUS
@@ -351,5 +378,9 @@ INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
 (51, 50, 'Puerta Laboratorio de Informática 4', 'acceso', 'online', TRUE),
 (52, 51, 'Puerta Laboratorio de Informática 5', 'acceso', 'online', TRUE),
 (53, 52, 'Puerta Sala de Profesores (Piso 4)', 'acceso', 'online', TRUE);
+
+INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label) VALUES
+('9B160795', 1, 'master', TRUE, 'Carnet Maestro Administrador'),
+('0DDA86CD', 2, 'master', TRUE, 'Carnet Operador Celador / Seguridad');
 
 SELECT setval('doors_id_seq', (SELECT MAX(id) FROM doors));

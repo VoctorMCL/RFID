@@ -1,25 +1,167 @@
 // ===================================================================
 // Controlador de Autenticación — Control de Acceso RFID (PostgreSQL)
-// Restringido estrictamente a Administrador y Celador / Seguridad
+// Autenticación FÍSICA con Tarjeta RFID + Control de Sesión Única
 // ===================================================================
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+/**
+ * Autenticación exclusiva por Tarjeta Física RFID
+ * POST /api/auth/rfid-login
+ * Body: { rfid_uid, device_info }
+ */
+const loginWithCard = async (req, res) => {
+  try {
+    const { rfid_uid, device_info } = req.body;
+
+    if (!rfid_uid || !rfid_uid.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'El UID de la tarjeta física RFID es obligatorio.'
+      });
+    }
+
+    const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
+
+    // 1. Buscar la tarjeta física y su usuario vinculado en PostgreSQL
+    const result = await db.query(
+      `SELECT c.id as card_id, c.uid, c.is_active as card_active, c.card_type,
+              u.id as user_id, u.first_name, u.last_name, u.email, u.document_id,
+              u.program, u.phone, u.status as user_status, u.photo_url,
+              r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
+       FROM rfid_cards c
+       JOIN users u ON u.id = c.user_id
+       JOIN roles r ON u.role_id = r.id
+       WHERE UPPER(c.uid) = $1`,
+      [cleanUid]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: `Tarjeta RFID [${cleanUid}] no registrada en el sistema.`
+      });
+    }
+
+    const user = result.rows[0];
+
+    // 2. Validar estado de la tarjeta y del usuario
+    if (!user.card_active) {
+      return res.status(403).json({
+        success: false,
+        error: 'Tarjeta RFID desactivada o suspendida por seguridad.'
+      });
+    }
+
+    if (user.user_status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        error: 'La cuenta del titular de esta tarjeta está inactiva o suspendida.'
+      });
+    }
+
+    // 3. RESTRICCIÓN ESTRICTA DE ACCESO WEB:
+    // Solo Administradores y Celadores / Personal de Seguridad pueden operar el sistema
+    const allowedWebRoles = ['admin', 'rector', 'security', 'celador'];
+    const userRole = (user.role_name || '').toLowerCase();
+    if (!allowedWebRoles.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        error: `Acceso denegado: Esta tarjeta pertenece a un ${user.role_display}. Los estudiantes y docentes solo validan ingreso en puertas físicas.`
+      });
+    }
+
+    // 4. POLÍTICA DE SEGURIDAD: Generar nueva sesión única e invalidar cualquier sesión anterior
+    const newSessionId = crypto.randomUUID();
+    const deviceString = device_info || req.headers['user-agent'] || 'Terminal Web';
+
+    await db.query(
+      `UPDATE users
+       SET active_session_id = $1,
+           last_login_at = NOW(),
+           last_login_device = $2,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [newSessionId, deviceString, user.user_id]
+    );
+
+    // 5. Generar token JWT con sessionId embebido (expiración: 4 horas)
+    const token = jwt.sign(
+      {
+        id: user.user_id,
+        email: user.email,
+        role_id: user.role_id,
+        role_name: user.role_name,
+        global_access: user.global_access,
+        sessionId: newSessionId
+      },
+      process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026',
+      { expiresIn: '4h' }
+    );
+
+    return res.json({
+      success: true,
+      message: `Bienvenido(a), ${user.first_name} ${user.last_name}`,
+      data: {
+        token,
+        sessionId: newSessionId,
+        user: {
+          id: user.user_id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          document_id: user.document_id,
+          program: user.program,
+          role_id: user.role_id,
+          role: {
+            id: user.role_id,
+            name: user.role_name,
+            display_name: user.role_display,
+            global_access: user.global_access
+          },
+          status: user.user_status,
+          rfid_tag: user.uid
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en login con tarjeta RFID:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Error interno validando tarjeta RFID: ' + error.message
+    });
+  }
+};
+
+/**
+ * Cierre de sesión y revocación del token en base de datos
+ * POST /api/auth/logout
+ */
+const logout = async (req, res) => {
+  try {
+    if (req.user?.id) {
+      await db.query(`UPDATE users SET active_session_id = NULL WHERE id = $1`, [req.user.id]);
+    }
+    return res.json({ success: true, message: 'Sesión finalizada exitosamente.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 const login = async (req, res) => {
   try {
-    let { email, password } = req.body;
+    let { email, password, device_info } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Correo institucional y contraseña requeridos' });
     }
 
     email = email.trim().toLowerCase();
-    // Resolver alias rápidos
     if (email === 'admin') email = 'admin@lasallista.edu.co';
     if (email === 'celador' || email === 'seguridad' || email === 'vigilancia') email = 'celador@lasallista.edu.co';
 
-    // 1. Buscar usuario directamente en PostgreSQL
     const userResult = await db.query(
       `SELECT u.*, r.name as role_name, r.display_name as role_display, r.global_access
        FROM users u
@@ -29,19 +171,17 @@ const login = async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Credenciales inválidas o usuario no registrado en PostgreSQL' });
+      return res.status(401).json({ success: false, error: 'Credenciales inválidas o usuario no registrado' });
     }
 
     const user = userResult.rows[0];
 
-    // 2. RESTRICCIÓN ESTRICTA DE ROLES EN LOGIN WEB:
-    // Solo Administradores y Celadores / Seguridad pueden iniciar sesión en el portal
     const allowedWebRoles = ['admin', 'rector', 'security', 'celador'];
     const userRole = (user.role_name || '').toLowerCase();
     if (!allowedWebRoles.includes(userRole)) {
       return res.status(403).json({
         success: false,
-        error: 'Acceso denegado: Los estudiantes y profesores no inician sesión en la plataforma web. Su acceso se valida únicamente mediante carnet RFID en las puertas.'
+        error: 'Acceso denegado: Esta cuenta no tiene permisos para el portal web.'
       });
     }
 
@@ -49,7 +189,6 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Usuario inactivo o suspendido' });
     }
 
-    // 3. Validar contraseña
     let isMatch = false;
     if (password === 'acceso2026' || password === 'rfid2026' || password === 'admin2026') {
       isMatch = true;
@@ -61,20 +200,27 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, error: 'Contraseña incorrecta' });
     }
 
-    // 4. Generar token JWT
+    const newSessionId = crypto.randomUUID();
+    const deviceString = device_info || req.headers['user-agent'] || 'Terminal Web';
+
+    await db.query(
+      `UPDATE users SET active_session_id = $1, last_login_at = NOW(), last_login_device = $2, updated_at = NOW() WHERE id = $3`,
+      [newSessionId, deviceString, user.id]
+    );
+
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         role_id: user.role_id,
         role_name: user.role_name,
-        global_access: user.global_access
+        global_access: user.global_access,
+        sessionId: newSessionId
       },
       process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: '4h' }
     );
 
-    // 5. Obtener tarjeta RFID asignada
     const cardResult = await db.query(
       `SELECT uid, card_type, is_active FROM rfid_cards WHERE user_id = $1 AND is_active = true LIMIT 1`,
       [user.id]
@@ -85,6 +231,7 @@ const login = async (req, res) => {
       success: true,
       data: {
         token,
+        sessionId: newSessionId,
         user: {
           id: user.id,
           first_name: user.first_name,
@@ -106,7 +253,7 @@ const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en login PostgreSQL:', error);
-    return res.status(500).json({ success: false, error: 'Error de conexión a PostgreSQL / Supabase: ' + error.message });
+    return res.status(500).json({ success: false, error: 'Error de conexión: ' + error.message });
   }
 };
 
@@ -185,4 +332,4 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { login, me, changePassword };
+module.exports = { loginWithCard, logout, login, me, changePassword };

@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-export const ProtectedRoute = ({ children, requiredRole, requiredPermission }) => {
-  const { isAuthenticated, loading, roleName } = useAuth();
+export const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, loading, roleName, isAdmin } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -18,7 +18,7 @@ export const ProtectedRoute = ({ children, requiredRole, requiredPermission }) =
         fontSize: '14px',
         fontFamily: 'var(--font-mono)'
       }}>
-        <span>Cargando sistema de control de acceso...</span>
+        <span>Cargando sistema de control de acceso institucional...</span>
       </div>
     );
   }
@@ -27,8 +27,14 @@ export const ProtectedRoute = ({ children, requiredRole, requiredPermission }) =
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && roleName !== requiredRole && roleName !== 'rector') {
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles && allowedRoles.length > 0) {
+    const normRole = (roleName || '').toLowerCase();
+    const isAllowed = allowedRoles.includes(normRole) || (allowedRoles.includes('admin') && isAdmin);
+    if (!isAllowed) {
+      // Redirigir según el rol
+      const target = (normRole === 'celador' || normRole === 'security') ? '/monitor' : '/dashboard';
+      return <Navigate to={target} replace />;
+    }
   }
 
   return children;
