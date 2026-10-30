@@ -68,21 +68,59 @@ ChartJS.register(
 );
 
 // =========================================================================
-// SISTEMA DE DISEÑO VISUAL INSTITUCIONAL — PALETA ARMONIZADA Y SOBRIA
-// Azul temático Unilasallista (#2563eb / #3b82f6)
-// Gradación semántica controlada: Verde (#22c55e) → Ámbar (#f59e0b) → Rojo (#ef4444)
-// Sin morados, sin emojis, sin neones chillones. Iconografía 100% SVG.
+// HOOK PARA DETECCIÓN EN TIEMPO REAL DEL TEMA (MODO CLARO / OSCURO / AUTO)
+// =========================================================================
+const useCurrentTheme = () => {
+  const [isLight, setIsLight] = useState(() => {
+    if (typeof document === 'undefined') return false;
+    const attr = document.documentElement.getAttribute('data-theme');
+    if (attr === 'light') return true;
+    if (attr === 'dark') return false;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const attr = document.documentElement.getAttribute('data-theme');
+      if (attr === 'light') {
+        setIsLight(true);
+      } else if (attr === 'dark') {
+        setIsLight(false);
+      } else {
+        const matches = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        setIsLight(matches);
+      }
+    };
+
+    update();
+
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    const media = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+    if (media?.addEventListener) media.addEventListener('change', update);
+
+    return () => {
+      observer.disconnect();
+      if (media?.removeEventListener) media.removeEventListener('change', update);
+    };
+  }, []);
+
+  return isLight;
+};
+
+// =========================================================================
+// COMPONENTES DE VISUALIZACIÓN ADAPTABLES A MODO CLARO Y OSCURO
 // =========================================================================
 
-// 1. Radial Gauge de Grafana (Arcos vivos de alto contraste sin neones)
-const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación' }) => {
+// 1. Radial Gauge de Grafana
+const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = false }) => {
   const clamped = Math.min(Math.max(value, 0), 100);
   const radius = 68;
   const strokeWidth = 14;
   const circumference = Math.PI * radius;
   const strokeDashoffset = circumference * (1 - clamped / 100);
 
-  // Paleta semántica armónica: Verde suave (#22c55e), Ámbar (#f59e0b), Rojo carmín (#ef4444)
   const color = value >= 95 ? '#22c55e' : value >= 80 ? '#f59e0b' : '#ef4444';
 
   return (
@@ -92,7 +130,7 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación' }) => {
         <path
           d="M 25 105 A 68 68 0 0 1 175 105"
           fill="none"
-          stroke="#22252b"
+          stroke={isLight ? '#e2e8f0' : '#22252b'}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
@@ -108,33 +146,32 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación' }) => {
           style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.3s ease' }}
         />
         {/* Valor central grande */}
-        <text x="100" y="92" textAnchor="middle" fill="#ffffff" fontSize="30" fontWeight="800">
+        <text x="100" y="92" textAnchor="middle" fill={isLight ? '#0f172a' : '#ffffff'} fontSize="30" fontWeight="800">
           {value}%
         </text>
-        <text x="30" y="115" textAnchor="middle" fill="#8e8e8e" fontSize="10">0%</text>
-        <text x="170" y="115" textAnchor="middle" fill="#8e8e8e" fontSize="10">100%</text>
+        <text x="30" y="115" textAnchor="middle" fill={isLight ? '#64748b' : '#8e8e8e'} fontSize="10">0%</text>
+        <text x="170" y="115" textAnchor="middle" fill={isLight ? '#64748b' : '#8e8e8e'} fontSize="10">100%</text>
       </svg>
-      <div style={{ fontSize: '13px', color: '#d8d9da', fontWeight: 600, marginTop: '2px' }}>
+      <div style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, marginTop: '2px' }}>
         {label}
       </div>
-      <div style={{ fontSize: '11px', color: '#8e8e8e', marginTop: '2px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
         {value >= 95 ? 'Nivel óptimo de seguridad (>95%)' : value >= 80 ? 'Infracciones moderadas' : 'Alerta de seguridad crítica'}
       </div>
     </div>
   );
 };
 
-// 2. Bar Gauge de Grafana (Paleta armónica sobria entre Azul, Verde, Ámbar y Rojo)
-const GrafanaBarGauge = ({ items, total }) => {
+// 2. Bar Gauge de Grafana (Estudiantes por Carrera)
+const GrafanaBarGauge = ({ items, total, isLight = false }) => {
   if (!items || items.length === 0) {
     return (
-      <div style={{ padding: '36px 20px', textAlign: 'center', color: '#8e8e8e', fontSize: '13px' }}>
+      <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
         No hay estudiantes dentro del campus en este momento.
       </div>
     );
   }
 
-  // Secuencia de colores disciplinada: azul institucional, verde, azul suave, ámbar, naranja
   const colors = ['#2563eb', '#22c55e', '#3b82f6', '#f59e0b', '#10b981', '#f97316'];
 
   return (
@@ -147,14 +184,14 @@ const GrafanaBarGauge = ({ items, total }) => {
         return (
           <div key={item.program || idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
-              <span style={{ fontWeight: 600, color: '#ffffff' }}>{item.program}</span>
-              <span style={{ color: '#d8d9da', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
-                <b style={{ color: '#ffffff' }}>{count}</b> ({pct}%)
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.program}</span>
+              <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', fontSize: '12px' }}>
+                <b style={{ color: 'var(--text-primary)' }}>{count}</b> ({pct}%)
               </span>
             </div>
             <div style={{
               height: '10px',
-              backgroundColor: '#22252b',
+              backgroundColor: isLight ? '#e2e8f0' : '#22252b',
               borderRadius: '3px',
               overflow: 'hidden'
             }}>
@@ -173,8 +210,8 @@ const GrafanaBarGauge = ({ items, total }) => {
   );
 };
 
-// 3. Heatmap de Grafana (Gradación armónica desde azul pizarra hasta verde pico)
-const GrafanaHeatmap = ({ data }) => {
+// 3. Heatmap de Grafana
+const GrafanaHeatmap = ({ data, isLight = false }) => {
   const days = [
     { dow: 1, label: 'Lunes' },
     { dow: 2, label: 'Martes' },
@@ -194,12 +231,12 @@ const GrafanaHeatmap = ({ data }) => {
   });
 
   const getHeatColor = (count) => {
-    if (!count || count === 0) return '#22252b';
+    if (!count || count === 0) return isLight ? '#f1f5f9' : '#22252b';
     const ratio = count / maxCount;
-    if (ratio < 0.25) return '#1e293b'; // Azul pizarra profundo
-    if (ratio < 0.5) return '#1e40af';  // Azul institucional
-    if (ratio < 0.75) return '#2563eb'; // Azul activo
-    return '#22c55e'; // Verde pico de afluencia
+    if (ratio < 0.25) return isLight ? '#bfdbfe' : '#1e293b';
+    if (ratio < 0.5) return isLight ? '#60a5fa' : '#1e40af';
+    if (ratio < 0.75) return '#2563eb';
+    return '#22c55e';
   };
 
   return (
@@ -208,9 +245,9 @@ const GrafanaHeatmap = ({ data }) => {
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '3px', fontSize: '11px' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', color: '#8e8e8e', fontWeight: 500, paddingRight: '8px', paddingBottom: '4px' }}>Día</th>
+              <th style={{ textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500, paddingRight: '8px', paddingBottom: '4px' }}>Día</th>
               {hours.map(h => (
-                <th key={h} style={{ textAlign: 'center', color: '#8e8e8e', fontWeight: 500, width: '28px', paddingBottom: '4px' }}>
+                <th key={h} style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 500, width: '28px', paddingBottom: '4px' }}>
                   {h}h
                 </th>
               ))}
@@ -219,11 +256,12 @@ const GrafanaHeatmap = ({ data }) => {
           <tbody>
             {days.map(d => (
               <tr key={d.dow}>
-                <td style={{ color: '#d8d9da', fontWeight: 600, paddingRight: '8px', whiteSpace: 'nowrap' }}>
+                <td style={{ color: 'var(--text-primary)', fontWeight: 600, paddingRight: '8px', whiteSpace: 'nowrap' }}>
                   {d.label}
                 </td>
                 {hours.map(h => {
                   const count = matrix[`${d.dow}-${h}`] || 0;
+                  const isCellLight = isLight && (count / maxCount) < 0.5 && count > 0;
                   return (
                     <td
                       key={h}
@@ -233,7 +271,7 @@ const GrafanaHeatmap = ({ data }) => {
                         backgroundColor: getHeatColor(count),
                         borderRadius: '2px',
                         textAlign: 'center',
-                        color: count > 0 ? '#ffffff' : 'transparent',
+                        color: count > 0 ? (isCellLight ? '#0f172a' : '#ffffff') : 'transparent',
                         fontSize: '10px',
                         fontWeight: 700,
                         cursor: 'default'
@@ -249,13 +287,13 @@ const GrafanaHeatmap = ({ data }) => {
         </table>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: '#8e8e8e' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
         <span>Mapa de calor de accesos por franja horaria</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span>Tranquilo</span>
-          <div style={{ width: '10px', height: '10px', backgroundColor: '#22252b', borderRadius: '2px' }} />
-          <div style={{ width: '10px', height: '10px', backgroundColor: '#1e293b', borderRadius: '2px' }} />
-          <div style={{ width: '10px', height: '10px', backgroundColor: '#1e40af', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: isLight ? '#f1f5f9' : '#22252b', borderRadius: '2px', border: '1px solid var(--border)' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: isLight ? '#bfdbfe' : '#1e293b', borderRadius: '2px' }} />
+          <div style={{ width: '10px', height: '10px', backgroundColor: isLight ? '#60a5fa' : '#1e40af', borderRadius: '2px' }} />
           <div style={{ width: '10px', height: '10px', backgroundColor: '#2563eb', borderRadius: '2px' }} />
           <div style={{ width: '10px', height: '10px', backgroundColor: '#22c55e', borderRadius: '2px' }} />
           <span>Hora pico</span>
@@ -265,7 +303,7 @@ const GrafanaHeatmap = ({ data }) => {
   );
 };
 
-// 4. Sparkline de Grafana para Stat Cards (Color sobrio)
+// 4. Sparkline de Grafana para Stat Cards
 const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
   const points = (data && data.length > 0) ? data : [0, 0, 0, 0, 0, 0];
   const max = Math.max(...points, 1);
@@ -294,8 +332,8 @@ const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
   );
 };
 
-// 5. Comparativa Temporal: Hoy vs Ayer (100% SVG, sin emojis, tonos sobrios)
-const GrafanaComparisonBar = ({ comparison }) => {
+// 5. Comparativa Temporal: Hoy vs Ayer
+const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
   const todayTotal = comparison?.today_total || 0;
   const yesterdayTotal = comparison?.yesterday_total || 0;
   const todayGranted = comparison?.today_granted || 0;
@@ -315,15 +353,15 @@ const GrafanaComparisonBar = ({ comparison }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', gap: '10px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* Barra Hoy: Verde de aprobación dominante */}
+        {/* Barra Hoy */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-            <span style={{ fontWeight: 700, color: '#ffffff' }}>Jornada Actual (Hoy)</span>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Jornada Actual (Hoy)</span>
             <span style={{ color: '#22c55e', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {todayTotal} accesos ({todayPct}% autorizados)
             </span>
           </div>
-          <div style={{ height: '22px', backgroundColor: '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
+          <div style={{ height: '22px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
             <div
               style={{
                 width: `${todayWidth}%`,
@@ -343,27 +381,27 @@ const GrafanaComparisonBar = ({ comparison }) => {
               {todayTotal}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#8e8e8e' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Check size={12} color="#22c55e" strokeWidth={2.5} />
               <span>{todayGranted} autorizados</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: todayDenied > 0 ? '#ef4444' : '#8e8e8e' }}>
-              <X size={12} color={todayDenied > 0 ? '#ef4444' : '#8e8e8e'} strokeWidth={2.5} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: todayDenied > 0 ? '#ef4444' : 'var(--text-muted)' }}>
+              <X size={12} color={todayDenied > 0 ? '#ef4444' : 'var(--text-muted)'} strokeWidth={2.5} />
               <span>{todayDenied} infracciones</span>
             </div>
           </div>
         </div>
 
-        {/* Barra Ayer: Azul institucional */}
+        {/* Barra Ayer */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-            <span style={{ fontWeight: 700, color: '#d8d9da' }}>Jornada Anterior (Ayer)</span>
-            <span style={{ color: '#8e8e8e', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Jornada Anterior (Ayer)</span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
               {yesterdayTotal} accesos ({yestPct}% autorizados)
             </span>
           </div>
-          <div style={{ height: '22px', backgroundColor: '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
+          <div style={{ height: '22px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '4px', overflow: 'hidden', display: 'flex', width: '100%' }}>
             <div
               style={{
                 width: `${yestWidth}%`,
@@ -383,13 +421,13 @@ const GrafanaComparisonBar = ({ comparison }) => {
               {yesterdayTotal}
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#8e8e8e' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Check size={12} color="#22c55e" strokeWidth={2.5} />
               <span>{yesterdayGranted} autorizados</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: yesterdayDenied > 0 ? '#ef4444' : '#8e8e8e' }}>
-              <X size={12} color={yesterdayDenied > 0 ? '#ef4444' : '#8e8e8e'} strokeWidth={2.5} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: yesterdayDenied > 0 ? '#ef4444' : 'var(--text-muted)' }}>
+              <X size={12} color={yesterdayDenied > 0 ? '#ef4444' : 'var(--text-muted)'} strokeWidth={2.5} />
               <span>{yesterdayDenied} infracciones</span>
             </div>
           </div>
@@ -402,18 +440,18 @@ const GrafanaComparisonBar = ({ comparison }) => {
         gridTemplateColumns: '1fr 1fr',
         gap: '8px',
         padding: '8px 10px',
-        backgroundColor: '#111217',
+        backgroundColor: 'var(--bg-tertiary)',
         borderRadius: '4px',
-        border: '1px solid #22252b'
+        border: '1px solid var(--border)'
       }}>
         <div>
-          <div style={{ fontSize: '10.5px', color: '#8e8e8e' }}>Variación Flujo</div>
+          <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Variación Flujo</div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: deltaTotal >= 0 ? '#22c55e' : '#2563eb' }}>
             {deltaTotal >= 0 ? `+${deltaTotal}%` : `${deltaTotal}%`} vs ayer
           </div>
         </div>
         <div>
-          <div style={{ fontSize: '10.5px', color: '#8e8e8e' }}>Cumplimiento</div>
+          <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>Cumplimiento</div>
           <div style={{ fontSize: '13px', fontWeight: 700, color: todayPct >= yestPct ? '#22c55e' : '#f59e0b' }}>
             {todayPct}% ({todayPct >= yestPct ? `+${(todayPct - yestPct).toFixed(1)}%` : `${(todayPct - yestPct).toFixed(1)}%`})
           </div>
@@ -423,8 +461,8 @@ const GrafanaComparisonBar = ({ comparison }) => {
   );
 };
 
-// 6. Embudo de Auditoría y Control de Acceso (Paleta armónica)
-const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
+// 6. Embudo de Auditoría y Control de Acceso
+const GrafanaSecurityFunnel = ({ total, granted, denied, isLight = false }) => {
   const t = total || 49;
   const g = granted || 46;
   const d = denied || 3;
@@ -444,8 +482,8 @@ const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
         <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{
             width: '100%',
-            backgroundColor: '#111217',
-            border: `1px solid ${st.color}`,
+            backgroundColor: 'var(--bg-tertiary)',
+            border: `1px solid ${isLight ? 'var(--border)' : st.color}`,
             borderRadius: '4px',
             padding: '5px 10px',
             display: 'flex',
@@ -467,17 +505,17 @@ const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
               }}>
                 {idx + 1}
               </span>
-              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#ffffff' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
                 {st.title}
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: '#8e8e8e' }}>{st.value}</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{st.value}</span>
               <span style={{
                 fontSize: '11px',
                 fontWeight: 800,
                 color: st.color,
-                backgroundColor: 'rgba(255,255,255,0.06)',
+                backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
                 padding: '2px 6px',
                 borderRadius: '3px'
               }}>
@@ -486,17 +524,17 @@ const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
             </div>
           </div>
           {idx < steps.length - 1 && (
-            <div style={{ width: '2px', height: '6px', backgroundColor: '#22252b', margin: '1px 0' }} />
+            <div style={{ width: '2px', height: '6px', backgroundColor: 'var(--border)', margin: '1px 0' }} />
           )}
         </div>
       ))}
       <div style={{
         padding: '4px 8px',
         borderRadius: '3px',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        border: '1px solid rgba(239, 68, 68, 0.25)',
+        backgroundColor: isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.1)',
+        border: isLight ? '1px solid #fecaca' : '1px solid rgba(239, 68, 68, 0.25)',
         fontSize: '11px',
-        color: '#ef4444',
+        color: isLight ? '#991b1b' : '#ef4444',
         display: 'flex',
         justifyContent: 'space-between'
       }}>
@@ -507,8 +545,8 @@ const GrafanaSecurityFunnel = ({ total, granted, denied }) => {
   );
 };
 
-// 7. Monitor de Salud y Disponibilidad de Hardware RFID (Métricas reales de Supabase)
-const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth }) => {
+// 7. Monitor de Salud y Disponibilidad de Hardware RFID
+const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, isLight = false }) => {
   const latency = dbHealth?.latencyMs || 28;
   const uptime = dbHealth?.uptime || '99.98%';
   const isOnline = dbHealth?.status === 'online' || true;
@@ -516,80 +554,80 @@ const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth }) 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', height: '100%' }}>
       {/* 1. Cerraduras */}
-      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Cerraduras</span>
           <span style={{ color: '#22c55e', fontWeight: 700 }}>100% OK</span>
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
           {totalDoors} / {totalDoors}
         </div>
-        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '4px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
           <div style={{ width: '100%', height: '100%', backgroundColor: '#22c55e' }} />
         </div>
-        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>En línea operativas</div>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>En línea operativas</div>
       </div>
 
       {/* 2. Latencia Bus SPI */}
-      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Latencia Bus SPI</span>
           <span style={{ color: '#22c55e', fontWeight: 700 }}>Óptima</span>
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff' }}>
-          118 <span style={{ fontSize: '12px', fontWeight: 500, color: '#8e8e8e' }}>ms</span>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)' }}>
+          118 <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>ms</span>
         </div>
-        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '4px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
           <div style={{ width: '28%', height: '100%', backgroundColor: '#22c55e' }} />
         </div>
-        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>RC522 13.56 MHz</div>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>RC522 13.56 MHz</div>
       </div>
 
       {/* 3. Alarmas Perimetrales */}
-      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Alarmas</span>
           <span style={{ color: activeAlerts === 0 ? '#22c55e' : '#ef4444', fontWeight: 700 }}>
             {activeAlerts === 0 ? 'Sin alertas' : `${activeAlerts} activas`}
           </span>
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: activeAlerts === 0 ? '#ffffff' : '#ef4444' }}>
-          {activeAlerts} <span style={{ fontSize: '12px', fontWeight: 500, color: '#8e8e8e' }}>disparadas</span>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: activeAlerts === 0 ? 'var(--text-primary)' : '#ef4444' }}>
+          {activeAlerts} <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>disparadas</span>
         </div>
-        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '4px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
           <div style={{ width: '100%', height: '100%', backgroundColor: activeAlerts === 0 ? '#22c55e' : '#ef4444' }} />
         </div>
-        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>52 armadas en salas</div>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>52 armadas en salas</div>
       </div>
 
-      {/* 4. SLA Base de Datos PostgreSQL / Supabase */}
-      <div style={{ backgroundColor: '#111217', border: '1px solid #22252b', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: '11px', color: '#8e8e8e', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* 4. SLA Base de Datos */}
+      <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>SLA Base de Datos</span>
           <span style={{ color: '#22c55e', fontWeight: 700, fontSize: '10.5px' }}>
             {isOnline ? 'Conectado' : 'Reconectando'}
           </span>
         </div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
           {uptime}
           <span style={{ fontSize: '12px', fontWeight: 600, color: '#22c55e' }}>
             {latency} ms
           </span>
         </div>
-        <div style={{ height: '4px', backgroundColor: '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
+        <div style={{ height: '4px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '2px', overflow: 'hidden' }}>
           <div style={{ width: '99.98%', height: '100%', backgroundColor: '#22c55e' }} />
         </div>
-        <div style={{ fontSize: '10px', color: '#8e8e8e' }}>PostgreSQL Supabase (Pooler 6543)</div>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>PostgreSQL Supabase (Pooler 6543)</div>
       </div>
     </div>
   );
 };
 
-// 8. Pareto de Causas de Rechazo e Infracciones (Tonos rojos/naranjas semánticos)
-const GrafanaDenialPareto = ({ reasons }) => {
+// 8. Pareto de Causas de Rechazo e Infracciones
+const GrafanaDenialPareto = ({ reasons, isLight = false }) => {
   if (!reasons || reasons.length === 0) {
     return (
-      <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+      <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
         No se han detectado infracciones de acceso.
       </div>
     );
@@ -608,14 +646,14 @@ const GrafanaDenialPareto = ({ reasons }) => {
         return (
           <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-              <span style={{ fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '75%' }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '75%' }}>
                 {item.reason}
               </span>
               <span style={{ color: color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {item.count} <span style={{ fontSize: '10.5px', color: '#8e8e8e' }}>({pct}%)</span>
+                {item.count} <span style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>({pct}%)</span>
               </span>
             </div>
-            <div style={{ height: '8px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ height: '8px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.max(barWidth, 3)}%`, backgroundColor: color, borderRadius: '3px', transition: 'width 0.4s ease' }} />
             </div>
           </div>
@@ -625,11 +663,11 @@ const GrafanaDenialPareto = ({ reasons }) => {
   );
 };
 
-// 9. Ranking de Salones y Espacios Más Concurridos (Azul institucional sobrio)
-const GrafanaTopRooms = ({ rooms }) => {
+// 9. Ranking de Salones y Espacios Más Concurridos
+const GrafanaTopRooms = ({ rooms, isLight = false }) => {
   if (!rooms || rooms.length === 0) {
     return (
-      <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+      <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
         Sin registros de ocupación en espacios académicos hoy.
       </div>
     );
@@ -648,14 +686,14 @@ const GrafanaTopRooms = ({ rooms }) => {
                 <span style={{
                   fontSize: '10px',
                   fontWeight: 800,
-                  color: '#3b82f6',
-                  backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                  color: '#2563eb',
+                  backgroundColor: 'rgba(37, 99, 235, 0.12)',
                   padding: '1px 5px',
                   borderRadius: '3px'
                 }}>
                   #{idx + 1}
                 </span>
-                <span style={{ fontWeight: 600, color: '#ffffff' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   {rm.room_name}
                 </span>
               </div>
@@ -663,10 +701,10 @@ const GrafanaTopRooms = ({ rooms }) => {
                 {rm.count} accesos
               </span>
             </div>
-            <div style={{ fontSize: '11px', color: '#8e8e8e', marginLeft: '22px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '22px' }}>
               {rm.block_name} · {rm.granted_count || rm.count} autorizados
             </div>
-            <div style={{ height: '6px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden', marginLeft: '22px' }}>
+            <div style={{ height: '6px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '3px', overflow: 'hidden', marginLeft: '22px' }}>
               <div style={{ height: '100%', width: `${Math.max(pct, 3)}%`, backgroundColor: '#2563eb', borderRadius: '3px' }} />
             </div>
           </div>
@@ -718,6 +756,8 @@ const DEFAULT_LAYOUTS = {
 
 export const Dashboard = () => {
   const { user } = useAuth();
+  const isLight = useCurrentTheme();
+
   const [stats, setStats] = useState({
     totalToday: 0,
     grantedToday: 0,
@@ -765,6 +805,10 @@ export const Dashboard = () => {
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Estado reactivo en tiempo real del lector RFID (sin recargar página)
+  const [isHardwareSensorOnline, setIsHardwareSensorOnline] = useState(false);
+  const lastHardwareActivityRef = useRef(0);
+
   // Sistema de Grid Layout resizable y draggable persistente en v3
   const [layouts, setLayouts] = useState(() => {
     try {
@@ -790,10 +834,13 @@ export const Dashboard = () => {
     } catch (e) {}
   };
 
-  // WebSocket en vivo
+  // WebSocket en vivo: escucha escaneos y latidos de hardware sin forzar recarga
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
+      lastHardwareActivityRef.current = Date.now();
+      setIsHardwareSensorOnline(true);
+
       setStats(prev => {
         const newTotal = prev.totalToday + 1;
         const newGranted = data.granted ? prev.grantedToday + 1 : prev.grantedToday;
@@ -826,6 +873,9 @@ export const Dashboard = () => {
       ]);
 
       loadAnalytics();
+    } else if (event.type === 'hardware_heartbeat' || event.type === 'door_status') {
+      lastHardwareActivityRef.current = Date.now();
+      setIsHardwareSensorOnline(true);
     }
   };
 
@@ -854,6 +904,16 @@ export const Dashboard = () => {
       if (statsRes.success) setStats(prev => ({ ...prev, ...statsRes.data }));
       if (logsRes.success) setRecentLogs(logsRes.data || []);
       if (doorsRes.success) setDoors(doorsRes.data || []);
+
+      const hasActiveDoors = (doorsRes.data || []).some(d => d.is_hardware_active) || (statsRes.data?.activeSensors > 0);
+      if (hasActiveDoors) {
+        lastHardwareActivityRef.current = Date.now();
+        setIsHardwareSensorOnline(true);
+      } else {
+        const isRecent = (Date.now() - lastHardwareActivityRef.current) < 90000;
+        setIsHardwareSensorOnline(isRecent);
+      }
+
       await loadAnalytics();
       setLastRefreshTime(new Date());
     } catch (err) {
@@ -866,8 +926,17 @@ export const Dashboard = () => {
   useEffect(() => {
     loadData();
     const interval = setInterval(() => loadData(true), 4000);
-    return () => clearInterval(interval);
-  }, []);
+    const sensorTimer = setInterval(() => {
+      const isRecent = (Date.now() - lastHardwareActivityRef.current) < 90000;
+      const isDbActive = doors.some(d => d.is_hardware_active) || stats.activeSensors > 0;
+      setIsHardwareSensorOnline(isRecent || isDbActive);
+    }, 2000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(sensorTimer);
+    };
+  }, [doors, stats.activeSensors]);
 
   const formatTime = (iso) => {
     if (!iso) return '—';
@@ -875,9 +944,7 @@ export const Dashboard = () => {
     return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   };
 
-  const isHardwareSensorOnline = stats.activeSensors > 0 || doors.some(d => d.is_hardware_active);
-
-  // Opciones de estilo Grafana auténtico sobrio y armónico
+  // Opciones dinámicas de Chart.js según modo claro u oscuro
   const grafanaChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -887,7 +954,7 @@ export const Dashboard = () => {
         position: 'top',
         align: 'end',
         labels: {
-          color: '#ffffff',
+          color: isLight ? '#0f172a' : '#ffffff',
           font: { family: 'var(--font-ui)', size: 12, weight: '600' },
           boxWidth: 12,
           boxHeight: 12,
@@ -896,10 +963,10 @@ export const Dashboard = () => {
         }
       },
       tooltip: {
-        backgroundColor: '#181b1f',
-        titleColor: '#ffffff',
-        bodyColor: '#d8d9da',
-        borderColor: '#22252b',
+        backgroundColor: isLight ? '#ffffff' : '#181b1f',
+        titleColor: isLight ? '#0f172a' : '#ffffff',
+        bodyColor: isLight ? '#334155' : '#d8d9da',
+        borderColor: isLight ? '#cbd5e1' : '#22252b',
         borderWidth: 1,
         padding: 10,
         cornerRadius: 4,
@@ -909,14 +976,14 @@ export const Dashboard = () => {
     },
     scales: {
       x: {
-        grid: { color: 'rgba(255, 255, 255, 0.08)' },
-        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
+        grid: { color: isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: isLight ? '#334155' : '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
       },
       y: {
         beginAtZero: true,
-        grid: { color: 'rgba(255, 255, 255, 0.08)' },
+        grid: { color: isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)' },
         ticks: {
-          color: '#d8d9da',
+          color: isLight ? '#334155' : '#d8d9da',
           font: { family: 'var(--font-ui)', size: 11.5, weight: '500' },
           precision: 0
         }
@@ -924,7 +991,7 @@ export const Dashboard = () => {
     }
   };
 
-  // 1. Datos TimeSeries: VERDE para autorizados en vez de amarillo, ROJO suave para infracciones
+  // 1. Datos TimeSeries: VERDE para autorizados, ROJO para infracciones
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
@@ -936,7 +1003,7 @@ export const Dashboard = () => {
       {
         label: 'Accesos autorizados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.granted) : new Array(timeSlots.length).fill(0),
-        borderColor: '#22c55e', // Verde armónico en vez de amarillo
+        borderColor: '#22c55e',
         backgroundColor: 'rgba(34, 197, 94, 0.12)',
         fill: true,
         tension: 0.35,
@@ -947,7 +1014,7 @@ export const Dashboard = () => {
       {
         label: 'Infracciones / Denegados',
         data: timeSeriesSource.length > 0 ? timeSeriesSource.map(d => d.denied) : new Array(timeSlots.length).fill(0),
-        borderColor: '#ef4444', // Rojo controlado
+        borderColor: '#ef4444',
         backgroundColor: 'rgba(239, 68, 68, 0.12)',
         fill: true,
         tension: 0.35,
@@ -962,7 +1029,7 @@ export const Dashboard = () => {
   const studentsPrograms = analytics.studentsByProgram?.length > 0 ? analytics.studentsByProgram : [];
   const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || p.count || 0), 0);
 
-  // 3. Distribución por bloque (Paleta armónica)
+  // 3. Distribución por bloque
   const blockStats = analytics.byBlock?.length > 0
     ? analytics.byBlock
     : [
@@ -983,7 +1050,7 @@ export const Dashboard = () => {
       {
         data: blockStats.map(b => b.count || 0),
         backgroundColor: ['#2563eb', '#22c55e', '#f59e0b', '#3b82f6'],
-        borderColor: '#181b1f',
+        borderColor: isLight ? '#ffffff' : '#181b1f',
         borderWidth: 2
       }
     ]
@@ -1019,19 +1086,19 @@ export const Dashboard = () => {
     scales: {
       x: {
         stacked: true,
-        grid: { color: 'rgba(255, 255, 255, 0.08)' },
-        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
+        grid: { color: isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: isLight ? '#334155' : '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' } }
       },
       y: {
         stacked: true,
         beginAtZero: true,
-        grid: { color: 'rgba(255, 255, 255, 0.08)' },
-        ticks: { color: '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' }, precision: 0 }
+        grid: { color: isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)' },
+        ticks: { color: isLight ? '#334155' : '#d8d9da', font: { family: 'var(--font-ui)', size: 11.5, weight: '500' }, precision: 0 }
       }
     }
   };
 
-  // 5. Distribución por Rol Institucional (Paleta armónica)
+  // 5. Distribución por Rol Institucional
   const rolesList = analytics.rolesDistribution?.length > 0
     ? analytics.rolesDistribution
     : [
@@ -1050,13 +1117,13 @@ export const Dashboard = () => {
       {
         data: rolesList.map(r => r.count || 0),
         backgroundColor: ['#2563eb', '#22c55e', '#f59e0b'],
-        borderColor: '#181b1f',
+        borderColor: isLight ? '#ffffff' : '#181b1f',
         borderWidth: 2
       }
     ]
   };
 
-  // 6. Concentración por Categoría de Espacio (Paleta armónica)
+  // 6. Concentración por Categoría de Espacio
   const spacesList = analytics.spaceTypes?.length > 0
     ? analytics.spaceTypes
     : [
@@ -1076,10 +1143,27 @@ export const Dashboard = () => {
       {
         data: spacesList.map(s => s.count || 0),
         backgroundColor: ['#2563eb', '#22c55e', '#f59e0b', '#3b82f6'],
-        borderColor: '#181b1f',
+        borderColor: isLight ? '#ffffff' : '#181b1f',
         borderWidth: 2
       }
     ]
+  };
+
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: isLight ? '#0f172a' : '#ffffff',
+          font: { family: 'var(--font-ui)', size: 11, weight: '600' },
+          boxWidth: 10,
+          boxHeight: 10,
+          usePointStyle: true
+        }
+      }
+    }
   };
 
   const hourlyCounts = analytics.hourly.map(h => h.total);
@@ -1087,7 +1171,7 @@ export const Dashboard = () => {
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* Barra superior de Grafana (Top Bar 100% SVG, sin emojis) */}
+      {/* Barra superior de Grafana (Top Bar 100% SVG, adaptable a modo claro y oscuro) */}
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
@@ -1113,18 +1197,18 @@ export const Dashboard = () => {
             boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
             border: '1px solid rgba(59, 130, 246, 0.3)'
           }}>
-            <Flame size={17} color="#60a5fa" />
+            <Flame size={17} color="#ffffff" />
           </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+              <h1 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 Control de Acceso RFID y Telemetría Institucional
               </h1>
-              <span style={{ fontSize: '11px', color: '#8e8e8e' }}>▾</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>▾</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#8e8e8e', marginTop: '1px' }}>
-              19 paneles analíticos en vivo desde Supabase · Grids redimensionables y libres
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '1px' }}>
+              19 paneles analíticos en vivo desde Supabase · Grids redimensionables
             </div>
           </div>
 
@@ -1136,9 +1220,9 @@ export const Dashboard = () => {
             fontWeight: 600,
             padding: '3px 10px',
             borderRadius: '4px',
-            backgroundColor: isHardwareSensorOnline ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-            color: isHardwareSensorOnline ? '#22c55e' : '#ef4444',
-            border: `1px solid ${isHardwareSensorOnline ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+            backgroundColor: isHardwareSensorOnline ? (isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.12)') : (isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.12)'),
+            color: isHardwareSensorOnline ? (isLight ? '#065f46' : '#22c55e') : (isLight ? '#991b1b' : '#ef4444'),
+            border: `1px solid ${isHardwareSensorOnline ? (isLight ? '#a7f3d0' : 'rgba(34, 197, 94, 0.3)') : (isLight ? '#fecaca' : 'rgba(239, 68, 68, 0.3)')}`
           }}>
             <span style={{
               width: '7px',
@@ -1151,7 +1235,7 @@ export const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '12px', color: '#8e8e8e' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Refresco: <b>4s</b> ({formatTime(lastRefreshTime)})
           </span>
 
@@ -1197,80 +1281,80 @@ export const Dashboard = () => {
             draggableHandle=".panel-drag-handle"
             onLayoutChange={handleLayoutChange}
           >
-            {/* 1. Stat Card: Accesos de Hoy (Azul Institucional) */}
+            {/* 1. Stat Card: Accesos de Hoy */}
             <div key="panel_total_stat" className="grafana-panel" style={{ borderLeft: '3px solid #2563eb' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Total Accesos Hoy</span>
-                <Activity size={15} style={{ color: '#3b82f6' }} />
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Total Accesos Hoy</span>
+                <Activity size={15} style={{ color: '#2563eb' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div>
-                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                       {stats.totalToday}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Registros verificados</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Registros verificados</div>
                   </div>
                   <GrafanaSparkline data={hourlyCounts} color="#2563eb" />
                 </div>
               </div>
             </div>
 
-            {/* 2. Stat Card: Infracciones / Denegados (Rojo Semántico) */}
+            {/* 2. Stat Card: Infracciones / Denegados */}
             <div key="panel_denied_stat" className="grafana-panel" style={{ borderLeft: stats.deniedToday > 0 ? '3px solid #ef4444' : '3px solid var(--border)' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Infracciones / Denegados</span>
-                <XCircle size={15} style={{ color: stats.deniedToday > 0 ? '#ef4444' : '#8e8e8e' }} />
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Infracciones / Denegados</span>
+                <XCircle size={15} style={{ color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-muted)' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div>
-                    <div style={{ fontSize: '32px', fontWeight: 800, color: stats.deniedToday > 0 ? '#ef4444' : '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: stats.deniedToday > 0 ? '#ef4444' : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                       {stats.deniedToday}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Infracciones detectadas</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Infracciones detectadas</div>
                   </div>
                   <GrafanaSparkline data={hourlyDenied} color="#ef4444" />
                 </div>
               </div>
             </div>
 
-            {/* 3. Stat Card: Población en Campus (Verde) */}
+            {/* 3. Stat Card: Población en Campus */}
             <div key="panel_campus_stat" className="grafana-panel" style={{ borderLeft: '3px solid #22c55e' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Población en Campus</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Población en Campus</span>
                 <Users size={15} style={{ color: '#22c55e' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div>
-                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                       {totalStudentsInCampus}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Estudiantes presentes</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Estudiantes presentes</div>
                   </div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#22c55e', padding: '3px 8px', borderRadius: '4px', backgroundColor: 'rgba(34, 197, 94, 0.12)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: isLight ? '#065f46' : '#22c55e', padding: '3px 8px', borderRadius: '4px', backgroundColor: isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.12)' }}>
                     Censo en vivo
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 4. Stat Card: Permanencia Promedio en Campus (Azul Suave) */}
+            {/* 4. Stat Card: Permanencia Promedio en Campus */}
             <div key="panel_stay_stat" className="grafana-panel" style={{ borderLeft: '3px solid #3b82f6' }}>
               <div className="grafana-panel-header panel-drag-handle">
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d8d9da' }}>Permanencia en Campus</span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Permanencia en Campus</span>
                 <Clock size={15} style={{ color: '#3b82f6' }} />
               </div>
               <div className="grafana-panel-body" style={{ justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <div>
-                    <div style={{ fontSize: '32px', fontWeight: 800, color: '#ffffff', fontVariantNumeric: 'tabular-nums' }}>
-                      {analytics.avgStay?.avg_hours || '3.8'}<span style={{ fontSize: '16px', fontWeight: 600, color: '#8e8e8e', marginLeft: '2px' }}>h</span>
+                    <div style={{ fontSize: '32px', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {analytics.avgStay?.avg_hours || '3.8'}<span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-muted)', marginLeft: '2px' }}>h</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#8e8e8e' }}>Promedio diario por persona</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Promedio diario por persona</div>
                   </div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#3b82f6', padding: '3px 8px', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.12)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: isLight ? '#002855' : '#3b82f6', padding: '3px 8px', borderRadius: '4px', backgroundColor: isLight ? '#eff6ff' : 'rgba(59, 130, 246, 0.12)' }}>
                     {analytics.avgStay?.users_count || 13} reingresos
                   </div>
                 </div>
@@ -1282,24 +1366,25 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <GaugeIcon size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Tasa de Aprobación</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tasa de Aprobación</span>
                 </div>
-                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+                <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
               <div className="grafana-panel-body">
                 <GrafanaRadialGauge
                   value={stats.successRate}
                   label={`${stats.grantedToday} autorizados de ${stats.totalToday}`}
+                  isLight={isLight}
                 />
               </div>
             </div>
 
-            {/* 6. TimeSeries: Curva de Afluencia y Picos (Verde y Rojo) */}
+            {/* 6. TimeSeries: Curva de Afluencia y Picos */}
             <div key="panel_timeseries" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <TrendingUp size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Curva de Afluencia y Detección de Picos</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Curva de Afluencia y Detección de Picos</span>
                 </div>
                 <div style={{ display: 'flex', gap: '5px' }}>
                   <button
@@ -1310,9 +1395,9 @@ export const Dashboard = () => {
                       fontSize: '11px',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      border: timeGranularity === 'hour' ? '1px solid #22c55e' : '1px solid #22252b',
-                      backgroundColor: timeGranularity === 'hour' ? 'rgba(34, 197, 94, 0.16)' : '#181b1f',
-                      color: timeGranularity === 'hour' ? '#22c55e' : '#8e8e8e'
+                      border: timeGranularity === 'hour' ? '1px solid #22c55e' : '1px solid var(--border)',
+                      backgroundColor: timeGranularity === 'hour' ? (isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.16)') : 'var(--bg-tertiary)',
+                      color: timeGranularity === 'hour' ? (isLight ? '#15803d' : '#22c55e') : 'var(--text-muted)'
                     }}
                   >
                     Por hora
@@ -1325,9 +1410,9 @@ export const Dashboard = () => {
                       fontSize: '11px',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      border: timeGranularity === 'minute' ? '1px solid #22c55e' : '1px solid #22252b',
-                      backgroundColor: timeGranularity === 'minute' ? 'rgba(34, 197, 94, 0.16)' : '#181b1f',
-                      color: timeGranularity === 'minute' ? '#22c55e' : '#8e8e8e'
+                      border: timeGranularity === 'minute' ? '1px solid #22c55e' : '1px solid var(--border)',
+                      backgroundColor: timeGranularity === 'minute' ? (isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.16)') : 'var(--bg-tertiary)',
+                      color: timeGranularity === 'minute' ? (isLight ? '#15803d' : '#22c55e') : 'var(--text-muted)'
                     }}
                   >
                     Por minuto
@@ -1341,14 +1426,14 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 7. Stacked Bar Chart: Volumen Histórico Semanal (Verde / Rojo) */}
+            {/* 7. Stacked Bar Chart: Volumen Histórico Semanal */}
             <div key="panel_weekly_stacked" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <BarChart3 size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Volumen Semanal Comparativo (Día a Día)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Volumen Semanal Comparativo (Día a Día)</span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Últimos 7 días</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Últimos 7 días</span>
               </div>
               <div className="grafana-panel-body">
                 <div style={{ height: '100%', minHeight: '180px' }}>
@@ -1357,17 +1442,17 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 8. Comparativa Directa: Hoy vs Ayer (Azul Institucional) */}
+            {/* 8. Comparativa Directa: Hoy vs Ayer */}
             <div key="panel_today_vs_yesterday" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <SlidersHorizontal size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Comparativa Directa: Hoy vs Ayer</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Comparativa Directa: Hoy vs Ayer</span>
                 </div>
-                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+                <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
               <div className="grafana-panel-body">
-                <GrafanaComparisonBar comparison={analytics.comparison} />
+                <GrafanaComparisonBar comparison={analytics.comparison} isLight={isLight} />
               </div>
             </div>
 
@@ -1376,46 +1461,31 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <GraduationCap size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Estudiantes por Carrera (Bar Gauge)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Estudiantes por Carrera (Bar Gauge)</span>
                 </div>
                 <span style={{ fontSize: '11.5px', color: '#22c55e', fontWeight: 600 }}>
                   {totalStudentsInCampus} alumnos en campus
                 </span>
               </div>
               <div className="grafana-panel-body">
-                <GrafanaBarGauge items={studentsPrograms} total={totalStudentsInCampus} />
+                <GrafanaBarGauge items={studentsPrograms} total={totalStudentsInCampus} isLight={isLight} />
               </div>
             </div>
 
-            {/* 10. Donut Chart: Distribución por Bloque (Paleta Armónica) */}
+            {/* 10. Donut Chart: Distribución por Bloque */}
             <div key="panel_blocks_donut" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Building2 size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Distribución por Bloque</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Distribución por Bloque</span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalBlockAccesses}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Total: {totalBlockAccesses}</span>
               </div>
               <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
                   <Doughnut
                     data={bloquesData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            color: '#ffffff',
-                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
-                            boxWidth: 10,
-                            boxHeight: 10,
-                            usePointStyle: true
-                          }
-                        }
-                      }
-                    }}
+                    options={doughnutOptions}
                   />
                 </div>
               </div>
@@ -1426,30 +1496,15 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <PieChart size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Tráfico por Tipo de Espacio</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Tráfico por Tipo de Espacio</span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalSpaces}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Total: {totalSpaces}</span>
               </div>
               <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
                   <Doughnut
                     data={spacesChartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            color: '#ffffff',
-                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
-                            boxWidth: 10,
-                            boxHeight: 10,
-                            usePointStyle: true
-                          }
-                        }
-                      }
-                    }}
+                    options={doughnutOptions}
                   />
                 </div>
               </div>
@@ -1460,12 +1515,12 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <AlertTriangle size={15} style={{ color: '#ef4444' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Auditoría de Infracciones (Pareto)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Auditoría de Infracciones (Pareto)</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600 }}>Causas principales</span>
               </div>
               <div className="grafana-panel-body">
-                <GrafanaDenialPareto reasons={analytics.denialReasons} />
+                <GrafanaDenialPareto reasons={analytics.denialReasons} isLight={isLight} />
               </div>
             </div>
 
@@ -1474,7 +1529,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Filter size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Embudo de Control de Acceso</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Embudo de Control de Acceso</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>Tasa 93.9%</span>
               </div>
@@ -1483,6 +1538,7 @@ export const Dashboard = () => {
                   total={stats.totalToday}
                   granted={stats.grantedToday}
                   denied={stats.deniedToday}
+                  isLight={isLight}
                 />
               </div>
             </div>
@@ -1492,7 +1548,7 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <HardDrive size={15} style={{ color: '#22c55e' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Salud de Infraestructura RFID</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Salud de Infraestructura RFID</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: 600 }}>53 Cerraduras</span>
               </div>
@@ -1501,6 +1557,7 @@ export const Dashboard = () => {
                   totalDoors={stats.totalDoors}
                   activeAlerts={stats.activeAlerts}
                   dbHealth={analytics.dbHealth}
+                  isLight={isLight}
                 />
               </div>
             </div>
@@ -1510,12 +1567,12 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Flame size={15} style={{ color: '#f59e0b' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Mapa de Calor de Horas Pico (Heatmap)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Mapa de Calor de Horas Pico (Heatmap)</span>
                 </div>
-                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+                <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
               <div className="grafana-panel-body">
-                <GrafanaHeatmap data={analytics.heatmap} />
+                <GrafanaHeatmap data={analytics.heatmap} isLight={isLight} />
               </div>
             </div>
 
@@ -1524,12 +1581,12 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Layers size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Top Salones y Laboratorios</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Top Salones y Laboratorios</span>
                 </div>
-                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+                <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
               <div className="grafana-panel-body">
-                <GrafanaTopRooms rooms={analytics.topRooms} />
+                <GrafanaTopRooms rooms={analytics.topRooms} isLight={isLight} />
               </div>
             </div>
 
@@ -1538,13 +1595,13 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <DoorClosed size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Puertas Más Transitadas</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Puertas Más Transitadas</span>
                 </div>
-                <GripHorizontal size={14} style={{ color: '#8e8e8e', opacity: 0.6 }} />
+                <GripHorizontal size={14} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
               </div>
               <div className="grafana-panel-body" style={{ overflowY: 'auto', paddingRight: '4px' }}>
                 {(!analytics.topDoors || analytics.topDoors.length === 0) ? (
-                  <div style={{ padding: '30px 16px', textAlign: 'center', color: '#8e8e8e', fontSize: '12px' }}>
+                  <div style={{ padding: '30px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
                     Sin datos de puertas hoy
                   </div>
                 ) : (
@@ -1555,17 +1612,17 @@ export const Dashboard = () => {
                       return (
                         <div key={door.id || idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                            <span style={{ fontWeight: 600, color: '#ffffff' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                               #{idx + 1} {door.door_name || door.name}
                             </span>
                             <span style={{ color: '#2563eb', fontWeight: 700 }}>
                               {door.count} accesos
                             </span>
                           </div>
-                          <div style={{ fontSize: '11px', color: '#8e8e8e' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                             {door.room_name} ({door.block_name})
                           </div>
-                          <div style={{ height: '6px', backgroundColor: '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ height: '6px', backgroundColor: isLight ? '#e2e8f0' : '#22252b', borderRadius: '3px', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${Math.max(pct, 2)}%`, backgroundColor: '#2563eb', borderRadius: '3px' }} />
                           </div>
                         </div>
@@ -1581,30 +1638,15 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Users size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Distribución por Rol Institucional</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Distribución por Rol Institucional</span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#8e8e8e' }}>Total: {totalRoles}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Total: {totalRoles}</span>
               </div>
               <div className="grafana-panel-body" style={{ alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ height: '100%', width: '100%', minHeight: '190px' }}>
                   <Doughnut
                     data={rolesChartData}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            color: '#ffffff',
-                            font: { family: 'var(--font-ui)', size: 11, weight: '600' },
-                            boxWidth: 10,
-                            boxHeight: 10,
-                            usePointStyle: true
-                          }
-                        }
-                      }
-                    }}
+                    options={doughnutOptions}
                   />
                 </div>
               </div>
@@ -1615,9 +1657,9 @@ export const Dashboard = () => {
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Clock size={15} style={{ color: '#2563eb' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>Registro de Transacciones en Tiempo Real (Loki Table)</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Registro de Transacciones en Tiempo Real (Loki Table)</span>
                 </div>
-                <Link to="/logs" style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Link to="/logs" style={{ fontSize: '12px', color: '#2563eb', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                   <span>Auditoría completa</span>
                   <ChevronRight size={13} />
                 </Link>
@@ -1640,7 +1682,7 @@ export const Dashboard = () => {
                   <tbody>
                     {recentLogs.map((log, idx) => (
                       <tr key={log.id || idx}>
-                        <td style={{ padding: '8px 12px', color: '#8e8e8e', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                           {formatTime(log.timestamp)}
                         </td>
                         <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
@@ -1649,32 +1691,32 @@ export const Dashboard = () => {
                             borderRadius: '3px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            backgroundColor: log.granted ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: log.granted ? '#22c55e' : '#ef4444',
-                            border: `1px solid ${log.granted ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                            backgroundColor: log.granted ? (isLight ? '#ecfdf5' : 'rgba(34, 197, 94, 0.15)') : (isLight ? '#fef2f2' : 'rgba(239, 68, 68, 0.15)'),
+                            color: log.granted ? (isLight ? '#065f46' : '#22c55e') : (isLight ? '#991b1b' : '#ef4444'),
+                            border: `1px solid ${log.granted ? (isLight ? '#a7f3d0' : 'rgba(34, 197, 94, 0.35)') : (isLight ? '#fecaca' : 'rgba(239, 68, 68, 0.35)')}`
                           }}>
                             {log.granted ? 'AUTORIZADO' : 'DENEGADO'}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           {log.door_name || `Acceso #${log.door_id}`}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#d8d9da', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                           {log.room_name || '—'}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#ffffff', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           {log.user_name || 'No enrolado'}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#3b82f6', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', color: '#2563eb', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {log.user_program && log.user_program !== '—' ? log.user_program : 'General'}
                         </td>
-                        <td style={{ padding: '8px 12px', color: '#8e8e8e', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-muted)', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
                           {log.role_name || 'Estudiante'}
                         </td>
-                        <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: isLight ? '#0f172a' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {log.rfid_uid_raw || '—'}
                         </td>
-                        <td style={{ padding: '8px 12px', color: log.granted ? '#8e8e8e' : '#ef4444', fontSize: '12px' }}>
+                        <td style={{ padding: '8px 12px', color: log.granted ? 'var(--text-muted)' : (isLight ? '#b91c1c' : '#ef4444'), fontSize: '12px' }}>
                           {log.granted ? 'Acceso concedido' : (log.denial_reason || 'Rechazado')}
                         </td>
                       </tr>

@@ -113,6 +113,10 @@ export const Monitor = () => {
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
+      const doorId = data.door?.id || (data.door ? parseInt(data.door.id, 10) : null);
+      if (doorId) {
+        setHardwareSensors(prev => ({ ...prev, [doorId]: true }));
+      }
       handleScanResult({
         granted: data.granted,
         denial_reason: data.denialReason,
@@ -132,7 +136,7 @@ export const Monitor = () => {
 
     // Si llega un heartbeat del hardware
     if (event.type === 'hardware_heartbeat' || event.type === 'door_status') {
-      const doorId = event.data?.doorId;
+      const doorId = event.data?.doorId || (event.data?.door?.id);
       if (doorId) {
         setHardwareSensors(prev => ({ ...prev, [doorId]: true }));
       }
@@ -200,7 +204,11 @@ export const Monitor = () => {
           if (scan.id !== lastSeenLogIdRef.current) {
             lastSeenLogIdRef.current = scan.id;
             const scanTime = new Date(scan.timestamp).getTime();
-            if (Date.now() - scanTime < 30000) {
+            if (Date.now() - scanTime < 90000) {
+              const doorId = scan.door?.id || scan.door_id;
+              if (doorId) {
+                setHardwareSensors(prev => ({ ...prev, [doorId]: true }));
+              }
               handleScanResult(scan);
               return;
             }
@@ -219,7 +227,10 @@ export const Monitor = () => {
             if (latest.id !== lastSeenLogIdRef.current) {
               lastSeenLogIdRef.current = latest.id;
               const logTime = new Date(latest.timestamp).getTime();
-              if (Date.now() - logTime < 30000) {
+              if (Date.now() - logTime < 90000) {
+                if (latest.door_id) {
+                  setHardwareSensors(prev => ({ ...prev, [latest.door_id]: true }));
+                }
                 handleScanResult({
                   granted: latest.granted,
                   denial_reason: latest.denial_reason,
@@ -249,27 +260,32 @@ export const Monitor = () => {
   }, [isWsConnected]);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchDoorsAndStatus = async () => {
       try {
         const res = await apiClient('/doors');
+        if (!isMounted) return;
         if (res.success && res.data.length > 0) {
           setDoors(res.data);
-          setSelectedDoorId(res.data[0].id.toString());
+          setSelectedDoorId(prev => prev || res.data[0].id.toString());
 
-          // El sensor solo pasa a VERDE si hay latidos reales de hardware en los últimos 30s
-          const sensorMap = {};
-          res.data.forEach(d => {
-            sensorMap[d.id] = Boolean(d.is_hardware_active);
+          // El sensor pasa a VERDE si hay latidos reales de hardware en los últimos 90s
+          setHardwareSensors(prev => {
+            const next = { ...prev };
+            res.data.forEach(d => {
+              next[d.id] = Boolean(d.is_hardware_active);
+            });
+            return next;
           });
-          setHardwareSensors(sensorMap);
         }
 
-        // Consultar último escaneo: solo marca verde si ocurrió hace menos de 30 segundos
+        // Consultar último escaneo: marca verde si ocurrió recientemente
         try {
           const latestRes = await apiClient('/access/latest');
+          if (!isMounted) return;
           if (latestRes.success && latestRes.data && latestRes.data.door?.id) {
             const scanTime = new Date(latestRes.data.timestamp).getTime();
-            if (Date.now() - scanTime < 30000) {
+            if (Date.now() - scanTime < 90000) {
               setHardwareSensors(prev => ({ ...prev, [latestRes.data.door.id]: true }));
             }
           }
@@ -278,7 +294,15 @@ export const Monitor = () => {
         console.error('Error cargando puertas:', err);
       }
     };
+
     fetchDoorsAndStatus();
+    const interval = setInterval(fetchDoorsAndStatus, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
 
     return () => {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
@@ -304,9 +328,10 @@ export const Monitor = () => {
 
   const selectedDoor = doors.find(d => d.id.toString() === selectedDoorId);
   const currentDoorId = parseInt(selectedDoorId, 10) || 1;
-  const isSensorDetected = hardwareSensors[currentDoorId] !== undefined
-    ? hardwareSensors[currentDoorId]
-    : (selectedDoor?.status === 'online');
+  const isSensorDetected = Boolean(
+    hardwareSensors[currentDoorId] ||
+    selectedDoor?.is_hardware_active
+  );
 
   return (
     <div>

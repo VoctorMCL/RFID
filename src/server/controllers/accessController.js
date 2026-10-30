@@ -212,6 +212,13 @@ const validateAccess = async (req, res) => {
       alarm: alarmDetails
     };
 
+    wsService.broadcast('hardware_heartbeat', {
+      doorId: door.id,
+      doorName: door.name,
+      status: 'online',
+      timestamp: logEntry.timestamp
+    });
+
     wsService.broadcast('access_attempt', {
       logId: logEntry.id,
       granted,
@@ -325,7 +332,7 @@ const getStats = async (req, res) => {
       db.query(`SELECT COUNT(*)::int as count FROM doors`),
       db.query(`SELECT COUNT(*)::int as count FROM rooms`),
       db.query(`SELECT COUNT(*)::int as count FROM blocks`),
-      db.query(`SELECT COUNT(*)::int as count FROM doors WHERE last_heartbeat IS NOT NULL AND last_heartbeat > NOW() - INTERVAL '30 seconds'`),
+      db.query(`SELECT COUNT(*)::int as count FROM doors WHERE last_heartbeat IS NOT NULL AND last_heartbeat > NOW() - INTERVAL '90 seconds'`),
       db.query(`
         SELECT b.id, b.name, COUNT(l.id)::int as count
         FROM blocks b

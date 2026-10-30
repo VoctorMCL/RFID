@@ -38,8 +38,11 @@ export const Topbar = () => {
     else setThemeMode('auto');
   };
 
+  const lastActivityRef = React.useRef(0);
+
   const handleWsEvent = (event) => {
     if (event.type === 'hardware_heartbeat' || event.type === 'access_attempt') {
+      lastActivityRef.current = Date.now();
       setIsSensorActive(true);
       if (event.data?.door?.name) {
         setActiveSensorDoor(event.data.door.name);
@@ -58,19 +61,26 @@ export const Topbar = () => {
         const res = await apiClient('/doors');
         if (!isMounted) return;
         if (res.success && Array.isArray(res.data)) {
-          // Un sensor de hardware está activo si alguna puerta reportó actividad en los últimos 30s
+          // Un sensor de hardware está activo si alguna puerta reportó actividad reciente
           const activeDoor = res.data.find(d => d.is_hardware_active);
           if (activeDoor) {
+            lastActivityRef.current = Date.now();
             setIsSensorActive(true);
             setActiveSensorDoor(activeDoor.name);
           } else {
-            setIsSensorActive(false);
-            setActiveSensorDoor(null);
+            const hasRecentActivity = (Date.now() - lastActivityRef.current) < 90000;
+            if (!hasRecentActivity) {
+              setIsSensorActive(false);
+              setActiveSensorDoor(null);
+            }
           }
         }
       } catch (e) {
         if (isMounted) {
-          setIsSensorActive(false);
+          const hasRecentActivity = (Date.now() - lastActivityRef.current) < 90000;
+          if (!hasRecentActivity) {
+            setIsSensorActive(false);
+          }
         }
       }
     };

@@ -14,7 +14,7 @@ const getDoors = async (req, res) => {
              r.security_status as room_security_status,
              b.name as block_name,
              CASE
-               WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '30 seconds' THEN true
+               WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '90 seconds' THEN true
                ELSE false
              END as is_hardware_active
       FROM doors d
@@ -48,7 +48,7 @@ const getDoorById = async (req, res) => {
               r.security_status as room_security_status,
               b.name as block_name,
               CASE
-                WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '30 seconds' THEN true
+                WHEN d.last_heartbeat IS NOT NULL AND d.last_heartbeat > NOW() - INTERVAL '90 seconds' THEN true
                 ELSE false
               END as is_hardware_active
        FROM doors d
@@ -169,7 +169,12 @@ const heartbeat = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Puerta no encontrada' });
     }
 
-    wsService.broadcast('hardware_heartbeat', { doorId: id, status: 'online' });
+    wsService.broadcast('hardware_heartbeat', {
+      doorId: id,
+      doorName: result.rows[0].name,
+      status: 'online',
+      timestamp: new Date().toISOString()
+    });
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Error al registrar heartbeat: ' + error.message });
