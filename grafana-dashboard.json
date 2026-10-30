@@ -134,6 +134,18 @@
       "title": "Curva de Afluencia y Detección de Picos",
       "type": "timeseries",
       "gridPos": { "x": 4, "y": 3, "w": 8, "h": 7 },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Autorizados" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Denegados" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
       "targets": [
         {
           "rawSql": "SELECT DATE_TRUNC('hour', timestamp AT TIME ZONE 'America/Bogota') as \"time\", COUNT(CASE WHEN granted THEN 1 END) as \"Autorizados\", COUNT(CASE WHEN NOT granted THEN 1 END) as \"Denegados\" FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date GROUP BY 1 ORDER BY 1;",
