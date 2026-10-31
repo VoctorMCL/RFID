@@ -64,37 +64,73 @@ Content-Type: application/json
 
 ---
 
-## 4. Flujo de Autenticación JWT
+## 4. Métodos de Inicio de Sesión y Control de Sesión Única
+
+### 4.1 Autenticación Física Directa por Tarjeta RFID (`POST /api/auth/rfid-login`)
+Es el método preferente en el **Terminal RADAR**:
+1. El usuario acerca su carnet RFID al sensor físico (MFRC522 / detector USB de cuña).
+2. El sistema captura el UID hexadecimal y lo envía al endpoint `/api/auth/rfid-login`.
+3. El backend verifica la existencia de la tarjeta en `rfid_cards` y valida que el usuario titular tenga rol `admin`, `rector`, `celador` o `security`.
+4. Si la tarjeta pertenece a un rol no administrativo (estudiante/docente), se deniega con código 403.
+5. Si es autorizado, se genera un identificador de sesión único (`active_session_id`), se revoca cualquier sesión previa y se emite el token JWT con expiración estricta de 4 horas.
+
+### 4.2 Control Estricto de Sesión Única por Puesto (`active_session_id`)
+Para prevenir suplantaciones y uso compartido no auditado de terminales de portería:
+- Cada inicio de sesión exitoso genera un UUID criptográfico registrado en la columna `users.active_session_id` de PostgreSQL.
+- Dicho identificador viaja embebido dentro del payload del JWT.
+- En cada petición HTTP, el middleware `authenticate` coteja que `decoded.sessionId === user.active_session_id`.
+- Si el celador o administrador inicia sesión en otra estación, la sesión anterior finaliza instantáneamente con el error `SESSION_TERMINATED`.
+
+### 4.3 Cierre Automático por Inactividad (15 Minutos)
+El contexto `AuthContext.jsx` escucha eventos de interacción (`mousemove`, `keydown`, `touchstart`, `scroll`). Si transcurren 15 minutos continuos sin actividad:
+1. Se limpia el estado local y se remueve el token.
+2. Se notifica al backend vía `POST /api/auth/logout`.
+3. El sistema redirige automáticamente a la pantalla de acceso con el aviso: *"Su sesión ha finalizado automáticamente por 15 minutos de inactividad"*.
+
+### 4.4 Botón de Demostración para Pruebas Rápidas
+En la interfaz del Terminal RADAR se incluye el botón **Entrar como administrador (demo)**, que permite a docentes, evaluadores y desarrolladores ingresar a la consola administrativa de forma instantánea sin requerir un hardware de lectura RFID conectado.
+
+---
+
+## 5. Diagrama de Secuencia de Autenticación
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as Celador / Administrador
-    participant Web as React SPA (/login)
+    participant Web as Terminal RADAR (Login.jsx)
     participant AuthCtrl as authController.js
-    participant DB as PostgreSQL / MemoryDb
+    participant DB as PostgreSQL (Supabase)
     participant Middleware as auth.js (Middleware)
 
-    User->>Web: Clic en "Celador" o ingresa credenciales
-    Web->>AuthCtrl: POST /api/auth/login { email, password }
-    AuthCtrl->>DB: Busca usuario por email
-    DB-->>AuthCtrl: Retorna usuario + rol
-    
-    alt Rol es estudiante o profesor
-        AuthCtrl-->>Web: 403 Forbidden (Acceso denegado a la plataforma web)
-        Web->>User: Muestra alerta roja + animación de vibración
-    else Rol es Administrador o Celador
-        AuthCtrl->>AuthCtrl: Valida bcrypt.compare(password, hash)
-        AuthCtrl->>AuthCtrl: Genera JWT (HS256, 24 horas)
-        AuthCtrl-->>Web: 200 OK { token, user }
-        Web->>Web: Guarda rfid_token en localStorage
-        Web-->>User: Redirige a /monitor (Celador) o /dashboard (Admin)
+    alt Autenticación Física por Tarjeta RFID
+        User->>Web: Aproxima carnet RFID al sensor
+        Web->>AuthCtrl: POST /api/auth/rfid-login { rfid_uid }
+        AuthCtrl->>DB: SELECT * FROM rfid_cards JOIN users... WHERE uid = $1
+    else Credenciales de Contingencia / Demo
+        User->>Web: Clic en "Entrar como administrador (demo)"
+        Web->>AuthCtrl: POST /api/auth/login { email: "admin", password: "acceso2026" }
+        AuthCtrl->>DB: SELECT * FROM users WHERE email = $1
     end
 
-    Note over Web,Middleware: En solicitudes posteriores:
+    DB-->>AuthCtrl: Retorna registro de usuario y rol
+
+    alt Rol es estudiante o profesor
+        AuthCtrl-->>Web: 403 Forbidden (Solo validan en puertas físicas)
+        Web->>User: Muestra tarjeta roja + onda de advertencia
+    else Rol es Administrador o Celador
+        AuthCtrl->>DB: UPDATE users SET active_session_id = $newSession
+        AuthCtrl->>AuthCtrl: Genera JWT (HS256, 4 horas, sessionId)
+        AuthCtrl-->>Web: 200 OK { token, sessionId, user }
+        Web->>Web: Guarda token en localStorage e inicia temporizador de inactividad
+        Web-->>User: Animación líquida + Redirección a Monitor / Dashboard
+    end
+
+    Note over Web,Middleware: En solicitudes protegidas posteriores:
     Web->>Middleware: GET /api/doors [Authorization: Bearer <token>]
-    Middleware->>Middleware: jwt.verify(token, JWT_SECRET)
-    Middleware-->>Web: 200 OK [Datos de puertas]
+    Middleware->>DB: Comprueba active_session_id == decoded.sessionId
+    DB-->>Middleware: Sesión válida coincidente
+    Middleware-->>Web: 200 OK [Datos protegidos]
 ```
 
 ---

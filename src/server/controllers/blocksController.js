@@ -3,6 +3,12 @@
 // ===================================================================
 const db = require('../config/db');
 
+/**
+ * Consulta la lista de bloques institucionales y el conteo de salas en cada uno
+ * @route GET /api/blocks
+ * @param {import('express').Request} req - Petición
+ * @param {import('express').Response} res - Listado de bloques
+ */
 const getBlocks = async (req, res) => {
   try {
     const result = await db.query(
@@ -18,6 +24,12 @@ const getBlocks = async (req, res) => {
   }
 };
 
+/**
+ * Consulta el detalle de un bloque institucional por su ID
+ * @route GET /api/blocks/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Datos del bloque
+ */
 const getBlockById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -31,6 +43,12 @@ const getBlockById = async (req, res) => {
   }
 };
 
+/**
+ * Registra un nuevo bloque en el campus universitario
+ * @route POST /api/blocks
+ * @param {import('express').Request} req - Datos del bloque
+ * @param {import('express').Response} res - Bloque creado
+ */
 const createBlock = async (req, res) => {
   try {
     const { name, description, location_info } = req.body;
@@ -47,6 +65,12 @@ const createBlock = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza los datos de un bloque institucional
+ * @route PUT /api/blocks/:id
+ * @param {import('express').Request} req - Petición con ID y campos a actualizar
+ * @param {import('express').Response} res - Bloque actualizado
+ */
 const updateBlock = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -69,6 +93,12 @@ const updateBlock = async (req, res) => {
   }
 };
 
+/**
+ * Elimina un bloque institucional de la base de datos
+ * @route DELETE /api/blocks/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Confirmación de eliminación
+ */
 const deleteBlock = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

@@ -6,6 +6,23 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ---
 
+## [2.2.0] - 2026-10-30
+
+### ✨ Añadido
+- **Terminal RADAR de Acceso:** Interfaz split-screen inmersiva con barrido de radar animado, ondas líquidas SVG multicapa, detección automática de tarjetas físicas y botón interactivo para acceso de prueba (demo).
+- **Módulo de Pases de Visitantes y Préstamos Temporales:** Nueva entidad `visitor_passes` y endpoints `/api/visitor-passes` para emitir pases con vinculación obligatoria de tarjeta RFID física, control de motivo, seguimiento de destino y registro de devolución.
+- **Telemetría Avanzada para Grafana:** Endpoint `/api/access/analytics` con métricas por minuto/hora, distribución de estudiantes por carrera, flujo por bloques, mapa de calor semanal y pareto de causas de denegación.
+- **Tablero Oficial de Grafana:** Archivo `grafana-dashboard.json` listo para importar en instancias institucionales de Grafana.
+- **Control Estricto de Sesión Única:** Generación y validación de `active_session_id` por puesto de trabajo que revoca automáticamente tokens previos si se inicia sesión desde otra terminal.
+- **Temporizador de Inactividad:** Cierre de sesión y revocación automática tras 15 minutos continuos sin interacción del usuario.
+- **Documentación JSDoc y Limpieza de Código:** Estandarización de cabeceras JSDoc en todos los controladores y módulos del servidor, eliminación de código muerto y preservación estricta de componentes de demostración (demo).
+
+### 🔄 Modificado
+- **Unificación de Servidor en Puerto 4000:** El servidor Express sirve simultáneamente la API REST, WebSockets y la SPA de React compilada (`dist/`).
+- **Actualización Integral de Documentación:** Sincronización completa de `README.md`, `hardware/README.md`, `docs/ENDPOINTS.md`, `docs/DATABASE.md`, `docs/DATA-DICTIONARY.md`, `docs/AUTH.md` y `docs/USER_MANUAL.md`.
+
+---
+
 ## [2.0.0] - 2026-10-25
 
 ### ✨ Añadido

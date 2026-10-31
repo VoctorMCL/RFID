@@ -900,3 +900,190 @@ input, select, textarea {
   z-index: 100;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
 }
+
+/* ===================================================================
+   Animaciones Fluidas de Onda Líquida y RADAR para Pantalla de Acceso
+   =================================================================== */
+
+@keyframes liquidWaveMove {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-25%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes liquidRiseUp {
+  0% {
+    transform: translateY(102%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 1;
+  }
+}
+
+@keyframes liquidFadeInContent {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes radarSweepSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulseHaloGlow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmerGleam {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.radar-sweep-animate {
+  animation: radarSweepSpin 3.5s linear infinite;
+  transform-origin: center center;
+}
+
+.liquid-wave-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 200%;
+  pointer-events: none;
+}
+
+.liquid-wave-1 {
+  animation: liquidWaveMove 8s cubic-bezier(0.36, 0.45, 0.63, 0.53) infinite;
+}
+
+.liquid-wave-2 {
+  animation: liquidWaveMove 12s cubic-bezier(0.36, 0.45, 0.63, 0.53) -2s infinite;
+  opacity: 0.7;
+}
+
+.liquid-wave-3 {
+  animation: liquidWaveMove 16s cubic-bezier(0.36, 0.45, 0.63, 0.53) -4s infinite;
+  opacity: 0.4;
+}
+
+/* Responsive Split-Screen Layout para Pantalla RADAR */
+.radar-login-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  background-color: #030712;
+  color: #ffffff;
+  overflow: hidden;
+  position: relative;
+  font-family: var(--font-ui);
+}
+
+.radar-login-left {
+  flex: 1 1 50%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 36px 42px;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 20%, #0d1e4a 0%, #06112c 50%, #020717 100%);
+  border-right: 1px solid rgba(56, 189, 248, 0.15);
+}
+
+.radar-login-right {
+  flex: 1 1 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 48px;
+  background-color: #070c18;
+  position: relative;
+  overflow-y: auto;
+}
+
+@media (max-width: 960px) {
+  .radar-login-container {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+  .radar-login-left {
+    min-height: 560px;
+    border-right: none;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+    padding: 24px;
+  }
+  .radar-login-right {
+    min-height: 560px;
+    padding: 28px 24px;
+  }
+}
+
+
+
+/* ===================================================================
+   Botón de acceso de prueba (rol administrador, sin lector RFID)
+   =================================================================== */
+.demo-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 4px auto 20px;
+  padding: 11px 20px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px dashed rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-admin-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  color: #e0f2fe;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+}
+
+.demo-admin-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

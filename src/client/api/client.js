@@ -3,7 +3,10 @@
 // Comunicación Directa contra la API y PostgreSQL / Supabase
 // ===================================================================
 
-// Obtener URL base de la API
+/**
+ * Obtiene la URL base de la API REST respetando configuraciones manuales o variables de entorno
+ * @returns {string} URL base sin barra final
+ */
 export const getApiBase = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('rfid_api_url');
@@ -14,9 +17,17 @@ export const getApiBase = () => {
   return import.meta.env.VITE_API_URL || '/api';
 };
 
-// Roles permitidos en el portal web (solo administradores y seguridad)
+/**
+ * Roles autorizados para operar la consola administrativa y de monitoreo web
+ */
 export const ALLOWED_WEB_ROLES = ['admin', 'celador', 'security', 'rector'];
 
+/**
+ * Cliente HTTP unificado con inyección automática de JWT, soporte de túneles y manejo de 401
+ * @param {string} endpoint - Ruta relativa del endpoint (ej. '/access/logs')
+ * @param {RequestInit} [options] - Opciones de fetch (method, body, headers)
+ * @returns {Promise<any>} Respuesta deserializada en formato JSON
+ */
 export const apiClient = async (endpoint, options = {}) => {
   const token = localStorage.getItem('rfid_token');
 

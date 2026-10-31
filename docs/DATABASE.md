@@ -23,16 +23,17 @@ erDiagram
     USERS ||--o{ RFID_CARDS : "posee"
     USERS ||--o{ SCHEDULES : "tiene asignado"
     USERS ||--o{ ACCESS_LOGS : "genera intentos"
+    USERS ||--o{ VISITOR_PASSES : "emite pase a"
     
     BLOCKS ||--o{ ROOMS : "contiene"
     ROOMS ||--o{ DOORS : "tiene instaladas"
     ROOMS ||--o{ SCHEDULES : "aloja clases en"
     ROOMS ||--o{ ALERTS : "dispara alertas en"
-    ROOMS ||--o| ALARM_ZONES : "configura perimetro"
     
     DOORS ||--o{ ACCESS_LOGS : "valida en"
     DOORS ||--o{ ALERTS : "origen sensor en"
     RFID_CARDS ||--o{ ACCESS_LOGS : "presentada en"
+    RFID_CARDS ||--o{ VISITOR_PASSES : "vinculada a"
 
     ROLES {
         int id PK
@@ -51,11 +52,16 @@ erDiagram
         string password_hash
         string document_id UK
         int role_id FK
+        string photo_url
         string program
         string phone
         string status
         date access_expiry
+        string active_session_id
+        timestamp last_login_at
+        text last_login_device
         timestamp created_at
+        timestamp updated_at
     }
 
     BLOCKS {
@@ -74,11 +80,10 @@ erDiagram
         int floor
         string room_type
         boolean has_alarm
-        boolean has_camera
-        int motion_sensors
-        int door_sensors
         string security_status
         text description
+        boolean is_active
+        timestamp created_at
     }
 
     DOORS {
@@ -91,6 +96,7 @@ erDiagram
         string status
         boolean is_locked
         timestamp last_heartbeat
+        timestamp created_at
     }
 
     RFID_CARDS {
@@ -101,6 +107,7 @@ erDiagram
         boolean is_active
         string label
         timestamp enrolled_at
+        timestamp deactivated_at
     }
 
     SCHEDULES {
@@ -113,6 +120,7 @@ erDiagram
         string semester
         string subject_name
         boolean is_active
+        timestamp created_at
     }
 
     ACCESS_LOGS {
@@ -143,14 +151,21 @@ erDiagram
         boolean email_sent
     }
 
-    ALARM_ZONES {
+    VISITOR_PASSES {
         int id PK
-        int room_id FK
-        string zone_name
-        boolean requires_security_clearance
-        time auto_arm_time
-        time auto_disarm_time
-        boolean is_armed
+        string card_uid FK
+        string person_type
+        string full_name
+        string document_id
+        string phone
+        string destination
+        text reason
+        text missing_card_reason
+        int issued_by FK
+        timestamp entry_time
+        timestamp exit_time
+        string status
+        text notes
     }
 ```
 
@@ -174,9 +189,15 @@ Almacena directivas, docentes, alumnos y vigilantes.
 - `password_hash` (VARCHAR(255) NOT NULL): Hash `bcrypt` para autenticación web (solo Admin y Celador).
 - `document_id` (VARCHAR(50) UNIQUE NOT NULL): Cédula de ciudadanía o tarjeta de identidad.
 - `role_id` (INTEGER REFERENCES roles(id) ON DELETE RESTRICT)
+- `photo_url` (TEXT): URL o DataURI de la fotografía del titular para validación biométrica visual en pantalla.
 - `program` (VARCHAR(200)): Programa académico (ej. *"Ingeniería de Software"*).
+- `phone` (VARCHAR(30)): Teléfono de contacto institucional.
 - `status` (VARCHAR(20) DEFAULT 'active'): `'active'`, `'inactive'`, `'suspended'`.
-- `access_expiry` (DATE): Fecha de expiración (útil para visitantes temporales).
+- `access_expiry` (DATE): Fecha límite de validez del carnet.
+- `active_session_id` (VARCHAR(100)): Identificador UUID de sesión activa única en navegador/estación.
+- `last_login_at` (TIMESTAMPTZ): Fecha y hora del último acceso exitoso.
+- `last_login_device` (TEXT): Cadena de agente de usuario o terminal de acceso.
+- `created_at`, `updated_at` (TIMESTAMPTZ DEFAULT NOW())
 
 ### 3.3 `blocks` — Bloques del Campus
 Representa los edificios universitarios.
@@ -260,6 +281,23 @@ Incidentes de seguridad y alarmas físicas.
 - `resolved_at` (TIMESTAMPTZ)
 - `resolution_note` (TEXT)
 - `email_sent` (BOOLEAN DEFAULT FALSE)
+
+### 3.10 `visitor_passes` — Pases de Visitantes y Préstamos Temporales RFID
+Registro de préstamo físico de tarjetas y custodia de visitantes en portería.
+- `id` (SERIAL PRIMARY KEY)
+- `card_uid` (VARCHAR(50) NOT NULL REFERENCES rfid_cards(uid) ON DELETE CASCADE): UID de la tarjeta temporal física entregada.
+- `person_type` (VARCHAR(30) NOT NULL): `'visitor'`, `'contractor'`, `'student'` (estudiante sin carnet).
+- `full_name` (VARCHAR(150) NOT NULL): Nombre completo de la persona.
+- `document_id` (VARCHAR(50) NOT NULL): Cédula o pasaporte.
+- `phone` (VARCHAR(30)): Teléfono de contacto.
+- `destination` (VARCHAR(150) NOT NULL): Área o dependencia destino en el campus.
+- `reason` (TEXT NOT NULL): Motivo justificado del ingreso.
+- `missing_card_reason` (TEXT): Para estudiantes, justificación del no porte de su carnet oficial.
+- `issued_by` (INTEGER REFERENCES users(id) ON DELETE SET NULL): Celador que autorizó y expidió el préstamo.
+- `entry_time` (TIMESTAMPTZ DEFAULT NOW()): Fecha y hora de ingreso al campus.
+- `exit_time` (TIMESTAMPTZ): Fecha y hora en que devolvió la tarjeta física en portería.
+- `status` (VARCHAR(20) DEFAULT 'active'): `'active'` (en campus), `'returned'` (devuelto).
+- `notes` (TEXT): Observaciones adicionales.
 
 ---
 

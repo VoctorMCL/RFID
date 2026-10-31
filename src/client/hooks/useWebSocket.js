@@ -3,6 +3,11 @@
 // ===================================================================
 import { useState, useEffect, useRef } from 'react';
 
+/**
+ * Hook para gestión de conexión persistente WebSocket con reconexión automática y detección de despliegues cloud
+ * @param {(message: any) => void} [onMessageCallback] - Callback opcional para procesamiento de eventos entrantes
+ * @returns {{ isConnected: boolean, lastMessage: any, sendMessage: (data: any) => void }}
+ */
 export const useWebSocket = (onMessageCallback) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);

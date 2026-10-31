@@ -14,6 +14,9 @@ const isCloud = databaseUrl &&
   !databaseUrl.includes('localhost') &&
   !databaseUrl.includes('127.0.0.1');
 
+/**
+ * Pool de conexiones a PostgreSQL / Supabase
+ */
 const pool = new Pool({
   connectionString: databaseUrl,
   connectionTimeoutMillis: 12000,
@@ -36,7 +39,15 @@ pool.query('SELECT NOW() as server_time', (err, res) => {
   }
 });
 
+/**
+ * Ejecuta una consulta SQL parametrizada sobre el pool de PostgreSQL
+ * @param {string} text - Sentencia SQL con placeholders $1, $2, etc.
+ * @param {Array<any>} [params] - Parámetros de la consulta
+ * @returns {Promise<import('pg').QueryResult>}
+ */
+const query = (text, params) => pool.query(text, params);
+
 module.exports = {
   pool,
-  query: (text, params) => pool.query(text, params)
+  query
 };

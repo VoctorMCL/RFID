@@ -80,10 +80,14 @@ python3 hardware/lector_rfid.py --uid
 
 | Bandera | Descripción | Valor por Defecto |
 |---------|-------------|-------------------|
+| `--server <url>` | URL base del servidor backend o endpoint | `https://rfid.victormcl.me/api/access/validate` (o `http://localhost:4000`) |
 | `--door <id>` | ID de la puerta según la base de datos | `1` |
-| `--server <url>` | URL base del servidor backend | `http://localhost:4000` |
-| `--uid` | Diagnóstico: imprime UID sin validar en API | `false` |
-| `--delay <seg>` | Tiempo mínimo entre lecturas consecutivas | `1.5` s |
+| `--uid` | Diagnóstico: imprime UID sin enviar HTTP | `false` |
+
+### Telemetría de Presencia en Segundo Plano (Heartbeat)
+El script `lector_rfid.py` inicia de forma autónoma un hilo en segundo plano (`threading.Thread`) que emite un pulso HTTP cada 8 segundos a:
+`POST /api/doors/<door_id>/heartbeat`
+Esto actualiza dinámicamente el campo `last_heartbeat` en PostgreSQL y activa el indicador verde `🟢 Sensor RFID Conectado` en la consola de monitoreo del celador.
 
 ---
 

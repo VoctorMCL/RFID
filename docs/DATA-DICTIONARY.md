@@ -37,6 +37,9 @@ Cuentas y perfiles del personal directivo, docente, administrativo, estudiantil 
 | `phone` | VARCHAR(30) | SÍ | NULL | — | Teléfono celular de contacto para emergencias. | `'3004567890'` |
 | `status` | VARCHAR(20) | NO | `'active'` | CHECK IN (`'active'`, `'inactive'`, `'suspended'`) | Estado del usuario en el sistema. | `'active'` |
 | `access_expiry` | DATE | SÍ | NULL | — | Fecha de vigencia máxima (usado para visitantes o contratos temporales). | `'2026-12-31'` |
+| `active_session_id` | VARCHAR(100) | SÍ | NULL | — | UUID de sesión web activa (garantiza una sola sesión concurrente). | `'4f9d2a6e-7c31-48e0...'` |
+| `last_login_at` | TIMESTAMPTZ | SÍ | NULL | — | Fecha y hora del último inicio de sesión en el portal web. | `'2026-10-30 19:40:00+00'` |
+| `last_login_device` | TEXT | SÍ | NULL | — | Cadena de identificación de dispositivo o terminal del último acceso. | `'Terminal RADAR Portería'` |
 | `created_at` | TIMESTAMPTZ | NO | `NOW()` | — | Fecha de registro en la plataforma. | `'2026-02-01 09:30:00+00'` |
 | `updated_at` | TIMESTAMPTZ | NO | `NOW()` | — | Última fecha de actualización del registro. | `'2026-02-01 09:30:00+00'` |
 
@@ -159,3 +162,26 @@ Registro y estado de alarmas de intrusión, puertas forzadas e incidentes de seg
 | `resolved_at` | TIMESTAMPTZ | SÍ | NULL | — | Fecha y hora en la que se desarmó la alarma. | `'2026-10-25 14:55:12+00'` |
 | `resolution_note`| TEXT | SÍ | NULL | — | Informe de la causa real (ej. *"Falsa alarma por limpieza"*).| `'Verificado por celador'` |
 | `email_sent` | BOOLEAN | NO | `FALSE` | — | `TRUE` si se remitió con éxito el correo a seguridad. | `TRUE` |
+
+---
+
+## 10. Tabla: `visitor_passes`
+Control de emisión y devolución de pases temporales y préstamos de tarjetas RFID a visitantes, contratistas o estudiantes sin carnet.
+
+| Columna | Tipo de Dato | Nulo | Default | Restricciones | Descripción | Ejemplo |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | SERIAL | NO | auto | PRIMARY KEY | Identificador numérico del pase. | `1` |
+| `card_uid` | VARCHAR(50) | NO | — | FK $\rightarrow$ `rfid_cards(uid)` ON DELETE CASCADE | UID de la tarjeta física temporal entregada. | `'TEMP-01'` |
+| `person_type` | VARCHAR(30) | NO | — | CHECK IN (`'visitor'`, `'contractor'`, `'student'`) | Tipo de persona solicitante. | `'visitor'` |
+| `full_name` | VARCHAR(150) | NO | — | — | Nombre completo del titular temporal. | `'Ana Sofía Restrepo'` |
+| `document_id` | VARCHAR(50) | NO | — | — | Documento oficial de identificación. | `'1020304050'` |
+| `phone` | VARCHAR(30) | SÍ | NULL | — | Teléfono celular de contacto. | `'3129876543'` |
+| `destination` | VARCHAR(150) | NO | — | — | Área o dependencia del campus a la que se dirige. | `'Decanatura de Ingeniería'` |
+| `reason` | TEXT | NO | — | — | Motivo justificado del ingreso temporal. | `'Reunión de convenio interinstitucional'` |
+| `missing_card_reason` | TEXT | SÍ | NULL | — | Justificación obligatoria para estudiantes sin carnet. | `'Olvidó el carnet en su residencia'` |
+| `issued_by` | INTEGER | SÍ | NULL | FK $\rightarrow$ `users(id)` ON DELETE SET NULL | Celador que autorizó y registró el pase. | `2` |
+| `entry_time` | TIMESTAMPTZ | NO | `NOW()` | — | Fecha y hora de ingreso al campus. | `'2026-10-30 08:30:00+00'` |
+| `exit_time` | TIMESTAMPTZ | SÍ | NULL | — | Fecha y hora de devolución de la tarjeta en portería. | `'2026-10-30 11:45:00+00'` |
+| `status` | VARCHAR(20) | NO | `'active'` | CHECK IN (`'active'`, `'returned'`) | Estado del pase (`'active'` = en campus, `'returned'` = devuelto). | `'active'` |
+| `notes` | TEXT | SÍ | NULL | — | Observaciones de seguridad registradas por el celador. | `'Ingreso con laptop corporativo HP'` |
+| `created_at` | TIMESTAMPTZ | NO | `NOW()` | — | Timestamp de auditoría del registro. | `'2026-10-30 08:30:00+00'` |

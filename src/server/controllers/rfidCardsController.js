@@ -3,6 +3,12 @@
 // ===================================================================
 const db = require('../config/db');
 
+/**
+ * Consulta la lista de tarjetas RFID con filtros por estado, tipo y búsqueda de UID/usuario
+ * @route GET /api/rfid-cards
+ * @param {import('express').Request} req - Petición con query params is_active, card_type, search
+ * @param {import('express').Response} res - Listado de tarjetas
+ */
 const getCards = async (req, res) => {
   try {
     const { is_active, card_type, search } = req.query;
@@ -41,6 +47,12 @@ const getCards = async (req, res) => {
   }
 };
 
+/**
+ * Consulta el detalle de una tarjeta RFID por su ID interno
+ * @route GET /api/rfid-cards/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Datos de la tarjeta
+ */
 const getCardById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -61,6 +73,12 @@ const getCardById = async (req, res) => {
   }
 };
 
+/**
+ * Enrola o reasigna una tarjeta física RFID a un usuario institucional
+ * @route POST /api/rfid-cards/enroll (y POST /api/rfid-cards)
+ * @param {import('express').Request} req - Petición con uid, user_id, card_type, label
+ * @param {import('express').Response} res - Tarjeta enrolada
+ */
 const enrollCard = async (req, res) => {
   try {
     const { uid, user_id, card_type = 'standard', label } = req.body;
@@ -73,7 +91,7 @@ const enrollCard = async (req, res) => {
     const userId = user_id ? parseInt(user_id, 10) : null;
 
     if (userId) {
-      // Regla institucional: un estudiante solo puede tener un único UID activo
+      // Regla institucional: un estudiante solo puede tener un único UID activo simultáneamente
       await db.query(
         `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND uid != $2`,
         [userId, cleanUid]
@@ -95,6 +113,12 @@ const enrollCard = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza los datos de asociación o etiqueta de una tarjeta RFID
+ * @route PUT /api/rfid-cards/:id
+ * @param {import('express').Request} req - Petición con ID y campos a actualizar
+ * @param {import('express').Response} res - Tarjeta actualizada
+ */
 const updateCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -102,7 +126,6 @@ const updateCard = async (req, res) => {
     const userId = user_id ? parseInt(user_id, 10) : null;
 
     if (userId && is_active !== false) {
-      // Regla institucional: un estudiante solo puede tener un único UID activo
       await db.query(
         `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND id != $2`,
         [userId, id]
@@ -130,6 +153,12 @@ const updateCard = async (req, res) => {
   }
 };
 
+/**
+ * Desactiva temporalmente una tarjeta RFID por extravío o seguridad
+ * @route PUT /api/rfid-cards/:id/deactivate
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Tarjeta desactivada
+ */
 const deactivateCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -146,6 +175,12 @@ const deactivateCard = async (req, res) => {
   }
 };
 
+/**
+ * Elimina una tarjeta RFID de la base de datos
+ * @route DELETE /api/rfid-cards/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Confirmación de eliminación
+ */
 const deleteCard = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

@@ -101,18 +101,20 @@ pip3 install spidev mfrc522 RPi.GPIO
 ### 4.4 Ejecución del Cliente Python ([`hardware/lector_rfid.py`](file:///home/victormcl/Documents/RFID/hardware/lector_rfid.py))
 
 ```bash
-# 1. Modo Estándar conectado al Backend local (Puerta 1)
+# 1. Modo Estándar conectado al Backend (en la nube o local)
 python3 hardware/lector_rfid.py
 
 # 2. Asignar a una Puerta específica (ej. Puerta 2: Taller de Ingeniería)
 python3 hardware/lector_rfid.py --door 2
 
-# 3. Conectar a un Servidor en la Red del Campus
+# 3. Conectar a un Servidor en la Red Local del Campus
 python3 hardware/lector_rfid.py --server http://192.168.1.100:4000/api/access/validate
 
 # 4. Modo Diagnóstico Offline (Solo imprime UID sin enviar HTTP)
 python3 hardware/lector_rfid.py --uid
 ```
+
+> 💓 **Telemetría Automática (Heartbeat):** El cliente Python arranca un hilo en segundo plano que envía un pulso periódico cada 8 segundos a `POST /api/doors/<door_id>/heartbeat`, manteniendo la puerta con indicador verde `🟢 Sensor RFID Conectado` en la consola de monitoreo del celador.
 
 ### 4.5 Modo Simulación en Consola
 Si el script se ejecuta en una máquina de desarrollo sin cabezal GPIO o sin bus SPI activo, conmuta de forma automática a **modo consola interactiva**:

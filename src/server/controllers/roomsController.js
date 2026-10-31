@@ -3,6 +3,12 @@
 // ===================================================================
 const db = require('../config/db');
 
+/**
+ * Consulta la lista de salas y espacios con filtro opcional por bloque
+ * @route GET /api/rooms
+ * @param {import('express').Request} req - Petición con query param block_id opcional
+ * @param {import('express').Response} res - Listado de salas
+ */
 const getRooms = async (req, res) => {
   try {
     const { block_id } = req.query;
@@ -26,6 +32,12 @@ const getRooms = async (req, res) => {
   }
 };
 
+/**
+ * Consulta el detalle de una sala por su ID
+ * @route GET /api/rooms/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Datos de la sala
+ */
 const getRoomById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -45,6 +57,12 @@ const getRoomById = async (req, res) => {
   }
 };
 
+/**
+ * Registra una nueva sala o laboratorio institucional
+ * @route POST /api/rooms
+ * @param {import('express').Request} req - Datos de la sala
+ * @param {import('express').Response} res - Sala creada
+ */
 const createRoom = async (req, res) => {
   try {
     const { block_id, name, floor = 1, room_type = 'general', has_alarm = false, description } = req.body;
@@ -64,6 +82,12 @@ const createRoom = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza los parámetros o estado de seguridad de una sala
+ * @route PUT /api/rooms/:id
+ * @param {import('express').Request} req - Petición con ID y campos a actualizar
+ * @param {import('express').Response} res - Sala actualizada
+ */
 const updateRoom = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -91,6 +115,12 @@ const updateRoom = async (req, res) => {
   }
 };
 
+/**
+ * Elimina una sala de la base de datos
+ * @route DELETE /api/rooms/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Confirmación de eliminación
+ */
 const deleteRoom = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

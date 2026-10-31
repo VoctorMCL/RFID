@@ -6,23 +6,35 @@
 
 ## 🏛️ Visión y Arquitectura General
 
-El sistema es un ecosistema inteligente de control de acceso físico, gestión de seguridad y articulación horaria institucional diseñado para escalar de forma modular a toda la universidad:
+El sistema es un ecosistema inteligente de control de acceso físico, telemetría en tiempo real, gestión de seguridad y articulación horaria institucional diseñado para la Corporación Universitaria Lasallista:
 
-1. **Gestión Dinámica de Espacios (NO quemados en código):**
+1. **Terminal RADAR de Acceso y Detección:**
+   - Autenticación criptográfica con tarjetas físicas RFID (MFRC522 / Mifare 13.56 MHz).
+   - Interfaz inmersiva Split-Screen con animación de barrido de radar y revelación líquida de identidad al aproximar el carnet.
+   - Soporte universal de lectura: WebSocket en tiempo real, polling resiliente y detectores USB cuña de teclado.
+   - Botón de acceso de prueba (*demo*) para inspección visual sin requerir hardware conectado.
+2. **Gestión Dinámica de Espacios (cero hardcoding):**
    - **Bloques:** Bloque A, Bloque B, Bloque C y Bloque Administrativo.
    - **Salas:** 6 Salas de Informática, Taller de Ingeniería, Biblioteca Central, Decanatura, Financiero y Admisiones.
    - **Puertas Inteligentes:** Configuración de hardware IP y MAC (ej. Puerta Principal y Puerta Lateral hacia Taller de Ingeniería).
-2. **Articulación Horaria (RRHH / Decanatura):** Validación de permisos de acceso de docentes y estudiantes en tiempo real contra los horarios de clase asignados en cada sala.
-3. **Jerarquía Estricta de Roles (RBAC):**
-   - **Administrador:** Control total de la plataforma web, gestión de bloques, salas, puertas, personas y tarjetas.
-   - **Celador / Seguridad:** Monitoreo visual de accesos en tiempo real, validación de ingresos y consola de desarme de alarmas críticas.
+3. **Articulación Horaria (RRHH / Decanatura):** Validación de permisos de acceso de docentes y estudiantes en tiempo real contra los horarios de clase asignados en cada sala (`schedules`).
+4. **Pases de Visitantes y Préstamos Temporales RFID:**
+   - Registro de visitantes externos, contratistas y estudiantes sin carnet con vinculación obligatoria de tarjeta física.
+   - Auditoría de préstamos activos, control de devolución y liberación automática de tarjetas.
+5. **Jerarquía Estricta de Roles (RBAC) y Seguridad:**
+   - **Administrador:** Control total de la plataforma web, gestión de bloques, salas, puertas, personas, horarios y analítica.
+   - **Celador / Seguridad:** Monitoreo visual de accesos en tiempo real, validación de ingresos, registro de pases y consola de desarme de alarmas críticas.
    - **Rectora / Alta Administración:** Acceso total e irrestricto a todas las puertas del campus en cualquier momento.
    - **Profesores:** Acceso condicionado a los horarios de clase programados en las salas específicas mediante carnet RFID (no ingresan a la plataforma web).
-   - **Estudiantes:** Acceso a espacios autorizados (como Biblioteca Central) en franjas horarias válidas mediante carnet RFID (no ingresan a la plataforma web).
-4. **Prototipo Sala de Informática 1 con Alarma Integrada:**
+   - **Estudiantes:** Acceso a espacios autorizados en franjas horarias válidas mediante carnet RFID (no ingresan a la plataforma web).
+   - **Política de Sesión Única:** Solo 1 sesión activa simultánea por estación de trabajo (`active_session_id`).
+   - **Cierre por Inactividad:** Cierre de sesión automático tras 15 minutos sin interacción del usuario.
+6. **Telemetría Avanzada y Dashboard en Grafana:**
+   - Endpoint dedicado de analítica institucional (`/api/access/analytics`).
+   - Dashboard exportado en JSON listo para Grafana (`grafana-dashboard.json`) con métricas por hora, minuto, carrera, calor y afluencia.
+7. **Prototipo Sala de Informática 1 con Alarma Integrada:**
    - 2 Puertas inteligentes con sensores magnéticos y de movimiento.
    - **Lógica de Alarma Crítica:** Si se abre sin desarmado previo desde la central de seguridad, se activa una alarma física y virtual que **únicamente** puede deshabilitarse desde el cuarto de control de seguridad.
-5. **Paleta Monocromática Oscura:** Diseño técnico en grises y tonos neutros, libre de colores saturados distractores en la interfaz de monitoreo.
 
 ---
 
@@ -32,29 +44,29 @@ El sistema es un ecosistema inteligente de control de acceso físico, gestión d
 RFID/
 ├── src/
 │   ├── client/                  # Frontend SPA React 19 + Vite
-│   │   ├── api/client.js        # Cliente HTTP con tolerancia a fallos y fallback local
-│   │   ├── context/AuthContext  # Manejador de sesión y roles institucionales
+│   │   ├── api/client.js        # Cliente HTTP con inyección JWT y tolerancia a fallos
+│   │   ├── context/AuthContext  # Manejador de sesión única, inactividad y roles
 │   │   ├── components/Layout/   # Barra lateral comprimible (Sidebar) y Topbar
 │   │   ├── pages/
-│   │   │   ├── Monitor.jsx      # Escáner RFID, sensor dinámico (rojo/verde) y vibración
+│   │   │   ├── Login.jsx        # Terminal RADAR split-screen con lectura RFID y botón demo
+│   │   │   ├── Monitor.jsx      # Escáner RFID, sensor dinámico (rojo/verde) y telemetría
 │   │   │   ├── Dashboard.jsx    # Métricas y resumen operativo en tiempo real
 │   │   │   ├── InstitutionalMap # CRUD dinámico de Bloques → Salas → Puertas
 │   │   │   ├── Users.jsx        # Gestión de personas, roles y credenciales
-│   │   │   ├── RFIDCards.jsx    # Enrolamiento de tarjetas maestras y estándar
+│   │   │   ├── RFIDCards.jsx    # Enrolamiento de tarjetas maestras, estándar y pases temporales
 │   │   │   ├── Schedules.jsx    # Articulación horaria docente/estudiantil
 │   │   │   ├── AccessLogs.jsx   # Historial de auditoría y exportación a CSV
-│   │   │   ├── Alerts.jsx       # Consola de resolución de alarmas críticas
-│   │   │   └── Login.jsx        # Selector rápido de roles de demostración (Admin / Celador)
-│   │   ├── App.css              # Tema monocromático oscuro en grises y animación de vibración
+│   │   │   └── Alerts.jsx       # Consola de resolución de alarmas críticas y desarme
+│   │   ├── App.css              # Estilos UI, animaciones de radar, ondas líquidas y tema oscuro
 │   │   ├── App.jsx              # Enrutador principal del cliente
 │   │   └── main.jsx             # Punto de montaje React
 │   │
 │   └── server/                  # Backend Node.js + Express + WebSockets (puerto 4000)
-│       ├── config/              # db.js (PostgreSQL con fallback automático en memoria)
-│       ├── controllers/         # blocks, rooms, doors, users, schedules, access, alerts
-│       ├── middleware/          # auth.js (JWT & verificación de roles)
+│       ├── config/              # db.js (Pool PostgreSQL / Supabase) y schema.sql
+│       ├── controllers/         # auth, access, alerts, blocks, doors, rfidCards, rooms, schedules, users, visitorPasses
+│       ├── middleware/          # auth.js (JWT, sesión única & verificación de roles)
 │       ├── routes/              # Endpoints de la API REST (/api)
-│       ├── seeds/               # Semillas SQL institucionales (seed.sql)
+│       ├── seeds/               # Semillas SQL institucionales con usuarios demo (seed.sql)
 │       ├── services/            # wsService.js (WebSockets) y emailService.js (alertas)
 │       ├── app.js               # Configuración Express (CORS, Helmet, API, estáticos dist/)
 │       └── server.js            # Entrypoint del servidor HTTP + WebSockets
@@ -62,7 +74,6 @@ RFID/
 ├── api/                         # Función Serverless para despliegue en Vercel
 │   └── index.js                 # Exporta la API de Express directamente a Vercel
 │
-├── public/                      # Assets estáticos (favicon.svg, icons.svg)
 ├── hardware/                    # Scripts y Firmware para Hardware Físico
 │   ├── lector_rfid.py           # Cliente Python para Raspberry Pi / CrowPi 3 (RC522 por SPI)
 │   ├── esp32_rfid_firmware.ino  # Firmware Arduino/C++ para microcontroladores ESP32 por WiFi
@@ -74,9 +85,9 @@ RFID/
 │   ├── REQUIREMENTS.md          # Especificación formal de requisitos (SRS)
 │   ├── USE_CASES.md             # Casos de uso formales (CU-001 a CU-010)
 │   ├── USER_STORIES.md          # Historias de usuario por rol (US-001 a US-012)
-│   ├── DATABASE.md              # Modelo ER de base de datos relacional y dual engine
+│   ├── DATABASE.md              # Modelo relacional PostgreSQL y diagrama ER
 │   ├── DATA-DICTIONARY.md       # Diccionario de datos exhaustivo campo por campo
-│   ├── ENDPOINTS.md             # Referencia de endpoints REST y WebSockets
+│   ├── ENDPOINTS.md             # Referencia completa de endpoints REST y WebSockets
 │   ├── AUTH.md                  # Modelo RBAC, tokens JWT y bloqueo de login a alumnos
 │   ├── SECURITY.md              # Seguridad física, alarmas en Sala 1 y Ley 1581
 │   ├── HARDWARE.md              # Lector MFRC522, pinout SPI, ESP32 y Raspberry Pi
@@ -89,17 +100,18 @@ RFID/
 │   ├── TESTING.md               # Plan de pruebas, QA y verificación SLA < 3s
 │   ├── TROUBLESHOOTING.md       # Runbook de diagnóstico de fallas operativas
 │   ├── GLOSSARY.md              # Glosario técnico y de control de acceso
-│   ├── CHANGELOG.md             # Historial de cambios y versiones (v1 a v2)
+│   ├── CHANGELOG.md             # Historial de cambios y versiones (v1 a v2.2)
 │   ├── CONTRIBUTING.md          # Estándares de desarrollo y directrices de equipo
 │   └── decisions/               # Registros de Decisiones de Arquitectura (ADR-001..006)
 │
-├── index.html                   # Entrypoint HTML raíz
+├── grafana-dashboard.json       # Definición de tablero de telemetría institucional en Grafana
+├── supabase_schema.sql          # Esquema DDL para base de datos PostgreSQL en Supabase
+├── seed-supabase.js             # Script de población de datos iniciales en Supabase
+├── setup-db.sh                  # Script de configuración de PostgreSQL local
+├── start.sh                     # Lanzador unificado de todo el ecosistema (Servidor + Web)
 ├── vite.config.mjs              # Configuración unificada de Vite
 ├── vercel.json                  # Configuración de despliegue en la nube
-├── package.json                 # UN SOLO package.json raíz para todo el proyecto
-├── start.sh                     # Lanzador unificado de todo el ecosistema (Servidor + Web)
-├── setup-db.sh                  # Script de configuración de PostgreSQL local (opcional)
-└── package.json                 # Monorepo scripts raíz ("npm start", etc.)
+└── package.json                 # Dependencias y scripts npm unificados
 ```
 
 ---
@@ -134,7 +146,7 @@ nohup npm run serve > server.log 2>&1 &
 tail -f server.log
 
 # Para detener el servidor cuando termines:
-pkill -f "node src/server.js"
+pkill -f "node src/server/server.js"
 ```
 
 ### 3. Credenciales de Demostración para Ingreso Web (Contraseña: `acceso2026`):
@@ -144,16 +156,17 @@ pkill -f "node src/server.js"
 | **Administrador** | `admin@lasallista.edu.co` (o `admin`) | Acceso total irrestricto, configuración de bloques, salas, puertas, personas y horarios |
 | **Celador / Vigilancia** | `celador@lasallista.edu.co` (o `celador`) | Acceso al Escáner en tiempo real, validación de ingresos y consola de alarmas críticas |
 
-> ℹ️ **Nota de Seguridad:** Estudiantes y docentes no inician sesión en la plataforma web; su acceso físico se valida al aproximar su carnet RFID al sensor de cada puerta o torniquete.
+> ℹ️ **Nota de Seguridad:** Estudiantes y docentes no inician sesión en la plataforma web; su acceso físico se valida al aproximar su carnet RFID al sensor de cada puerta o torniquete. En la pantalla de login, también está disponible el botón **Entrar como administrador (demo)** para pruebas rápidas.
 
 ---
 
 ## ⚡ Aspectos Clave Implementados
 
-1. **Barra Lateral Comprimible (Sidebar):** Ubicada a la izquierda con botón de toggle para expandir (250px) o comprimir (68px en modo iconos compactos).
-2. **Detección Dinámica de Sensor RFID:**
+1. **Terminal RADAR Inmersiva:** Split-screen con ondas líquidas, telemetría de sesión, audio institucional de validación y detección automática de tarjetas físicas.
+2. **Barra Lateral Comprimible (Sidebar):** Ubicada a la izquierda con botón de toggle para expandir (250px) o comprimir (68px en modo iconos compactos).
+3. **Detección Dinámica de Sensor RFID:**
    - Si no hay lector conectado o activo: muestra en **ROJO** `🔴 Sensor RFID No Detectado`.
    - Cuando se detecta o comprueba la comunicación: cambia a **VERDE** `🟢 Sensor RFID Conectado / Confirmado`.
    - Botón interactivo para comprobar o simular el enlace de hardware directamente en pantalla.
-3. **Animación de Vibraciones en Errores:** En accesos denegados, tarjetas no registradas o violaciones de horario, el módulo visual ejecuta una vibración lateral (`@keyframes vibrate-shake`) acompañada de vibración háptica con la API `navigator.vibrate`.
-4. **Resistencia a Fallos de Red:** Las peticiones operan de forma local en el backend con almacenamiento en memoria precargado y base de datos PostgreSQL, eliminando cualquier error de red externo.
+4. **Animación de Vibraciones en Errores:** En accesos denegados, tarjetas no registradas o violaciones de horario, el módulo visual ejecuta una vibración lateral (`@keyframes vibrate-shake`) acompañada de vibración háptica con la API `navigator.vibrate`.
+5. **Resistencia a Fallos de Red y Base de Datos:** Conexión directa a PostgreSQL / Supabase con reconexión resiliente, verificación SSL y soporte serverless en Vercel.

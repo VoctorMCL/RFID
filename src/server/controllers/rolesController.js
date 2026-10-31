@@ -3,6 +3,12 @@
 // ===================================================================
 const db = require('../config/db');
 
+/**
+ * Consulta la lista de roles institucionales y sus facultades de acceso global
+ * @route GET /api/roles
+ * @param {import('express').Request} req - Petición
+ * @param {import('express').Response} res - Listado de roles
+ */
 const getRoles = async (req, res) => {
   try {
     const result = await db.query(`SELECT * FROM roles ORDER BY id ASC`);
@@ -12,6 +18,12 @@ const getRoles = async (req, res) => {
   }
 };
 
+/**
+ * Consulta un rol institucional específico por su ID
+ * @route GET /api/roles/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Datos del rol
+ */
 const getRoleById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

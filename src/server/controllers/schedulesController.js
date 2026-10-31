@@ -3,6 +3,12 @@
 // ===================================================================
 const db = require('../config/db');
 
+/**
+ * Consulta la articulación horaria institucional con filtros por usuario, sala o día de la semana
+ * @route GET /api/schedules
+ * @param {import('express').Request} req - Petición con query params user_id, room_id, day_of_week
+ * @param {import('express').Response} res - Listado de asignaciones horarias
+ */
 const getSchedules = async (req, res) => {
   try {
     const { user_id, room_id, day_of_week } = req.query;
@@ -43,6 +49,12 @@ const getSchedules = async (req, res) => {
   }
 };
 
+/**
+ * Consulta un horario específico por su ID
+ * @route GET /api/schedules/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Datos del horario
+ */
 const getScheduleById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -56,6 +68,12 @@ const getScheduleById = async (req, res) => {
   }
 };
 
+/**
+ * Registra una nueva franja de articulación horaria para un docente en una sala
+ * @route POST /api/schedules
+ * @param {import('express').Request} req - Datos de la franja horaria
+ * @param {import('express').Response} res - Franja horaria creada
+ */
 const createSchedule = async (req, res) => {
   try {
     const { user_id, room_id, day_of_week, start_time, end_time, semester = '2026-1', subject_name } = req.body;
@@ -77,6 +95,12 @@ const createSchedule = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza los parámetros de una franja horaria existente
+ * @route PUT /api/schedules/:id
+ * @param {import('express').Request} req - Petición con ID y campos a actualizar
+ * @param {import('express').Response} res - Horario actualizado
+ */
 const updateSchedule = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -105,6 +129,12 @@ const updateSchedule = async (req, res) => {
   }
 };
 
+/**
+ * Elimina una franja horaria de la base de datos
+ * @route DELETE /api/schedules/:id
+ * @param {import('express').Request} req - Petición con ID en params
+ * @param {import('express').Response} res - Confirmación de eliminación
+ */
 const deleteSchedule = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
