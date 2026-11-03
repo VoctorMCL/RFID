@@ -491,40 +491,40 @@ export const Login = () => {
 
             <div style={{
               width: '100%',
-              maxWidth: '440px',
+              maxWidth: '560px',
               animation: 'liquidFadeInContent 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards'
             }}>
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '6px 16px',
+                gap: '10px',
+                padding: '8px 22px',
                 borderRadius: '30px',
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 border: '1px solid rgba(16, 185, 129, 0.4)',
                 color: '#34d399',
-                fontSize: '12px',
+                fontSize: '14px',
                 fontWeight: 700,
-                letterSpacing: '0.5px',
-                marginBottom: '20px',
+                letterSpacing: '0.8px',
+                marginBottom: 'clamp(16px, 2.6vh, 26px)',
                 boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)'
               }}>
-                <ShieldCheck size={16} />
+                <ShieldCheck size={19} />
                 <span>ACCESO AUTORIZADO</span>
               </div>
 
               <div style={{
                 position: 'relative',
-                width: '120px',
-                height: '120px',
-                margin: '0 auto 18px',
+                width: 'clamp(140px, 19vh, 190px)',
+                height: 'clamp(140px, 19vh, 190px)',
+                margin: '0 auto clamp(16px, 2.6vh, 26px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
                 <div style={{
                   position: 'absolute',
-                  inset: '-6px',
+                  inset: '-10px',
                   borderRadius: '50%',
                   border: `2px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
                   opacity: 0.85,
@@ -532,16 +532,16 @@ export const Login = () => {
                 }} />
 
                 <div style={{
-                  width: '112px',
-                  height: '112px',
+                  width: 'clamp(132px, 18vh, 180px)',
+                  height: 'clamp(132px, 18vh, 180px)',
                   borderRadius: '50%',
                   backgroundColor: '#0b193d',
-                  border: `3px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
+                  border: `4px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
                   overflow: 'hidden',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: `0 0 30px ${isAdminRole ? 'rgba(56, 189, 248, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`
+                  boxShadow: `0 0 40px ${isAdminRole ? 'rgba(56, 189, 248, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`
                 }}>
                   {authorizedUser.photo_url ? (
                     <img
@@ -551,7 +551,7 @@ export const Login = () => {
                     />
                   ) : (
                     <div style={{
-                      fontSize: '36px',
+                      fontSize: '56px',
                       fontWeight: 800,
                       color: isAdminRole ? '#38bdf8' : '#34d399'
                     }}>
@@ -562,25 +562,26 @@ export const Login = () => {
               </div>
 
               <h2 style={{
-                fontSize: '24px',
+                fontSize: 'clamp(26px, 3.6vh, 36px)',
                 fontWeight: 800,
                 color: '#ffffff',
-                margin: '0 0 6px',
-                letterSpacing: '-0.3px'
+                margin: '0 0 10px',
+                letterSpacing: '-0.6px',
+                lineHeight: 1.15
               }}>
                 {authorizedUser.first_name} {authorizedUser.last_name}
               </h2>
 
               <div style={{
                 display: 'inline-block',
-                padding: '4px 14px',
-                borderRadius: '6px',
+                padding: '7px 20px',
+                borderRadius: '8px',
                 backgroundColor: isAdminRole ? 'rgba(56, 189, 248, 0.15)' : 'rgba(52, 211, 153, 0.15)',
                 border: `1px solid ${isAdminRole ? 'rgba(56, 189, 248, 0.35)' : 'rgba(52, 211, 153, 0.35)'}`,
                 color: isAdminRole ? '#38bdf8' : '#34d399',
-                fontSize: '12px',
+                fontSize: 'clamp(13px, 1.8vh, 15px)',
                 fontWeight: 700,
-                marginBottom: '18px'
+                marginBottom: 'clamp(16px, 2.4vh, 24px)'
               }}>
                 {authorizedUser.role?.display_name || 'Usuario Autorizado'}
               </div>
@@ -588,53 +589,53 @@ export const Login = () => {
               <div style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.65)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
-                borderRadius: '12px',
-                padding: '14px 18px',
+                borderRadius: '16px',
+                padding: 'clamp(15px, 2.2vh, 22px) clamp(20px, 2vw, 26px)',
                 textAlign: 'left',
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
-                gap: '10px',
+                gap: 'clamp(12px, 1.8vh, 18px) clamp(18px, 2vw, 24px)',
                 boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-                marginBottom: '16px'
+                marginBottom: 'clamp(16px, 2.2vh, 22px)'
               }}>
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
                     Documento
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f1f5f9', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: '17px', fontWeight: 700, color: '#f1f5f9', fontFamily: 'var(--font-mono)' }}>
                     {authorizedUser.document_id || '—'}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
                     Tarjeta RFID
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ fontSize: '17px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
                     {authorizedUser.rfid_tag || lastScannedUid}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
                     Hora de Ingreso
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
+                  <div style={{ fontSize: '17px', fontWeight: 600, color: '#f1f5f9' }}>
                     {entryTimestamp ? entryTimestamp.toLocaleTimeString('es-CO') : 'Ahora'}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
-                    Programa / Área
+                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
+                    Programa / Facultad
                   </div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
+                  <div style={{ fontSize: '17px', fontWeight: 600, color: '#f1f5f9' }}>
                     {authorizedUser.program || 'General'}
                   </div>
                 </div>
               </div>
 
-              <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', height: '4px', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', height: '5px', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
                   backgroundColor: '#38bdf8',
@@ -643,7 +644,7 @@ export const Login = () => {
                   animation: 'shimmerGleam 2.4s linear infinite'
                 }} />
               </div>
-              <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '8px' }}>
+              <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '10px' }}>
                 Cargando datos del sistema...
               </div>
             </div>

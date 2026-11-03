@@ -102,6 +102,20 @@ export const Users = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const email = formData.email.trim().toLowerCase();
+    const documentId = formData.document_id.trim();
+    const otherUsers = users.filter(user => user.id !== editingUser?.id);
+
+    if (otherUsers.some(user => (user.email || '').trim().toLowerCase() === email)) {
+      alert('Ya existe una persona registrada con ese correo institucional.');
+      return;
+    }
+
+    if (otherUsers.some(user => (user.document_id || '').trim() === documentId)) {
+      alert('Ya existe una persona registrada con ese documento de identidad.');
+      return;
+    }
+
     if (isStudentRole && !formData.program) {
       alert('Seleccione un programa académico para el estudiante.');
       return;

@@ -4,6 +4,45 @@ const db = require('../config/db');
 
 const normalizeUid = (uid) => String(uid || '').trim().replace(/[\s:\-]/g, '').toUpperCase();
 
+const findDuplicateUser = async ({ email, documentId, excludeId }) => {
+  const conditions = [];
+  const params = [];
+
+  if (email) {
+    params.push(email.trim().toLowerCase());
+    conditions.push(`LOWER(email) = $${params.length}`);
+  }
+
+  if (documentId) {
+    params.push(documentId.trim());
+    conditions.push(`document_id = $${params.length}`);
+  }
+
+  if (conditions.length === 0) return null;
+
+  let whereClause = `(${conditions.join(' OR ')})`;
+
+  if (excludeId) {
+    params.push(excludeId);
+    whereClause += ` AND id <> $${params.length}`;
+  }
+
+  const result = await db.query(
+    `SELECT id, email, document_id FROM users WHERE ${whereClause} LIMIT 1`,
+    params
+  );
+
+  return result.rows[0] || null;
+};
+
+const duplicateMessage = (duplicate, email) => {
+  const emailTaken = duplicate?.email &&
+    duplicate.email.toLowerCase() === String(email || '').trim().toLowerCase();
+  return emailTaken
+    ? 'Ya existe una persona registrada con ese correo institucional'
+    : 'Ya existe una persona registrada con ese documento de identidad';
+};
+
 const attachCardToUser = async (userId, rawUid, label) => {
   const uid = normalizeUid(rawUid);
   if (!uid) return null;
@@ -139,6 +178,15 @@ const createUser = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Todos los campos obligatorios deben ser completados' });
     }
 
+    const duplicate = await findDuplicateUser({ email, documentId: document_id });
+
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: duplicateMessage(duplicate, email)
+      });
+    }
+
     const hash = await bcrypt.hash(crypto.randomUUID(), 10);
 
     const insertUser = await db.query(
@@ -157,6 +205,18 @@ const createUser = async (req, res) => {
     return res.status(201).json({ success: true, data: newUser });
   } catch (error) {
     console.error('Error al crear usuario:', error);
+
+    if (error.code === '23505') {
+      const duplicate = await findDuplicateUser({ email, documentId: document_id });
+
+      return res.status(409).json({
+        success: false,
+        error: duplicate
+          ? duplicateMessage(duplicate, email)
+          : 'Ya existe una persona registrada con ese correo o documento'
+      });
+    }
+
     return res.status(500).json({ success: false, error: 'Error al registrar usuario: ' + error.message });
   }
 };
@@ -165,6 +225,15 @@ const updateUser = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { first_name, last_name, email, document_id, role_id, program, phone, status, rfid_tag } = req.body;
+
+    const duplicate = await findDuplicateUser({ email, documentId: document_id, excludeId: id });
+
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: duplicateMessage(duplicate, email)
+      });
+    }
 
     const result = await db.query(
       `UPDATE users
@@ -196,6 +265,21 @@ const updateUser = async (req, res) => {
 
     return res.json({ success: true, data: result.rows[0] });
   } catch (error) {
+    if (error.code === '23505') {
+      const duplicate = await findDuplicateUser({
+        email: req.body.email,
+        documentId: req.body.document_id,
+        excludeId: parseInt(req.params.id, 10)
+      });
+
+      return res.status(409).json({
+        success: false,
+        error: duplicate
+          ? duplicateMessage(duplicate, req.body.email)
+          : 'Ya existe una persona registrada con ese correo o documento'
+      });
+    }
+
     return res.status(500).json({ success: false, error: error.message });
   }
 };

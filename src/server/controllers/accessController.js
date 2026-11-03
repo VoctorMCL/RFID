@@ -58,7 +58,17 @@ const validateAccess = async (req, res) => {
     }
 
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
-    const doorId = parseInt(door_id, 10);
+    const requestedDoorId = parseInt(door_id, 10);
+    const readerDoorMap = String(process.env.READER_DOOR_MAP || '')
+      .split(',')
+      .map(entry => entry.split(':').map(value => parseInt(value.trim(), 10)))
+      .reduce((map, [from, to]) => {
+        if (Number.isFinite(from) && Number.isFinite(to)) map[from] = to;
+        return map;
+      }, {});
+    const doorId = access_method === 'rfid' && readerDoorMap[requestedDoorId]
+      ? readerDoorMap[requestedDoorId]
+      : requestedDoorId;
 
     const [doorQuery, cardQuery] = await Promise.all([
       db.query(
