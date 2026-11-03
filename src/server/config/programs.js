@@ -4,13 +4,17 @@ const PROGRAMS = [
   'Derecho',
   'Ingeniería de Alimentos',
   'Ingeniería Industrial',
-  'Ingeniería de Sistemas',
+  'Ingeniería Informática',
   'Licenciatura en Educación',
   'Medicina Veterinaria',
   'Psicología',
-  'Zootecnia',
-  'Seguridad',
-  'Sistemas'
+  'Zootecnia'
 ];
 
-module.exports = { PROGRAMS };
+const FACULTIES = [
+  'Facultad de Ciencias Administrativas y Agropecuarias',
+  'Facultad de Ciencias Sociales y Educación',
+  'Facultad de Ingenierías'
+];
+
+module.exports = { PROGRAMS, FACULTIES };

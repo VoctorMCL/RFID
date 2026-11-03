@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { apiClient } from '../api/client';
 import {
@@ -21,8 +22,10 @@ import {
 const DURATION_MS = 6500;
 
 const DUPLICATE_UID_WINDOW_MS = 1500;
+const SCANNER_DESTINATION_STORAGE_KEY = 'radar_scanner_destination';
 
 export const GlobalAccessModal = () => {
+  const location = useLocation();
   const [scanEvent, setScanEvent] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -340,6 +343,20 @@ export const GlobalAccessModal = () => {
   const door = scanEvent.door;
   const room = scanEvent.room;
   const isVisitor = Boolean(user?.is_visitor || user?.role_name === 'visitor');
+
+  const scannerDestination = (() => {
+    if (location.pathname !== '/monitor') return null;
+    try {
+      const stored = sessionStorage.getItem(SCANNER_DESTINATION_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      return null;
+    }
+  })();
+
+  const accessDoorName = scannerDestination?.doorName || door?.name || `Puerta #${door?.id || '—'}`;
+  const accessRoomName = scannerDestination?.roomName || room?.name;
+  const accessBlockName = scannerDestination ? '' : room?.block_name;
 
   const formatTime = (ts) => {
     try {
@@ -730,7 +747,7 @@ export const GlobalAccessModal = () => {
               <Clock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  Hora del escaneo
+                  Hora de ingreso
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
                   {formatTime(scanEvent.timestamp)}
@@ -756,10 +773,10 @@ export const GlobalAccessModal = () => {
                   Punto de acceso institucional
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginTop: '1px' }}>
-                  {door?.name || `Puerta #${door?.id || '—'}`}
-                  {room?.name && (
+                  {accessDoorName}
+                  {accessRoomName && (
                     <span style={{ fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '6px' }}>
-                      · {room.name} {room.block_name ? `(${room.block_name})` : ''}
+                      · {accessRoomName} {accessBlockName ? `(${accessBlockName})` : ''}
                     </span>
                   )}
                 </div>

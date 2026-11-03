@@ -18,6 +18,7 @@ export const Users = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [faculties, setFaculties] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,7 +64,10 @@ export const Users = () => {
 
       if (usersRes.success) setUsers(usersRes.data);
       if (rolesRes.success) setRoles(rolesRes.data);
-      if (programsRes.success) setPrograms(programsRes.data);
+      if (programsRes.success) {
+        setPrograms(programsRes.data);
+        setFaculties(programsRes.faculties || []);
+      }
     } catch (err) {
       console.error('Error cargando usuarios:', err);
     }
@@ -76,6 +80,55 @@ export const Users = () => {
   const defaultRoleId = () => {
     const studentRole = roles.find((role) => role.name === 'student');
     return studentRole ? studentRole.id.toString() : (roles[0]?.id.toString() || '5');
+  };
+
+  const getRoleName = (roleId) => (
+    roles.find((role) => role.id.toString() === roleId?.toString())?.name || ''
+  );
+
+  const selectedRoleName = getRoleName(formData.role_id);
+  const isStudentRole = selectedRoleName === 'student';
+  const isProfessorRole = selectedRoleName === 'professor';
+  const showAcademicField = isStudentRole || isProfessorRole;
+
+  const handleRoleChange = (roleId) => {
+    setFormData(prev => ({
+      ...prev,
+      role_id: roleId,
+      program: ''
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (isStudentRole && !formData.program) {
+      alert('Seleccione un programa académico para el estudiante.');
+      return;
+    }
+
+    if (isProfessorRole && !formData.program) {
+      alert('Seleccione la facultad a la que pertenece el docente.');
+      return;
+    }
+
+    try {
+      const res = await apiClient(editingUser ? `/users/${editingUser.id}` : '/users', {
+        method: editingUser ? 'PUT' : 'POST',
+        body: {
+          ...formData,
+          program: showAcademicField ? formData.program : ''
+        }
+      });
+
+      if (res.success) {
+        resetSensor();
+        setIsModalOpen(false);
+        loadData();
+      }
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const openCreateModal = () => {
@@ -95,6 +148,12 @@ export const Users = () => {
   };
 
   const openEditModal = (user) => {
+    const roleName = user.role_name || getRoleName(user.role_id);
+    let program = user.program || '';
+
+    if (roleName === 'professor' && !faculties.includes(program)) program = '';
+    if (roleName !== 'student' && roleName !== 'professor') program = '';
+
     setEditingUser(user);
     resetSensor();
     setFormData({
@@ -103,7 +162,7 @@ export const Users = () => {
       email: user.email,
       document_id: user.document_id,
       role_id: user.role_id.toString(),
-      program: user.program || '',
+      program,
       phone: user.phone || '',
       rfid_tag: user.rfid_tag || ''
     });
@@ -116,24 +175,6 @@ export const Users = () => {
     }
     resetSensor();
     setFormData((prev) => ({ ...prev, rfid_tag: '' }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await apiClient(editingUser ? `/users/${editingUser.id}` : '/users', {
-        method: editingUser ? 'PUT' : 'POST',
-        body: formData
-      });
-
-      if (res.success) {
-        resetSensor();
-        setIsModalOpen(false);
-        loadData();
-      }
-    } catch (err) {
-      alert(err.message);
-    }
   };
 
   const handleDelete = async (id) => {
@@ -211,7 +252,7 @@ export const Users = () => {
               <th>Nombre Completo</th>
               <th>Documento</th>
               <th>Rol Institucional</th>
-              <th>Programa / Área</th>
+              <th>Programa / Facultad</th>
               <th>Tarjeta RFID</th>
               <th>Estado</th>
               {canManageInfrastructure && <th style={{ textAlign: 'right' }}>Acciones</th>}
@@ -334,13 +375,13 @@ export const Users = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: showAcademicField ? '1fr 1fr' : '1fr', gap: '12px' }}>
             <div className="form-group">
               <label className="form-label">Rol Institucional</label>
               <select
                 className="form-select"
                 value={formData.role_id}
-                onChange={e => setFormData({ ...formData, role_id: e.target.value })}
+                onChange={e => handleRoleChange(e.target.value)}
                 required
               >
                 {roles.map(r => (
@@ -348,22 +389,44 @@ export const Users = () => {
                 ))}
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Programa / Dependencia</label>
-              <select
-                className="form-select"
-                value={formData.program}
-                onChange={e => setFormData({ ...formData, program: e.target.value })}
-              >
-                <option value="">Seleccione un programa o dependencia</option>
-                {formData.program && !programs.includes(formData.program) && (
-                  <option value={formData.program}>{formData.program}</option>
-                )}
-                {programs.map(program => (
-                  <option key={program} value={program}>{program}</option>
-                ))}
-              </select>
-            </div>
+            {isStudentRole && (
+              <div className="form-group">
+                <label className="form-label">Programa</label>
+                <select
+                  className="form-select"
+                  value={formData.program}
+                  onChange={e => setFormData({ ...formData, program: e.target.value })}
+                  required
+                >
+                  <option value="">Seleccione un programa</option>
+                  {formData.program && !programs.includes(formData.program) && (
+                    <option value={formData.program}>{formData.program}</option>
+                  )}
+                  {programs.map(program => (
+                    <option key={program} value={program}>{program}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {isProfessorRole && (
+              <div className="form-group">
+                <label className="form-label">Facultad</label>
+                <select
+                  className="form-select"
+                  value={formData.program}
+                  onChange={e => setFormData({ ...formData, program: e.target.value })}
+                  required
+                >
+                  <option value="">Seleccione una facultad</option>
+                  {formData.program && !faculties.includes(formData.program) && (
+                    <option value={formData.program}>{formData.program}</option>
+                  )}
+                  {faculties.map(faculty => (
+                    <option key={faculty} value={faculty}>{faculty}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="form-group">

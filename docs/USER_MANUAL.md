@@ -55,7 +55,7 @@ Cuando un estudiante o docente acerca su carnet:
    - Fotografía oficial del titular.
    - Nombre y Apellidos completos.
    - Número de Cédula o Documento de Identidad.
-   - Programa Académico o Dependencia (ej. *Ingeniería de Software*).
+   - Programa académico (estudiantes) o facultad (docentes).
    - Puerta y Sala donde se solicita el ingreso.
 4. El celador compara visualmente la fotografía con la persona que se encuentra físicamente en el torniquete.
 5. Tras 6 segundos, el visor retorna automáticamente al estado pasivo de espera.

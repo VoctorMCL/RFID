@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { apiClient } from '../api/client';
+import { preloadSystemData } from '../services/systemPreloader';
 import { RadarLogo } from '../components/RadarLogo';
 import {
   CreditCard,
@@ -17,6 +18,8 @@ import {
   ShieldCheck,
   X
 } from 'lucide-react';
+
+const LOGIN_REDIRECT_DELAY_MS = 2600;
 
 export const Login = () => {
   const { loginWithCard, isAuthenticated, isCelador, authNotice, clearAuthNotice } = useAuth();
@@ -36,6 +39,7 @@ export const Login = () => {
 
   const lastProcessedIdRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const redirectTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
   const wedgeBufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
@@ -73,10 +77,16 @@ export const Login = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && status !== 'success' && status !== 'scanning') {
       navigate(isCelador ? '/monitor' : '/dashboard', { replace: true });
     }
-  }, [isAuthenticated, isCelador, navigate]);
+  }, [isAuthenticated, isCelador, navigate, status]);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   const getAudioContext = useCallback(async () => {
     try {
@@ -221,14 +231,14 @@ export const Login = () => {
         setEntryTimestamp(new Date());
         setStatusMessage(`Bienvenido, ${res.user.first_name} ${res.user.last_name}`);
 
-        setTimeout(() => {
-          const userRole = (res.user.role?.name || '').toLowerCase();
-          if (userRole === 'celador' || userRole === 'security') {
-            navigate('/monitor', { replace: true });
-          } else {
-            navigate('/dashboard', { replace: true });
-          }
-        }, 1800);
+        const userRole = (res.user.role?.name || '').toLowerCase();
+        const targetPath = userRole === 'celador' || userRole === 'security' ? '/monitor' : '/dashboard';
+
+        preloadSystemData({ roleName: userRole, photoUrl: res.user.photo_url });
+
+        redirectTimerRef.current = setTimeout(() => {
+          navigate(targetPath, { replace: true });
+        }, LOGIN_REDIRECT_DELAY_MS);
       } else {
         playSound(false);
         setStatus('error');
@@ -630,11 +640,11 @@ export const Login = () => {
                   backgroundColor: '#38bdf8',
                   borderRadius: '4px',
                   width: '100%',
-                  animation: 'shimmerGleam 1.8s linear infinite'
+                  animation: 'shimmerGleam 2.4s linear infinite'
                 }} />
               </div>
               <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '8px' }}>
-                Ingresando al sistema...
+                Cargando datos del sistema...
               </div>
             </div>
           ) : (
@@ -946,7 +956,7 @@ export const Login = () => {
             }}>
               {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
               {status === 'scanning' && 'Validando carnet en el sistema...'}
-              {status === 'success' && 'Sesión establecida correctamente. Redirigiendo...'}
+              {status === 'success' && 'Acceso confirmado. Preparando el sistema...'}
               {status === 'error' && errorMessage}
             </p>
 

@@ -33,7 +33,7 @@ Cuentas y perfiles del personal directivo, docente, administrativo, estudiantil 
 | `document_id` | VARCHAR(50) | NO | — | UNIQUE | Número de identificación oficial (cédula o tarjeta de identidad). | `'1152345678'` |
 | `role_id` | INTEGER | NO | — | FK $\rightarrow$ `roles(id)` | Rol institucional asociado. | `4` |
 | `photo_url` | TEXT | SÍ | NULL | — | Ruta relativa o URL a la fotografía del titular para verificación visual. | `'/photos/1152345678.jpg'` |
-| `program` | VARCHAR(200) | SÍ | NULL | — | Carrera, departamento o dependencia institucional. | `'Ingeniería de Software'` |
+| `program` | VARCHAR(200) | SÍ | NULL | — | Programa académico del estudiante o facultad del docente. | `'Ingeniería Informática'` |
 | `phone` | VARCHAR(30) | SÍ | NULL | — | Teléfono celular de contacto para emergencias. | `'3004567890'` |
 | `status` | VARCHAR(20) | NO | `'active'` | CHECK IN (`'active'`, `'inactive'`, `'suspended'`) | Estado del usuario en el sistema. | `'active'` |
 | `access_expiry` | DATE | SÍ | NULL | — | Fecha de vigencia máxima (usado para visitantes o contratos temporales). | `'2026-12-31'` |

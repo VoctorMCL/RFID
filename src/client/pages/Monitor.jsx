@@ -14,22 +14,49 @@ import {
 } from 'lucide-react';
 
 const ENTRANCE_NAME = 'Ingreso a la Universidad';
+const LIVE_STREAM_STORAGE_KEY = 'radar_live_access_stream';
+const LIVE_STREAM_TTL_MS = 5 * 60 * 1000;
+const LIVE_STREAM_MAX_ITEMS = 20;
+const SCANNER_DESTINATION_STORAGE_KEY = 'radar_scanner_destination';
 
 const isEntranceDoor = (door) => {
   const label = `${door.room_name || ''} ${door.name || ''}`.toLowerCase();
   return label.includes(ENTRANCE_NAME.toLowerCase());
 };
 
+const pruneLiveStream = (items) => {
+  const now = Date.now();
+  return items
+    .filter(item => {
+      const timestamp = new Date(item.timestamp).getTime();
+      return Number.isFinite(timestamp) && now - timestamp < LIVE_STREAM_TTL_MS;
+    })
+    .slice(0, LIVE_STREAM_MAX_ITEMS);
+};
+
+const loadLiveStream = () => {
+  try {
+    const stored = sessionStorage.getItem(LIVE_STREAM_STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? pruneLiveStream(parsed) : [];
+  } catch (error) {
+    return [];
+  }
+};
+
 export const Monitor = () => {
   const [doors, setDoors] = useState([]);
   const [selectedDoorId, setSelectedDoorId] = useState('');
   const [lastScan, setLastScan] = useState(null);
-  const [liveStream, setLiveStream] = useState([]);
+  const [liveStream, setLiveStream] = useState(loadLiveStream);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVibrating, setIsVibrating] = useState(false);
 
   const [hardwareSensors, setHardwareSensors] = useState({});
+
+  const selectedDoorRef = useRef(null);
 
   const resetTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -116,14 +143,34 @@ export const Monitor = () => {
       }
     }
 
-    setLastScan(result);
-    playBeep(result.granted);
+    const destination = selectedDoorRef.current;
+    const scanResult = destination ? {
+      ...result,
+      door: {
+        ...(result.door || {}),
+        id: destination.id,
+        name: destination.name,
+        room_id: destination.room_id
+      },
+      room: {
+        ...(result.room || {}),
+        id: destination.room_id,
+        name: destination.room_name,
+        block_name: destination.block_name
+      }
+    } : result;
+
+    setLastScan(scanResult);
+    playBeep(scanResult.granted);
 
     if (result.door?.id) {
       setHardwareSensors(prev => ({ ...prev, [result.door.id]: true }));
     }
+    if (destination?.id) {
+      setHardwareSensors(prev => ({ ...prev, [destination.id]: true }));
+    }
 
-    if (!result.granted) {
+    if (!scanResult.granted) {
       setIsVibrating(false);
       setTimeout(() => setIsVibrating(true), 15);
 
@@ -141,14 +188,13 @@ export const Monitor = () => {
       }
     }
 
-    setLiveStream(prev => [
-      {
-        id: scanKey || Date.now(),
-        timestamp: result.timestamp || new Date().toISOString(),
-        ...result
-      },
-      ...prev.slice(0, 19)
-    ]);
+    const streamItem = {
+      ...scanResult,
+      id: scanKey || scanResult.id || Date.now(),
+      timestamp: scanResult.timestamp || new Date().toISOString()
+    };
+
+    setLiveStream(prev => pruneLiveStream([streamItem, ...prev]));
 
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     resetTimerRef.current = setTimeout(() => {
@@ -382,10 +428,46 @@ export const Monitor = () => {
       clearInterval(interval);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     };
+  }, []);
 
+  useEffect(() => {
+    selectedDoorRef.current = doors.find(door => door.id.toString() === selectedDoorId) || null;
+
+    const destination = selectedDoorRef.current;
+    if (!destination) return;
+
+    try {
+      sessionStorage.setItem(SCANNER_DESTINATION_STORAGE_KEY, JSON.stringify({
+        doorId: destination.id,
+        doorName: destination.name,
+        roomName: destination.room_name
+      }));
+    } catch (error) {}
+  }, [doors, selectedDoorId]);
+
+  useEffect(() => {
     return () => {
-      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+      try {
+        sessionStorage.removeItem(SCANNER_DESTINATION_STORAGE_KEY);
+      } catch (error) {}
     };
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LIVE_STREAM_STORAGE_KEY, JSON.stringify(liveStream));
+    } catch (error) {}
+  }, [liveStream]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveStream(prev => {
+        const next = pruneLiveStream(prev);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const getReasonText = (reason) => {
@@ -406,11 +488,8 @@ export const Monitor = () => {
   };
 
   const selectedDoor = doors.find(d => d.id.toString() === selectedDoorId);
-  const currentDoorId = selectedDoor ? selectedDoor.id : null;
-  const isSensorDetected = Boolean(
-    currentDoorId && hardwareSensors[currentDoorId] ||
-    selectedDoor?.is_hardware_active
-  );
+  const isSensorDetected = doors.some(door => door.is_hardware_active) ||
+    Object.values(hardwareSensors).some(Boolean);
 
   const doorGroups = doors.reduce((groups, door) => {
     const block = door.block_name || 'Campus';
@@ -617,11 +696,11 @@ export const Monitor = () => {
                 }}>
                   <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Punto de acceso</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{lastScan.door?.name}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{selectedDoor?.name || lastScan.door?.name}</div>
                   </div>
                   <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Espacio / Sala</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{lastScan.room?.name}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{selectedDoor?.room_name || lastScan.room?.name}</div>
                   </div>
                 </div>
               </div>
