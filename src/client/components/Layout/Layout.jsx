@@ -1,13 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { GlobalAccessModal } from '../GlobalAccessModal';
 
+const NARROW_BREAKPOINT = 1024;
+
 export const Layout = () => {
   const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < NARROW_BREAKPOINT) {
+      return true;
+    }
     return localStorage.getItem('rfid_sidebar_collapsed') === 'true';
   });
+
+  // Comprime automáticamente la barra lateral al entrar en anchos reducidos
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < NARROW_BREAKPOINT) {
+        setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleToggle = () => {
     setIsCollapsed(prev => {

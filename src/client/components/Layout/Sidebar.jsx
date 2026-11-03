@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { RadarLogo } from '../RadarLogo';
@@ -13,11 +13,36 @@ import {
   AlertTriangle,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon,
+  Laptop
 } from 'lucide-react';
 
 export const Sidebar = ({ isCollapsed, onToggle }) => {
   const { user, logout, isAdmin, isCelador } = useAuth();
+
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('rfid_theme_mode') || 'auto');
+
+  useEffect(() => {
+    if (themeMode === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else if (themeMode === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    localStorage.setItem('rfid_theme_mode', themeMode);
+  }, [themeMode]);
+
+  const cycleTheme = () => {
+    if (themeMode === 'auto') setThemeMode('dark');
+    else if (themeMode === 'dark') setThemeMode('light');
+    else setThemeMode('auto');
+  };
+
+  const themeLabel = themeMode === 'auto' ? 'Auto' : themeMode === 'light' ? 'Claro' : 'Oscuro';
+  const themeTitle = `Tema: ${themeMode === 'auto' ? 'Automático (según dispositivo)' : themeMode === 'light' ? 'Modo claro' : 'Modo oscuro'}`;
 
   const navItems = [
     {
@@ -151,28 +176,60 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
 
       {/* Pie de Barra Lateral */}
       <div className="sidebar-footer">
-        {user && (
-          <div
-            className="user-badge"
-            title={`${user.first_name} ${user.last_name} (${user.role?.display_name || 'Personal'})`}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isCollapsed ? 'column' : 'row',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          {user && (
+            <div
+              className="user-badge"
+              title={`${user.first_name} ${user.last_name} (${user.role?.display_name || 'Personal'})`}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                width: isCollapsed ? '100%' : undefined,
+                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                padding: isCollapsed ? '8px 0' : '8px 10px'
+              }}
+            >
+              <div className="user-avatar" style={{ flexShrink: 0 }}>
+                {getInitials(user.first_name, user.last_name)}
+              </div>
+              {!isCollapsed && (
+                <div className="user-info" style={{ minWidth: 0, overflow: 'hidden' }}>
+                  <div className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.first_name} {user.last_name}
+                  </div>
+                  <div className="user-role-label">{user.role?.display_name || 'Personal'}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={cycleTheme}
+            className="btn btn-secondary btn-sm"
+            title={themeTitle}
+            aria-label={themeTitle}
             style={{
-              justifyContent: isCollapsed ? 'center' : 'flex-start',
-              padding: isCollapsed ? '8px 0' : '8px 10px'
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              flexShrink: 0,
+              padding: '8px 10px'
             }}
           >
-            <div className="user-avatar" style={{ flexShrink: 0 }}>
-              {getInitials(user.first_name, user.last_name)}
-            </div>
-            {!isCollapsed && (
-              <div className="user-info" style={{ minWidth: 0, overflow: 'hidden' }}>
-                <div className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {user.first_name} {user.last_name}
-                </div>
-                <div className="user-role-label">{user.role?.display_name || 'Personal'}</div>
-              </div>
-            )}
-          </div>
-        )}
+            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
+            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
+            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
+            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
+          </button>
+        </div>
 
         <button
           onClick={() => logout()}

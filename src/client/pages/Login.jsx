@@ -19,7 +19,6 @@ import {
   Volume2,
   VolumeX,
   ShieldCheck,
-  Clock,
   X
 } from 'lucide-react';
 
@@ -39,6 +38,9 @@ export const Login = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
 
+  // Estado de infraestructura (PostgreSQL y lector RFID)
+  const [health, setHealth] = useState({ database: null, reader: null });
+
   const lastProcessedIdRef = useRef(null);
   const isProcessingRef = useRef(false);
   const audioCtxRef = useRef(null);
@@ -49,6 +51,34 @@ export const Login = () => {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Estado real de PostgreSQL y del lector RFID (se refresca cada 5 s)
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkHealth = async () => {
+      try {
+        const res = await apiClient('/health');
+        if (!isMounted) return;
+        setHealth({
+          database: Boolean(res?.database?.connected),
+          reader: Boolean(res?.reader?.connected)
+        });
+      } catch (e) {
+        if (isMounted) {
+          setHealth({ database: false, reader: false });
+        }
+      }
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Redirigir si el usuario ya cuenta con sesión activa
@@ -320,6 +350,11 @@ export const Login = () => {
     authNotice.trim().length > 0
   );
 
+  const databaseKnown = health.database !== null;
+  const databaseOnline = health.database === true;
+  const readerKnown = health.reader !== null;
+  const readerOnline = health.reader === true;
+
   return (
     <div className="radar-login-container">
       {/* ========================================================================= */}
@@ -358,7 +393,7 @@ export const Login = () => {
         }} />
 
         {/* Cabecera superior izquierda */}
-        <div style={{
+        <div className="login-left-header" style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -367,9 +402,9 @@ export const Login = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
+              width: '50px',
+              height: '50px',
+              borderRadius: '14px',
               backgroundColor: 'rgba(56, 189, 248, 0.1)',
               border: '1px solid rgba(56, 189, 248, 0.3)',
               display: 'flex',
@@ -377,11 +412,11 @@ export const Login = () => {
               justifyContent: 'center',
               boxShadow: '0 0 20px rgba(56, 189, 248, 0.25)'
             }}>
-              <RadarLogo size={28} animated />
+              <RadarLogo size={34} animated />
             </div>
             <div>
               <div style={{
-                fontSize: '16px',
+                fontSize: '20px',
                 fontWeight: 900,
                 letterSpacing: '0.8px',
                 color: '#38bdf8',
@@ -391,9 +426,9 @@ export const Login = () => {
               }}>
                 RADAR
                 <span style={{
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 700,
-                  padding: '2px 7px',
+                  padding: '2px 8px',
                   borderRadius: '20px',
                   backgroundColor: 'rgba(56, 189, 248, 0.15)',
                   border: '1px solid rgba(56, 189, 248, 0.3)',
@@ -403,7 +438,7 @@ export const Login = () => {
                   v1.0
                 </span>
               </div>
-              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '12.5px', color: '#94a3b8' }}>
                 Control de Acceso y Gestión de Espacios
               </div>
             </div>
@@ -639,12 +674,12 @@ export const Login = () => {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{
                 position: 'relative',
-                width: '240px',
-                height: '240px',
+                width: 'clamp(260px, 28vw, 360px)',
+                height: 'clamp(260px, 28vw, 360px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '24px'
+                marginBottom: '28px'
               }}>
                 <div style={{
                   position: 'absolute',
@@ -661,34 +696,93 @@ export const Login = () => {
                   animation: 'radarSweepSpin 20s linear infinite'
                 }} />
 
-                <RadarLogo size={200} animated />
+                <RadarLogo size={300} animated className="login-hero-logo" />
               </div>
 
-              <div style={{
+              <div className="login-status-chips" style={{
                 display: 'flex',
                 gap: '10px',
                 flexWrap: 'wrap',
                 justifyContent: 'center'
               }}>
-                <div style={{
-                  padding: '7px 14px',
+                <div className="login-status-chip" style={{
+                  padding: '8px 16px',
                   borderRadius: '8px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
-                  fontSize: '11.5px',
-                  color: '#94a3b8'
+                  backgroundColor: databaseKnown && databaseOnline
+                    ? 'rgba(16, 185, 129, 0.12)'
+                    : databaseKnown
+                    ? 'rgba(239, 68, 68, 0.12)'
+                    : 'rgba(15, 23, 42, 0.7)',
+                  border: `1px solid ${
+                    databaseKnown && databaseOnline
+                      ? 'rgba(16, 185, 129, 0.4)'
+                      : databaseKnown
+                      ? 'rgba(239, 68, 68, 0.4)'
+                      : 'rgba(148, 163, 184, 0.25)'
+                  }`,
+                  fontSize: '12.5px',
+                  color: '#94a3b8',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}>
-                  Frecuencia: <strong style={{ color: '#38bdf8' }}>13.56 MHz</strong>
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: databaseKnown && databaseOnline ? '#10b981' : databaseKnown ? '#ef4444' : '#64748b',
+                    boxShadow: databaseKnown && databaseOnline
+                      ? '0 0 8px #10b981'
+                      : databaseKnown
+                      ? '0 0 8px rgba(239, 68, 68, 0.7)'
+                      : 'none'
+                  }} />
+                  PostgreSQL:{' '}
+                  <strong style={{
+                    color: databaseKnown && databaseOnline ? '#34d399' : databaseKnown ? '#f87171' : '#94a3b8'
+                  }}>
+                    {databaseKnown ? (databaseOnline ? 'Conectado' : 'Desconectado') : 'Verificando...'}
+                  </strong>
                 </div>
-                <div style={{
-                  padding: '7px 14px',
+
+                <div className="login-status-chip" style={{
+                  padding: '8px 16px',
                   borderRadius: '8px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.7)',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
-                  fontSize: '11.5px',
-                  color: '#94a3b8'
+                  backgroundColor: readerKnown && readerOnline
+                    ? 'rgba(16, 185, 129, 0.12)'
+                    : readerKnown
+                    ? 'rgba(239, 68, 68, 0.12)'
+                    : 'rgba(15, 23, 42, 0.7)',
+                  border: `1px solid ${
+                    readerKnown && readerOnline
+                      ? 'rgba(16, 185, 129, 0.4)'
+                      : readerKnown
+                      ? 'rgba(239, 68, 68, 0.4)'
+                      : 'rgba(148, 163, 184, 0.25)'
+                  }`,
+                  fontSize: '12.5px',
+                  color: '#94a3b8',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}>
-                  Lector: <strong style={{ color: '#10b981' }}>RC522 Activo</strong>
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: readerKnown && readerOnline ? '#10b981' : readerKnown ? '#ef4444' : '#64748b',
+                    boxShadow: readerKnown && readerOnline
+                      ? '0 0 8px #10b981'
+                      : readerKnown
+                      ? '0 0 8px rgba(239, 68, 68, 0.7)'
+                      : 'none'
+                  }} />
+                  Lector:{' '}
+                  <strong style={{
+                    color: readerKnown && readerOnline ? '#34d399' : readerKnown ? '#f87171' : '#94a3b8'
+                  }}>
+                    {readerKnown ? (readerOnline ? 'RC522 Activo' : 'Desconectado') : 'Verificando...'}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -698,7 +792,7 @@ export const Login = () => {
         {/* Pie inferior izquierdo */}
         <div style={{ position: 'relative', zIndex: 20 }}>
           <h1 style={{
-            fontSize: '28px',
+            fontSize: 'clamp(32px, 3vw, 44px)',
             fontWeight: 900,
             letterSpacing: '0.5px',
             color: '#38bdf8',
@@ -708,10 +802,11 @@ export const Login = () => {
             RADAR
           </h1>
           <p style={{
-            fontSize: '13.5px',
+            fontSize: 'clamp(14px, 1.15vw, 16px)',
             fontWeight: 500,
             color: '#cbd5e1',
-            margin: 0
+            margin: 0,
+            maxWidth: '520px'
           }}>
             Sistema Institucional de Control de Acceso y Gestión de Espacios Físicos.
           </p>
@@ -812,14 +907,14 @@ export const Login = () => {
             textAlign: 'center'
           }}>
             {/* Pad de lectura RFID */}
-            <div style={{
+            <div className="login-scan-pad" style={{
               position: 'relative',
-              width: '190px',
-              height: '190px',
+              width: 'clamp(210px, 20vw, 260px)',
+              height: 'clamp(210px, 20vw, 260px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '22px'
+              marginBottom: '26px'
             }}>
               <div style={{
                 position: 'absolute',
@@ -836,9 +931,9 @@ export const Login = () => {
                 animation: 'radarSweepSpin 12s linear infinite'
               }} />
 
-              <div style={{
-                width: '125px',
-                height: '125px',
+              <div className="login-scan-core" style={{
+                width: 'clamp(136px, 13vw, 168px)',
+                height: 'clamp(136px, 13vw, 168px)',
                 borderRadius: '50%',
                 backgroundColor: status === 'error'
                   ? 'rgba(239, 68, 68, 0.15)'
@@ -859,32 +954,35 @@ export const Login = () => {
                 transition: 'all 0.3s ease'
               }}>
                 {status === 'scanning' ? (
-                  <Loader2 size={48} className="spinner" style={{ color: '#38bdf8' }} />
+                  <Loader2 size={54} className="spinner" style={{ color: '#38bdf8' }} />
                 ) : status === 'success' ? (
-                  <CheckCircle2 size={52} style={{ color: '#10b981' }} />
+                  <CheckCircle2 size={60} style={{ color: '#10b981' }} />
                 ) : status === 'error' ? (
-                  <XCircle size={52} style={{ color: '#ef4444' }} />
+                  <XCircle size={60} style={{ color: '#ef4444' }} />
                 ) : (
-                  <CreditCard size={50} style={{ color: '#38bdf8' }} />
+                  <CreditCard size={58} style={{ color: '#38bdf8' }} />
                 )}
               </div>
             </div>
 
-            <h2 style={{
-              fontSize: '20px',
+            <h2 className="login-status-title" style={{
+              fontSize: 'clamp(26px, 2.4vw, 36px)',
               fontWeight: 800,
+              lineHeight: 1.18,
               color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-              margin: '0 0 6px'
+              margin: '0 auto 10px',
+              maxWidth: '560px',
+              textWrap: 'balance'
             }}>
               {statusMessage}
             </h2>
 
             <p style={{
-              fontSize: '13px',
+              fontSize: '14.5px',
               color: '#94a3b8',
-              maxWidth: '360px',
-              margin: '0 auto 16px',
-              lineHeight: 1.5
+              maxWidth: '430px',
+              margin: '0 auto 18px',
+              lineHeight: 1.55
             }}>
               {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
               {status === 'scanning' && 'Validando carnet en el sistema...'}
@@ -912,69 +1010,8 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* Políticas de sesión y pie inferior */}
+        {/* Pie inferior */}
         <div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '10px',
-            marginBottom: '16px'
-          }}>
-            <div style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
-                Sesión
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                Única
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                Por estación
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
-                Inactividad
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                15 min
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                Cierre automático
-              </div>
-            </div>
-
-            <div style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
-                Seguridad
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                JWT
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b' }}>
-                Token seguro
-              </div>
-            </div>
-          </div>
-
           <div style={{
             display: 'flex',
             alignItems: 'center',

@@ -34,6 +34,7 @@ export const Monitor = () => {
   const resetTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
   const lastSeenLogIdRef = useRef(null);
+  const seenScanKeysRef = useRef(new Set());
   const keyBufferRef = useRef('');
   const lastKeyTimeRef = useRef(Date.now());
 
@@ -112,6 +113,23 @@ export const Monitor = () => {
   };
 
   const handleScanResult = (result) => {
+    // Un mismo escaneo puede llegar por WebSocket, polling o respuesta directa
+    // del lector. Se deduplica por el ID del registro de acceso para que el
+    // flujo en vivo muestre cada lectura una sola vez.
+    const logId = result.logId ?? result.id;
+    const scanKey = logId !== undefined && logId !== null
+      ? `log:${logId}`
+      : `scan:${result.uid || result.rfid_uid_raw || ''}:${result.timestamp || ''}:${result.door?.id ?? result.door_id ?? ''}`;
+
+    if (scanKey && seenScanKeysRef.current.has(scanKey)) return;
+    if (scanKey) {
+      seenScanKeysRef.current.add(scanKey);
+      if (seenScanKeysRef.current.size > 500) {
+        const oldest = seenScanKeysRef.current.values().next().value;
+        seenScanKeysRef.current.delete(oldest);
+      }
+    }
+
     setLastScan(result);
     playBeep(result.granted);
 
@@ -143,8 +161,8 @@ export const Monitor = () => {
     // Agregar al stream en vivo
     setLiveStream(prev => [
       {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
+        id: scanKey || Date.now(),
+        timestamp: result.timestamp || new Date().toISOString(),
         ...result
       },
       ...prev.slice(0, 19)
@@ -162,14 +180,25 @@ export const Monitor = () => {
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
+      const wsLogId = data.logId ?? data.id;
+      if (wsLogId !== undefined && wsLogId !== null) {
+        const prev = Number(lastSeenLogIdRef.current);
+        const next = Number(wsLogId);
+        if (!Number.isFinite(prev) || !Number.isFinite(next) || next > prev) {
+          lastSeenLogIdRef.current = wsLogId;
+        }
+      }
       const doorId = data.door?.id || (data.door ? parseInt(data.door.id, 10) : null);
       if (doorId) {
         setHardwareSensors(prev => ({ ...prev, [doorId]: true }));
       }
       handleScanResult({
+        id: data.logId ?? data.id,
+        logId: data.logId ?? data.id,
         granted: data.granted,
-        denial_reason: data.denialReason,
+        denial_reason: data.denialReason || data.denial_reason,
         timestamp: data.timestamp,
+        uid: data.uid,
         user: data.user ? {
           first_name: data.user.name?.split(' ')[0] || '',
           last_name: data.user.name?.split(' ').slice(1).join(' ') || '',
@@ -240,17 +269,32 @@ export const Monitor = () => {
   useEffect(() => {
     if (isWsConnected) return;
 
-    const interval = setInterval(async () => {
+    let inFlight = false;
+    let cancelled = false;
+
+    // Solo se procesan IDs de log más recientes. Así una respuesta antigua que
+    // llegue fuera de orden no vuelve a pintar un escaneo ya mostrado.
+    const isNewerLog = (id) => {
+      if (lastSeenLogIdRef.current === null) return false;
+      const prev = Number(lastSeenLogIdRef.current);
+      const next = Number(id);
+      if (Number.isFinite(prev) && Number.isFinite(next)) return next > prev;
+      return String(id) !== String(lastSeenLogIdRef.current);
+    };
+
+    const poll = async () => {
+      if (inFlight || cancelled) return;
+      inFlight = true;
+
       try {
         // Intento 1: Endpoint de último escaneo directo (/access/latest)
         const latestRes = await apiClient('/access/latest');
+        if (cancelled) return;
         if (latestRes.success && latestRes.data && latestRes.data.id) {
           const scan = latestRes.data;
           if (lastSeenLogIdRef.current === null) {
             lastSeenLogIdRef.current = scan.id;
-            return;
-          }
-          if (scan.id !== lastSeenLogIdRef.current) {
+          } else if (isNewerLog(scan.id)) {
             lastSeenLogIdRef.current = scan.id;
             const scanTime = new Date(scan.timestamp).getTime();
             if (Date.now() - scanTime < 90000) {
@@ -266,14 +310,13 @@ export const Monitor = () => {
 
         // Intento 2: Historial de logs (/access/logs?limit=1)
         const res = await apiClient('/access/logs?limit=1');
+        if (cancelled) return;
         if (res.success && res.data && res.data.length > 0) {
           const latest = res.data[0];
           if (latest.id) {
             if (lastSeenLogIdRef.current === null) {
               lastSeenLogIdRef.current = latest.id;
-              return;
-            }
-            if (latest.id !== lastSeenLogIdRef.current) {
+            } else if (isNewerLog(latest.id)) {
               lastSeenLogIdRef.current = latest.id;
               const logTime = new Date(latest.timestamp).getTime();
               if (Date.now() - logTime < 90000) {
@@ -281,6 +324,8 @@ export const Monitor = () => {
                   setHardwareSensors(prev => ({ ...prev, [latest.door_id]: true }));
                 }
                 handleScanResult({
+                  id: latest.id,
+                  logId: latest.id,
                   granted: latest.granted,
                   denial_reason: latest.denial_reason,
                   timestamp: latest.timestamp,
@@ -302,10 +347,18 @@ export const Monitor = () => {
         }
       } catch (err) {
         // Silencioso para no ensuciar consola durante polling
+      } finally {
+        inFlight = false;
       }
-    }, 280);
+    };
 
-    return () => clearInterval(interval);
+    poll();
+    const interval = setInterval(poll, 280);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [isWsConnected]);
 
   useEffect(() => {
@@ -460,9 +513,18 @@ export const Monitor = () => {
                   borderRadius: '20px',
                   fontSize: '11.5px',
                   color: 'var(--text-secondary)',
-                  border: '1px solid var(--border)'
+                  border: '1px solid var(--border)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}>
-                  Puerta activa: <b>{selectedDoor?.name || 'Seleccione una puerta'}</b>
+                  <span style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: isSensorDetected ? '#22c55e' : '#ef4444'
+                  }} />
+                  {isSensorDetected ? 'Lector activo' : 'Lector desconectado'}
                 </div>
               </div>
             )}

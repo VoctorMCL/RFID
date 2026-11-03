@@ -70,6 +70,11 @@ pip install spidev mfrc522 RPi.GPIO
 > **Buzzer CrowPi 3:** la placa lo rotula como **`PI:IO01`**, que corresponde al
 > **GPIO BCM 18** (pin físico 12 del header de 40 pines). Es un buzzer activo.
 > Puedes probarlo sin arrancar el lector con `python3 hardware/lector_rfid.py --test-buzzer`.
+> Si sigue sin sonar, usa el diagnóstico independiente:
+> `python3 hardware/test_buzzer_crowpi3.py` (prueba RPi.GPIO, polaridad invertida y gpiozero).
+>
+> Recuerda que el **DIP switch de la CrowPi 3 debe estar en la posición 1 (Raspberry Pi)**
+> para que los sensores y el buzzer queden conectados al GPIO de la Pi.
 
 ### Ejecución del Lector
 

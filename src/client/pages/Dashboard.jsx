@@ -808,6 +808,7 @@ export const Dashboard = () => {
   // Estado reactivo en tiempo real del lector RFID (sin recargar página)
   const [isHardwareSensorOnline, setIsHardwareSensorOnline] = useState(false);
   const lastHardwareActivityRef = useRef(0);
+  const seenAccessIdsRef = useRef(new Set());
 
   // Sistema de Grid Layout resizable y draggable persistente en v3
   const [layouts, setLayouts] = useState(() => {
@@ -838,6 +839,20 @@ export const Dashboard = () => {
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
+      const rawEventId = data.logId ?? data.id ?? `${data.uid || ''}:${data.timestamp || ''}`;
+      const eventId = rawEventId !== undefined && rawEventId !== null ? String(rawEventId) : '';
+
+      // Evita contar o listar dos veces el mismo escaneo si el evento llega
+      // repetido por WebSocket o por reconexión.
+      if (eventId && seenAccessIdsRef.current.has(eventId)) return;
+      if (eventId) {
+        seenAccessIdsRef.current.add(eventId);
+        if (seenAccessIdsRef.current.size > 500) {
+          const oldest = seenAccessIdsRef.current.values().next().value;
+          seenAccessIdsRef.current.delete(oldest);
+        }
+      }
+
       lastHardwareActivityRef.current = Date.now();
       setIsHardwareSensorOnline(true);
 

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal } from '../components/ui/Modal';
-import { AccessSimulatorModal } from '../components/AccessSimulatorModal';
 import {
   Building2,
   DoorOpen,
@@ -15,8 +14,7 @@ import {
   AlertTriangle,
   Lock,
   Unlock,
-  Check,
-  Radio
+  Check
 } from 'lucide-react';
 
 export const InstitutionalMap = () => {
@@ -32,8 +30,6 @@ export const InstitutionalMap = () => {
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isDoorModalOpen, setIsDoorModalOpen] = useState(false);
-  const [isSimModalOpen, setIsSimModalOpen] = useState(false);
-  const [simDoorId, setSimDoorId] = useState(null);
 
   // Formularios
   const [blockForm, setBlockForm] = useState({ name: '', description: '', location_info: '' });
@@ -431,20 +427,8 @@ export const InstitutionalMap = () => {
                     IP {d.hardware_ip || '192.168.1.100'} · MAC {d.mac_address || 'AA:BB:CC:DD:EE:01'}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: canManageSecurity ? '1.2fr 1fr' : '1fr', gap: '8px' }}>
-                    <button
-                      onClick={() => {
-                        setSimDoorId(d.id);
-                        setIsSimModalOpen(true);
-                      }}
-                      className="btn btn-primary btn-sm"
-                      title="Simular ingreso RFID en esta puerta para ver la validación en pantalla completa"
-                    >
-                      <Radio size={13} />
-                      <span>Simular ingreso</span>
-                    </button>
-
-                    {canManageSecurity && (
+                  {canManageSecurity && (
+                    <div>
                       <button
                         onClick={() => handleUnlockDoor(d.id)}
                         className="btn btn-secondary btn-sm"
@@ -453,8 +437,8 @@ export const InstitutionalMap = () => {
                         <Unlock size={13} />
                         <span>Apertura</span>
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -656,13 +640,6 @@ export const InstitutionalMap = () => {
           </div>
         </form>
       </Modal>
-
-      {/* Simulador de Acceso RFID */}
-      <AccessSimulatorModal
-        isOpen={isSimModalOpen}
-        onClose={() => setIsSimModalOpen(false)}
-        defaultDoorId={simDoorId}
-      />
     </div>
   );
 };

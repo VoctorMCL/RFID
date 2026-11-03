@@ -18,10 +18,14 @@ const schedulesController = require('../controllers/schedulesController');
 const accessController = require('../controllers/accessController');
 const alertsController = require('../controllers/alertsController');
 const visitorPassesController = require('../controllers/visitorPassesController');
+const healthController = require('../controllers/healthController');
 
 // -------------------------------------------------------------
 // 1. RUTAS PÚBLICAS (Sin token de autenticación)
 // -------------------------------------------------------------
+// Estado de la base de datos y del lector RFID
+router.get('/health', healthController.getHealth);
+
 // Autenticación por Tarjeta Física RFID (Principal)
 router.post('/auth/rfid-login', authController.loginWithCard);
 

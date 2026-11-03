@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const path = require('path');
 
 const apiRoutes = require('./routes');
+const healthController = require('./controllers/healthController');
 
 const app = express();
 
@@ -32,17 +33,25 @@ const frontendDist = path.join(__dirname, '../../dist');
 app.use(express.static(frontendDist));
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    system: 'Control de Acceso RFID Institucional',
-    institution: 'Corporación Universitaria Lasallista',
-    timestamp: new Date().toISOString()
-  });
-});
+app.get('/health', healthController.getHealth);
 
 // Rutas de la API (soporta /api/* y rutas directas reescritas por Vercel Serverless)
 app.use('/api', apiRoutes);
+
+// Navegación directa del SPA (ej. /login, /dashboard) sin pasar por el
+// middleware de autenticación de la API montado en la raíz.
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/health') {
+    return next();
+  }
+  if (!req.accepts('html') || path.extname(req.path)) {
+    return next();
+  }
+  return res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
+
 app.use('/', apiRoutes);
 
 // Manejador SPA: Redirigir cualquier otra ruta al index.html de React

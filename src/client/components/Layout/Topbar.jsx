@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { apiClient } from '../../api/client';
-import { Cpu, Sun, Moon, Laptop, Radio } from 'lucide-react';
-import { AccessSimulatorModal } from '../AccessSimulatorModal';
+import { Cpu } from 'lucide-react';
 
 const routeTitles = {
   '/dashboard': 'Panel Principal de Telemetría (Grafana)',
@@ -18,27 +17,7 @@ const routeTitles = {
 
 export const Topbar = () => {
   const location = useLocation();
-  const [activeSensorDoor, setActiveSensorDoor] = useState(null);
   const [isSensorActive, setIsSensorActive] = useState(false);
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('rfid_theme_mode') || 'auto');
-  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
-
-  useEffect(() => {
-    if (themeMode === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light');
-    } else if (themeMode === 'dark') {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
-    localStorage.setItem('rfid_theme_mode', themeMode);
-  }, [themeMode]);
-
-  const cycleTheme = () => {
-    if (themeMode === 'auto') setThemeMode('dark');
-    else if (themeMode === 'dark') setThemeMode('light');
-    else setThemeMode('auto');
-  };
 
   const lastActivityRef = React.useRef(0);
 
@@ -46,11 +25,6 @@ export const Topbar = () => {
     if (event.type === 'hardware_heartbeat' || event.type === 'access_attempt') {
       lastActivityRef.current = Date.now();
       setIsSensorActive(true);
-      if (event.data?.door?.name) {
-        setActiveSensorDoor(event.data.door.name);
-      } else if (event.data?.doorName) {
-        setActiveSensorDoor(event.data.doorName);
-      }
     }
   };
 
@@ -68,12 +42,10 @@ export const Topbar = () => {
           if (activeDoor) {
             lastActivityRef.current = Date.now();
             setIsSensorActive(true);
-            setActiveSensorDoor(activeDoor.name);
           } else {
             const hasRecentActivity = (Date.now() - lastActivityRef.current) < 90000;
             if (!hasRecentActivity) {
               setIsSensorActive(false);
-              setActiveSensorDoor(null);
             }
           }
         }
@@ -111,7 +83,7 @@ export const Topbar = () => {
         {/* Indicador de Hardware Sensor RFID Real */}
         <div
           className="live-indicator"
-          title={isSensorActive ? `Lector MFRC522 activo en: ${activeSensorDoor || 'CrowPi'}` : 'Sin comunicación de hardware MFRC522 / CrowPi reciente'}
+          title={isSensorActive ? 'Lector RFID activo' : 'Sin comunicación de hardware RFID reciente'}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -137,56 +109,10 @@ export const Topbar = () => {
           />
           <Cpu size={14} style={{ opacity: 0.9 }} />
           <span>
-            {isSensorActive
-              ? `Lector activo ${activeSensorDoor ? `(${activeSensorDoor})` : ''}`
-              : 'Lector desconectado'}
+            {isSensorActive ? 'Lector activo' : 'Lector desconectado'}
           </span>
         </div>
-
-        {/* Botón Simular Acceso RFID */}
-        <button
-          onClick={() => setIsSimulatorOpen(true)}
-          className="btn btn-secondary btn-sm"
-          title="Simular lectura de carnet RFID para probar el pop-up institucional"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12.5px',
-            padding: '5px 12px'
-          }}
-        >
-          <Radio size={14} style={{ color: 'var(--accent)' }} />
-          <span>Simular ingreso</span>
-        </button>
-
-        {/* Selector de Modo Claro / Oscuro / Auto */}
-        <button
-          onClick={cycleTheme}
-          className="btn btn-secondary btn-sm"
-          title={`Tema: ${themeMode === 'auto' ? 'Automático (según dispositivo)' : themeMode === 'light' ? 'Modo claro' : 'Modo oscuro'}`}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12.5px',
-            padding: '5px 10px'
-          }}
-        >
-          {themeMode === 'auto' && <Laptop size={14} style={{ color: 'var(--accent)' }} />}
-          {themeMode === 'light' && <Sun size={14} style={{ color: '#d97706' }} />}
-          {themeMode === 'dark' && <Moon size={14} style={{ color: '#38bdf8' }} />}
-          <span style={{ textTransform: 'capitalize' }}>
-            {themeMode === 'auto' ? 'Auto' : themeMode === 'light' ? 'Claro' : 'Oscuro'}
-          </span>
-        </button>
       </div>
-
-      {/* Modal de Simulación de Acceso RFID */}
-      <AccessSimulatorModal
-        isOpen={isSimulatorOpen}
-        onClose={() => setIsSimulatorOpen(false)}
-      />
     </header>
   );
 };
