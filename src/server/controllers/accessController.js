@@ -62,7 +62,7 @@ const validateAccess = async (req, res) => {
 
     const [doorQuery, cardQuery] = await Promise.all([
       db.query(
-        `SELECT d.*, r.id as room_id, r.name as room_name, r.has_alarm, r.security_status, b.name as block_name
+        `SELECT d.*, r.id as room_id, r.name as room_name, r.room_type, r.has_alarm, r.security_status, b.name as block_name
          FROM doors d
          JOIN rooms r ON r.id = d.room_id
          LEFT JOIN blocks b ON b.id = r.block_id
@@ -147,6 +147,8 @@ const validateAccess = async (req, res) => {
         denialReason = 'denegado_acceso_expirado';
       } else {
         if (card.global_access || card.card_type === 'master') {
+          granted = true;
+        } else if (door.door_type === 'entrada' || door.room_type === 'acceso') {
           granted = true;
         } else if (card.role_name === 'admin_staff') {
           if (door.room_name.toLowerCase().includes('admin') || (door.block_name && door.block_name.toLowerCase().includes('admin'))) {

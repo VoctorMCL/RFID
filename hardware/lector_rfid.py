@@ -229,7 +229,7 @@ DEFAULT_API_URL = os.environ.get(
     "RFID_SERVER_URL",
     "https://rfid.victormcl.me/api/access/validate"
 )
-DEFAULT_DOOR_ID = 1  # 1 = Puerta Principal — Sala de Informática 1
+DEFAULT_DOOR_ID = int(os.environ.get("RFID_DOOR_ID", "54"))  # 54 = Ingreso a la Universidad
 # =======================================================================
 
 

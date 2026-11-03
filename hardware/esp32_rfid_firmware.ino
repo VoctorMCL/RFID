@@ -33,7 +33,7 @@ const char* WIFI_PASSWORD = "PasswordSeguro2026";
 
 // Configuración de Backend de Control de Acceso
 const char* BACKEND_URL   = "http://192.168.1.50:4000/api/access/validate";
-const int   DOOR_ID       = 1; // 1 = Puerta Principal Sala Informática 1
+const int   DOOR_ID       = 54; // 54 = Ingreso a la Universidad
 
 // Pines
 #define SS_PIN     5

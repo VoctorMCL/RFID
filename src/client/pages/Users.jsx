@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useRfidSensor } from '../hooks/useRfidSensor';
 import { Modal } from '../components/ui/Modal';
 import {
-  Users as UsersIcon,
   Plus,
   Search,
   Edit,
   Trash2,
-  CreditCard,
-  Shield,
-  Filter
+  Radio,
+  Check,
+  X
 } from 'lucide-react';
 
 export const Users = () => {
   const { canManageInfrastructure } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,24 +31,41 @@ export const Users = () => {
     role_id: '3',
     program: '',
     phone: '',
-    rfid_uid: '',
-    password: ''
+    rfid_tag: ''
   });
+
+  const { scannedUid, sensorStatus, reset: resetSensor } = useRfidSensor({
+    active: isModalOpen,
+    onScan: (uid) => setFormData((prev) => ({ ...prev, rfid_tag: uid }))
+  });
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('radar-enrollment-state', { detail: { active: isModalOpen } })
+    );
+
+    return () => {
+      if (isModalOpen) {
+        window.dispatchEvent(
+          new CustomEvent('radar-enrollment-state', { detail: { active: false } })
+        );
+      }
+    };
+  }, [isModalOpen]);
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      const [usersRes, rolesRes] = await Promise.all([
+      const [usersRes, rolesRes, programsRes] = await Promise.all([
         apiClient('/users'),
-        apiClient('/roles')
+        apiClient('/roles'),
+        apiClient('/programs')
       ]);
 
       if (usersRes.success) setUsers(usersRes.data);
       if (rolesRes.success) setRoles(rolesRes.data);
+      if (programsRes.success) setPrograms(programsRes.data);
     } catch (err) {
       console.error('Error cargando usuarios:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -56,24 +73,30 @@ export const Users = () => {
     loadData();
   }, []);
 
+  const defaultRoleId = () => {
+    const studentRole = roles.find((role) => role.name === 'student');
+    return studentRole ? studentRole.id.toString() : (roles[0]?.id.toString() || '5');
+  };
+
   const openCreateModal = () => {
     setEditingUser(null);
+    resetSensor();
     setFormData({
       first_name: '',
       last_name: '',
       email: '',
       document_id: '',
-      role_id: roles[0] ? roles[0].id.toString() : '3',
+      role_id: defaultRoleId(),
       program: '',
       phone: '',
-      rfid_uid: '',
-      password: ''
+      rfid_tag: ''
     });
     setIsModalOpen(true);
   };
 
   const openEditModal = (user) => {
     setEditingUser(user);
+    resetSensor();
     setFormData({
       first_name: user.first_name,
       last_name: user.last_name,
@@ -82,33 +105,31 @@ export const Users = () => {
       role_id: user.role_id.toString(),
       program: user.program || '',
       phone: user.phone || '',
-      rfid_uid: user.rfid_tag || '',
-      password: ''
+      rfid_tag: user.rfid_tag || ''
     });
     setIsModalOpen(true);
+  };
+
+  const clearCard = () => {
+    if (editingUser && formData.rfid_tag && !window.confirm('¿Desvincular la tarjeta RFID de esta persona?')) {
+      return;
+    }
+    resetSensor();
+    setFormData((prev) => ({ ...prev, rfid_tag: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingUser) {
-        const res = await apiClient(`/users/${editingUser.id}`, {
-          method: 'PUT',
-          body: formData
-        });
-        if (res.success) {
-          loadData();
-          setIsModalOpen(false);
-        }
-      } else {
-        const res = await apiClient('/users', {
-          method: 'POST',
-          body: formData
-        });
-        if (res.success) {
-          loadData();
-          setIsModalOpen(false);
-        }
+      const res = await apiClient(editingUser ? `/users/${editingUser.id}` : '/users', {
+        method: editingUser ? 'PUT' : 'POST',
+        body: formData
+      });
+
+      if (res.success) {
+        resetSensor();
+        setIsModalOpen(false);
+        loadData();
       }
     } catch (err) {
       alert(err.message);
@@ -329,36 +350,87 @@ export const Users = () => {
             </div>
             <div className="form-group">
               <label className="form-label">Programa / Dependencia</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Ej. Ingeniería de Software"
+              <select
+                className="form-select"
                 value={formData.program}
                 onChange={e => setFormData({ ...formData, program: e.target.value })}
-              />
+              >
+                <option value="">Seleccione un programa o dependencia</option>
+                {formData.program && !programs.includes(formData.program) && (
+                  <option value={formData.program}>{formData.program}</option>
+                )}
+                {programs.map(program => (
+                  <option key={program} value={program}>{program}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div className="form-group">
-              <label className="form-label">UID Tarjeta RFID (Opcional)</label>
-              <input
-                type="text"
-                className="form-input font-mono"
-                placeholder="Ej. A1B2C3D4"
-                value={formData.rfid_uid}
-                onChange={e => setFormData({ ...formData, rfid_uid: e.target.value })}
-              />
+          <div className="form-group">
+            <label className="form-label">Tarjeta RFID (Opcional)</label>
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: '10px' }}>
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: `1.5px dashed ${sensorStatus === 'detected' ? '#10b981' : 'var(--border)'}`,
+                backgroundColor: sensorStatus === 'detected' ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-tertiary)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
+                  flexShrink: 0,
+                  backgroundColor: sensorStatus === 'detected' ? 'rgba(16, 185, 129, 0.18)' : 'var(--accent-soft)',
+                  color: sensorStatus === 'detected' ? '#10b981' : 'var(--accent)'
+                }}>
+                  {sensorStatus === 'detected'
+                    ? <Check size={17} />
+                    : <Radio size={17} className="spinner" />}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: sensorStatus === 'detected' ? '#10b981' : 'var(--text)'
+                  }}>
+                    {sensorStatus === 'detected'
+                      ? 'Tarjeta detectada por el sensor'
+                      : (formData.rfid_tag ? 'Tarjeta actual vinculada' : 'Esperando lectura del sensor')}
+                  </div>
+                  <div
+                    className="font-mono"
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {scannedUid || formData.rfid_tag || 'Acerque la tarjeta al lector RFID'}
+                  </div>
+                </div>
+              </div>
+              {(scannedUid || formData.rfid_tag) && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={clearCard}
+                  title="Quitar tarjeta"
+                >
+                  <X size={15} />
+                </button>
+              )}
             </div>
-            <div className="form-group">
-              <label className="form-label">{editingUser ? 'Nueva Contraseña (Opcional)' : 'Contraseña'}</label>
-              <input
-                type="password"
-                className="form-input"
-                placeholder={editingUser ? 'Dejar en blanco para conservar' : 'acceso2026'}
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-              />
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '6px' }}>
+              La tarjeta es opcional. Puede registrarla ahora o asignarla después desde Tarjetas RFID.
             </div>
           </div>
 

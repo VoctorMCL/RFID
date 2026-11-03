@@ -1,5 +1,61 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
+
+const normalizeUid = (uid) => String(uid || '').trim().replace(/[\s:\-]/g, '').toUpperCase();
+
+const attachCardToUser = async (userId, rawUid, label) => {
+  const uid = normalizeUid(rawUid);
+  if (!uid) return null;
+
+  await db.query(
+    `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND uid <> $2`,
+    [userId, uid]
+  );
+
+  await db.query(
+    `UPDATE visitor_passes
+     SET status = 'returned', exit_time = NOW()
+     WHERE status = 'active'
+       AND card_uid IN (SELECT uid FROM rfid_cards WHERE user_id = $1 AND uid <> $2)`,
+    [userId, uid]
+  );
+
+  await db.query(
+    `UPDATE visitor_passes
+     SET status = 'returned', exit_time = NOW()
+     WHERE card_uid = $1 AND status = 'active'`,
+    [uid]
+  );
+
+  const result = await db.query(
+    `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label, enrolled_at)
+     VALUES ($1, $2, 'standard', true, $3, NOW())
+     ON CONFLICT (uid) DO UPDATE
+     SET user_id = $2, card_type = 'standard', is_active = true, label = $3, enrolled_at = NOW()
+     RETURNING *`,
+    [uid, userId, label]
+  );
+
+  return result.rows[0];
+};
+
+const detachCardsFromUser = async (userId) => {
+  await db.query(
+    `UPDATE visitor_passes
+     SET status = 'returned', exit_time = NOW()
+     WHERE status = 'active'
+       AND card_uid IN (SELECT uid FROM rfid_cards WHERE user_id = $1)`,
+    [userId]
+  );
+
+  await db.query(
+    `UPDATE rfid_cards
+     SET user_id = NULL, is_active = false
+     WHERE user_id = $1 AND is_active = true`,
+    [userId]
+  );
+};
 
 const getUsers = async (req, res) => {
   try {
@@ -77,32 +133,25 @@ const getUserById = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { first_name, last_name, email, document_id, role_id, program, phone, password, rfid_tag } = req.body;
+    const { first_name, last_name, email, document_id, role_id, program, phone, rfid_tag } = req.body;
 
     if (!first_name || !last_name || !email || !document_id || !role_id) {
       return res.status(400).json({ success: false, error: 'Todos los campos obligatorios deben ser completados' });
     }
 
-    const defaultPass = password || 'acceso2026';
-    const hash = await bcrypt.hash(defaultPass, 10);
+    const hash = await bcrypt.hash(crypto.randomUUID(), 10);
 
     const insertUser = await db.query(
       `INSERT INTO users (first_name, last_name, email, password_hash, document_id, role_id, program, phone, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
        RETURNING id, first_name, last_name, email, document_id, role_id, program, phone, status`,
-      [first_name.trim(), last_name.trim(), email.trim().toLowerCase(), hash, document_id.trim(), parseInt(role_id, 10), program, phone]
+      [first_name.trim(), last_name.trim(), email.trim().toLowerCase(), hash, document_id.trim(), parseInt(role_id, 10), program || null, phone || null]
     );
 
     const newUser = insertUser.rows[0];
 
-    if (rfid_tag && rfid_tag.trim()) {
-      const cleanUid = rfid_tag.trim().toUpperCase();
-      await db.query(
-        `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label)
-         VALUES ($1, $2, 'standard', true, $3)
-         ON CONFLICT (uid) DO UPDATE SET user_id = $2, is_active = true`,
-        [cleanUid, newUser.id, `Carnet de ${newUser.first_name}`]
-      );
+    if (normalizeUid(rfid_tag)) {
+      await attachCardToUser(newUser.id, rfid_tag, `Carnet de ${newUser.first_name}`);
     }
 
     return res.status(201).json({ success: true, data: newUser });
@@ -115,7 +164,7 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { first_name, last_name, email, document_id, role_id, program, phone, status } = req.body;
+    const { first_name, last_name, email, document_id, role_id, program, phone, status, rfid_tag } = req.body;
 
     const result = await db.query(
       `UPDATE users
@@ -135,6 +184,14 @@ const updateUser = async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+
+    if (rfid_tag !== undefined) {
+      if (normalizeUid(rfid_tag)) {
+        await attachCardToUser(id, rfid_tag, `Carnet de ${result.rows[0].first_name}`);
+      } else {
+        await detachCardsFromUser(id);
+      }
     }
 
     return res.json({ success: true, data: result.rows[0] });

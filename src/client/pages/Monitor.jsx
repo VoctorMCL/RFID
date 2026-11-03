@@ -3,20 +3,22 @@ import { apiClient } from '../api/client';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
   Radio,
-  CheckCircle2,
   XCircle,
   Clock,
   DoorClosed,
-  CreditCard,
-  User,
-  Shield,
   Volume2,
   VolumeX,
   AlertTriangle,
-  Cpu,
   Wifi,
   WifiOff
 } from 'lucide-react';
+
+const ENTRANCE_NAME = 'Ingreso a la Universidad';
+
+const isEntranceDoor = (door) => {
+  const label = `${door.room_name || ''} ${door.name || ''}`.toLowerCase();
+  return label.includes(ENTRANCE_NAME.toLowerCase());
+};
 
 export const Monitor = () => {
   const [doors, setDoors] = useState([]);
@@ -215,14 +217,17 @@ export const Monitor = () => {
       if (e.key === 'Enter') {
         const rawUid = keyBufferRef.current.trim().toUpperCase();
         keyBufferRef.current = '';
-        if (rawUid.length >= 4 && rawUid.length <= 16 && /^[0-9A-F]+$/i.test(rawUid)) {
+        const fallbackDoor = doors.find(isEntranceDoor) || doors[0];
+        const targetDoorId = parseInt(selectedDoorId, 10) || fallbackDoor?.id;
+
+        if (targetDoorId && rawUid.length >= 4 && rawUid.length <= 16 && /^[0-9A-F]+$/i.test(rawUid)) {
           console.log('[RFID-USB] Lector detectado:', rawUid);
           setIsProcessing(true);
           apiClient('/access/validate', {
             method: 'POST',
             body: {
               rfid_uid: rawUid,
-              door_id: parseInt(selectedDoorId || '1', 10),
+              door_id: targetDoorId,
               access_method: 'rfid_usb'
             }
           }).then(res => {
@@ -239,7 +244,7 @@ export const Monitor = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDoorId]);
+  }, [selectedDoorId, doors]);
 
   useEffect(() => {
     if (isWsConnected) return;
@@ -339,7 +344,11 @@ export const Monitor = () => {
         if (!isMounted) return;
         if (res.success && res.data.length > 0) {
           setDoors(res.data);
-          setSelectedDoorId(prev => prev || res.data[0].id.toString());
+          setSelectedDoorId(prev => {
+            if (prev && res.data.some(d => d.id.toString() === prev)) return prev;
+            const entrance = res.data.find(isEntranceDoor);
+            return (entrance || res.data[0]).id.toString();
+          });
 
           setHardwareSensors(prev => {
             const next = { ...prev };
@@ -397,11 +406,28 @@ export const Monitor = () => {
   };
 
   const selectedDoor = doors.find(d => d.id.toString() === selectedDoorId);
-  const currentDoorId = parseInt(selectedDoorId, 10) || 1;
+  const currentDoorId = selectedDoor ? selectedDoor.id : null;
   const isSensorDetected = Boolean(
-    hardwareSensors[currentDoorId] ||
+    currentDoorId && hardwareSensors[currentDoorId] ||
     selectedDoor?.is_hardware_active
   );
+
+  const doorGroups = doors.reduce((groups, door) => {
+    const block = door.block_name || 'Campus';
+    if (!groups[block]) groups[block] = [];
+    groups[block].push(door);
+    return groups;
+  }, {});
+
+  const roomDoorCounts = doors.reduce((counts, door) => {
+    counts[door.room_id] = (counts[door.room_id] || 0) + 1;
+    return counts;
+  }, {});
+
+  const getDoorLabel = (door) => {
+    const roomName = door.room_name || door.name;
+    return roomDoorCounts[door.room_id] > 1 ? `${roomName} — ${door.name}` : roomName;
+  };
 
   return (
     <div>
@@ -411,7 +437,7 @@ export const Monitor = () => {
             Escáner RFID y Validación Visual
           </h1>
           <p className="page-subtitle" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Monitoreo en tiempo real de puertas inteligentes, articulación horaria y sensores de acceso
+            Registro de ingresos en la entrada y espacios del campus
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -429,6 +455,45 @@ export const Monitor = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
 
         <div>
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <DoorClosed size={19} />
+              </div>
+              <div style={{ flex: 1, minWidth: '240px' }}>
+                <label className="form-label" htmlFor="access-destination" style={{ marginBottom: '4px' }}>
+                  Salón o punto de acceso
+                </label>
+                <select
+                  id="access-destination"
+                  className="form-select"
+                  value={selectedDoorId}
+                  onChange={(e) => setSelectedDoorId(e.target.value)}
+                  disabled={doors.length === 0}
+                >
+                  {selectedDoorId === '' && <option value="">Cargando espacios...</option>}
+                  {Object.entries(doorGroups).map(([block, blockDoors]) => (
+                    <optgroup key={block} label={block}>
+                      {blockDoors.map(door => (
+                        <option key={door.id} value={door.id}>{getDoorLabel(door)}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           <div
             className={lastScan !== null && !lastScan.granted && isVibrating ? 'vibrate-error' : ''}
             style={{

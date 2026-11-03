@@ -305,7 +305,10 @@ INSERT INTO rooms (id, block_id, name, floor, room_type, has_alarm, security_sta
 (49, 4, 'Laboratorio de Informática 3', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
 (50, 4, 'Laboratorio de Informática 4', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
 (51, 4, 'Laboratorio de Informática 5', 4, 'lab_pcs', TRUE, 'normal', 'Laboratorio de cómputo y PCs - Piso 4'),
-(52, 4, 'Sala de Profesores (Piso 4)', 4, 'administrativo', FALSE, 'normal', 'Acceso y sala de trabajo docente - Piso 4');
+(52, 4, 'Sala de Profesores (Piso 4)', 4, 'administrativo', FALSE, 'normal', 'Acceso y sala de trabajo docente - Piso 4'),
+
+-- Entrada principal del campus
+(53, 4, 'Ingreso a la Universidad', 1, 'acceso', FALSE, 'normal', 'Entrada principal al campus - Portería');
 
 SELECT setval('rooms_id_seq', (SELECT MAX(id) FROM rooms));
 
@@ -377,7 +380,10 @@ INSERT INTO doors (id, room_id, name, door_type, status, is_locked) VALUES
 (50, 49, 'Puerta Laboratorio de Informática 3', 'acceso', 'online', TRUE),
 (51, 50, 'Puerta Laboratorio de Informática 4', 'acceso', 'online', TRUE),
 (52, 51, 'Puerta Laboratorio de Informática 5', 'acceso', 'online', TRUE),
-(53, 52, 'Puerta Sala de Profesores (Piso 4)', 'acceso', 'online', TRUE);
+(53, 52, 'Puerta Sala de Profesores (Piso 4)', 'acceso', 'online', TRUE),
+
+-- Ingreso a la Universidad
+(54, 53, 'Portería Ingreso a la Universidad', 'entrada', 'online', FALSE);
 
 INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label) VALUES
 ('9B160795', 1, 'master', TRUE, 'Carnet Maestro Administrador'),

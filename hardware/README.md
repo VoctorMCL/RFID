@@ -46,7 +46,7 @@ El sistema ofrece dos alternativas de hardware completamente implementadas:
 const char* WIFI_SSID     = "Lasallista_Campus";
 const char* WIFI_PASSWORD = "TuPasswordSeguro";
 const char* BACKEND_URL   = "http://192.168.1.50:4000/api/access/validate";
-const int   DOOR_ID       = 1; // 1 = Puerta Principal Sala Informática 1
+const int   DOOR_ID       = 54; // 54 = Ingreso a la Universidad
 ```
 
 ---
@@ -104,7 +104,7 @@ python3 hardware/lector_rfid.py --buzzer-pin 18 --buzzer-type active
 | Bandera | Descripción | Valor por Defecto |
 |---------|-------------|-------------------|
 | `--server <url>` | URL base del servidor backend o endpoint | `https://rfid.victormcl.me/api/access/validate` (o `http://localhost:4000`) |
-| `--door <id>` | ID de la puerta según la base de datos | `1` |
+| `--door <id>` | ID de la puerta según la base de datos | `54` (`Ingreso a la Universidad`) |
 | `--uid` | Diagnóstico: imprime UID sin enviar HTTP | `false` |
 | `--mute` | Desactiva los pitidos del buzzer | `false` |
 | `--buzzer-pin <bcm>` | GPIO BCM del buzzer (CrowPi 3: `18` = `PI:IO01`) | `18` (`RFID_BUZZER_PIN`) |

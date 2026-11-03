@@ -14,6 +14,7 @@ const schedulesController = require('../controllers/schedulesController');
 const accessController = require('../controllers/accessController');
 const alertsController = require('../controllers/alertsController');
 const visitorPassesController = require('../controllers/visitorPassesController');
+const programsController = require('../controllers/programsController');
 const healthController = require('../controllers/healthController');
 
 router.get('/health', healthController.getHealth);
@@ -36,6 +37,7 @@ router.put('/auth/change-password', authController.changePassword);
 
 router.get('/roles', rolesController.getRoles);
 router.get('/roles/:id', rolesController.getRoleById);
+router.get('/programs', programsController.getPrograms);
 
 router.get('/users', usersController.getUsers);
 router.get('/users/:id', usersController.getUserById);
