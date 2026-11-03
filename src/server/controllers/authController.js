@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { getJwtSecret } = require('../config/security');
 
 const loginWithCard = async (req, res) => {
   try {
@@ -82,7 +83,7 @@ const loginWithCard = async (req, res) => {
         global_access: user.global_access,
         sessionId: newSessionId
       },
-      process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026',
+      getJwtSecret(),
       { expiresIn: '4h' }
     );
 
@@ -171,15 +172,17 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Usuario inactivo o suspendido' });
     }
 
-    let isMatch = false;
-    if (password === 'acceso2026' || password === 'rfid2026' || password === 'admin2026') {
-      isMatch = true;
-    } else {
-      isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!user.password_hash) {
+      return res.status(401).json({
+        success: false,
+        error: 'Esta cuenta no tiene contraseña configurada. Inicie sesión con su carnet físico RFID.'
+      });
     }
 
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+
     if (!isMatch) {
-      return res.status(401).json({ success: false, error: 'Contraseña incorrecta' });
+      return res.status(401).json({ success: false, error: 'Credenciales inválidas o contraseña incorrecta' });
     }
 
     const newSessionId = crypto.randomUUID();
@@ -199,7 +202,7 @@ const login = async (req, res) => {
         global_access: user.global_access,
         sessionId: newSessionId
       },
-      process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026',
+      getJwtSecret(),
       { expiresIn: '4h' }
     );
 
@@ -295,6 +298,13 @@ const changePassword = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Todos los campos son obligatorios' });
     }
 
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'La nueva contraseña debe tener al menos 8 caracteres para garantizar la seguridad.'
+      });
+    }
+
     const userId = req.user.id;
     const userResult = await db.query(`SELECT id, password_hash FROM users WHERE id = $1`, [userId]);
     if (userResult.rows.length === 0) {
@@ -302,12 +312,16 @@ const changePassword = async (req, res) => {
     }
 
     const user = userResult.rows[0];
-    const match = currentPassword === 'acceso2026' || currentPassword === 'rfid2026' || await bcrypt.compare(currentPassword, user.password_hash);
+    if (!user.password_hash) {
+      return res.status(400).json({ success: false, error: 'El usuario no posee contraseña previa configurada' });
+    }
+
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
     if (!match) {
       return res.status(400).json({ success: false, error: 'La contraseña actual no coincide' });
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    const newHash = await bcrypt.hash(newPassword, 12);
     await db.query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [newHash, userId]);
 
     return res.json({ success: true, message: 'Contraseña actualizada correctamente en PostgreSQL' });

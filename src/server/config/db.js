@@ -4,14 +4,24 @@ try { dns.setDefaultResultOrder('ipv4first'); } catch (e) {}
 
 const { Pool } = require('pg');
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://victormcl:rfid2026@localhost:5432/rfid_db';
+const databaseUrl = process.env.DATABASE_URL;
 
-const isCloud = databaseUrl &&
+if (!databaseUrl) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[DATABASE CRITICAL] La variable de entorno DATABASE_URL no está configurada.');
+  } else {
+    console.warn('[DATABASE WARNING] DATABASE_URL no definida. Configure su archivo .env con la conexión segura.');
+  }
+}
+
+const isCloud = Boolean(
+  databaseUrl &&
   !databaseUrl.includes('localhost') &&
-  !databaseUrl.includes('127.0.0.1');
+  !databaseUrl.includes('127.0.0.1')
+);
 
 const pool = new Pool({
-  connectionString: databaseUrl,
+  connectionString: databaseUrl || 'postgresql://localhost:5432/rfid_db',
   connectionTimeoutMillis: 12000,
   idleTimeoutMillis: 30000,
   max: 15,

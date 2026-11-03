@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { authenticate, authorize } = require('../middleware/auth');
+const { authLimiter, accessValidateLimiter } = require('../config/security');
 
 const authController = require('../controllers/authController');
 const usersController = require('../controllers/usersController');
@@ -19,11 +20,11 @@ const healthController = require('../controllers/healthController');
 
 router.get('/health', healthController.getHealth);
 
-router.post('/auth/rfid-login', authController.loginWithCard);
+router.post('/auth/rfid-login', authLimiter, authController.loginWithCard);
 
-router.post('/auth/login', authController.login);
+router.post('/auth/login', authLimiter, authController.login);
 
-router.post('/access/validate', accessController.validateAccess);
+router.post('/access/validate', accessValidateLimiter, accessController.validateAccess);
 
 router.get('/access/latest', accessController.getLatestScan);
 
@@ -33,7 +34,7 @@ router.use(authenticate);
 
 router.get('/auth/me', authController.me);
 router.post('/auth/logout', authController.logout);
-router.put('/auth/change-password', authController.changePassword);
+router.put('/auth/change-password', authLimiter, authController.changePassword);
 
 router.get('/roles', rolesController.getRoles);
 router.get('/roles/:id', rolesController.getRoleById);

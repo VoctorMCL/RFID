@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { getJwtSecret } = require('../config/security');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -17,7 +18,7 @@ const authenticate = async (req, res, next) => {
     let decoded = null;
 
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'rfid_secret_key_lasallista_2026');
+      decoded = jwt.verify(token, getJwtSecret());
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({
