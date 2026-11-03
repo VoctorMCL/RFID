@@ -1,7 +1,3 @@
-// ===================================================================
-// RADAR — Control de Acceso RFID Institucional
-// Consola de Acceso y Monitoreo v1.0
-// ===================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -26,19 +22,16 @@ export const Login = () => {
   const { loginWithCard, isAuthenticated, isCelador, authNotice, clearAuthNotice } = useAuth();
   const navigate = useNavigate();
 
-  // Estados del escáner RFID
-  const [status, setStatus] = useState('idle'); // 'idle' | 'scanning' | 'success' | 'error'
+  const [status, setStatus] = useState('idle');
   const [statusMessage, setStatusMessage] = useState('Acerque su carnet al lector para ingresar');
   const [errorMessage, setErrorMessage] = useState('');
   const [lastScannedUid, setLastScannedUid] = useState(null);
   const [authorizedUser, setAuthorizedUser] = useState(null);
   const [entryTimestamp, setEntryTimestamp] = useState(null);
 
-  // Configuración general
   const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
 
-  // Estado de infraestructura (PostgreSQL y lector RFID)
   const [health, setHealth] = useState({ database: null, reader: null });
 
   const lastProcessedIdRef = useRef(null);
@@ -47,13 +40,11 @@ export const Login = () => {
   const wedgeBufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
 
-  // Reloj en tiempo real
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Estado real de PostgreSQL y del lector RFID (se refresca cada 5 s)
   useEffect(() => {
     let isMounted = true;
 
@@ -81,14 +72,12 @@ export const Login = () => {
     };
   }, []);
 
-  // Redirigir si el usuario ya cuenta con sesión activa
   useEffect(() => {
     if (isAuthenticated) {
       navigate(isCelador ? '/monitor' : '/dashboard', { replace: true });
     }
   }, [isAuthenticated, isCelador, navigate]);
 
-  // Obtener o desbloquear AudioContext asegurando que esté en estado 'running'
   const getAudioContext = useCallback(async () => {
     try {
       if (!audioCtxRef.current) {
@@ -107,7 +96,6 @@ export const Login = () => {
     }
   }, []);
 
-  // Desbloqueo proactivo ante cualquier interacción (click, toque o tecla)
   useEffect(() => {
     const unlock = () => {
       try {
@@ -136,7 +124,6 @@ export const Login = () => {
     };
   }, []);
 
-  // Alternar audio, persistir en localStorage y emitir tono de prueba al activar
   const toggleSound = () => {
     setSoundEnabled(prev => {
       const next = !prev;
@@ -163,7 +150,6 @@ export const Login = () => {
     });
   };
 
-  // Tonos sonoros de validación Web Audio API (asíncrono y tolerante a suspensión)
   const playSound = useCallback(async (granted) => {
     if (!soundEnabled) return;
     try {
@@ -176,15 +162,14 @@ export const Login = () => {
       const now = ctx.currentTime;
 
       if (granted) {
-        // Tono ascendente de confirmación (D5 -> A5)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now); // D5
-        osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.12);
 
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.28, now + 0.02);
@@ -193,15 +178,14 @@ export const Login = () => {
         osc.start(now);
         osc.stop(now + 0.45);
       } else {
-        // Tono grave de alerta (A3 -> D3)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
 
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220.00, now); // A3
-        osc.frequency.setValueAtTime(146.83, now + 0.15); // D3
+        osc.frequency.setValueAtTime(220.00, now);
+        osc.frequency.setValueAtTime(146.83, now + 0.15);
 
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.26, now + 0.02);
@@ -215,7 +199,6 @@ export const Login = () => {
     }
   }, [soundEnabled, getAudioContext]);
 
-  // Procesar autenticación física por UID de tarjeta RFID
   const handleCardAuthentication = useCallback(async (uidRaw) => {
     if (!uidRaw || isProcessingRef.current) return;
 
@@ -272,7 +255,6 @@ export const Login = () => {
     }
   }, [loginWithCard, navigate, playSound]);
 
-  // 1. Escuchar lecturas en vivo desde WebSocket
   const handleWsEvent = useCallback((event) => {
     if (isProcessingRef.current) return;
 
@@ -287,7 +269,6 @@ export const Login = () => {
 
   const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
 
-  // 2. Polling de respaldo para lecturas de hardware
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       if (isProcessingRef.current) return;
@@ -310,7 +291,6 @@ export const Login = () => {
     return () => clearInterval(pollInterval);
   }, [handleCardAuthentication]);
 
-  // 3. Captura directa de lectores USB (teclado cuña)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -357,11 +337,9 @@ export const Login = () => {
 
   return (
     <div className="radar-login-container">
-      {/* ========================================================================= */}
-      {/* PANEL IZQUIERDO: STAGE VISUAL RADAR E IDENTIFICACIÓN DEL USUARIO          */}
-      {/* ========================================================================= */}
+
       <div className="radar-login-left">
-        {/* Grilla sutil de fondo */}
+
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -374,7 +352,6 @@ export const Login = () => {
           pointerEvents: 'none'
         }} />
 
-        {/* Resplandor central dinámico */}
         <div style={{
           position: 'absolute',
           top: '40%',
@@ -392,7 +369,6 @@ export const Login = () => {
           transition: 'all 0.5s ease'
         }} />
 
-        {/* Cabecera superior izquierda */}
         <div className="login-left-header" style={{
           display: 'flex',
           alignItems: 'center',
@@ -444,7 +420,6 @@ export const Login = () => {
             </div>
           </div>
 
-          {/* Controles de sonido y reloj en vivo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={toggleSound}
@@ -491,9 +466,6 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* ======================================================== */}
-        {/* ÁREA CENTRAL: REPOSO RADAR O TARJETA DE USUARIO VALIDADO */}
-        {/* ======================================================== */}
         <div style={{
           position: 'relative',
           zIndex: 25,
@@ -506,7 +478,7 @@ export const Login = () => {
           padding: '24px 0'
         }}>
           {status === 'success' && authorizedUser ? (
-            /* Vista de usuario verificado con éxito */
+
             <div style={{
               width: '100%',
               maxWidth: '440px',
@@ -531,7 +503,6 @@ export const Login = () => {
                 <span>ACCESO AUTORIZADO</span>
               </div>
 
-              {/* Foto o Iniciales del Usuario */}
               <div style={{
                 position: 'relative',
                 width: '120px',
@@ -580,7 +551,6 @@ export const Login = () => {
                 </div>
               </div>
 
-              {/* Nombre completo */}
               <h2 style={{
                 fontSize: '24px',
                 fontWeight: 800,
@@ -605,7 +575,6 @@ export const Login = () => {
                 {authorizedUser.role?.display_name || 'Usuario Autorizado'}
               </div>
 
-              {/* Datos del acceso */}
               <div style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.65)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
@@ -655,7 +624,6 @@ export const Login = () => {
                 </div>
               </div>
 
-              {/* Barra de progreso de redirección */}
               <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', height: '4px', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
@@ -670,7 +638,6 @@ export const Login = () => {
               </div>
             </div>
           ) : (
-            /* Vista en reposo: Logotipo Radar con anillos */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{
                 position: 'relative',
@@ -789,7 +756,6 @@ export const Login = () => {
           )}
         </div>
 
-        {/* Pie inferior izquierdo */}
         <div style={{ position: 'relative', zIndex: 20 }}>
           <h1 style={{
             fontSize: 'clamp(32px, 3vw, 44px)',
@@ -813,11 +779,8 @@ export const Login = () => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* PANEL DERECHO: CONSOLA DE ACCESO (RFID O CREDENCIALES)                   */}
-      {/* ========================================================================= */}
       <div className="radar-login-right">
-        {/* Cabecera superior derecha */}
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -857,7 +820,6 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* Notificación de seguridad / Sesión expirada (descartable) */}
         {hasValidAuthNotice && (
           <div style={{
             margin: '16px 0 0',
@@ -897,16 +859,14 @@ export const Login = () => {
         )}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 0' }}>
-          {/* ====================================================== */}
-          {/* ESCANEO DE CARNET RFID — ÚNICO MÉTODO DE INGRESO      */}
-          {/* ====================================================== */}
+
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             textAlign: 'center'
           }}>
-            {/* Pad de lectura RFID */}
+
             <div className="login-scan-pad" style={{
               position: 'relative',
               width: 'clamp(210px, 20vw, 260px)',
@@ -1010,7 +970,6 @@ export const Login = () => {
           </div>
         </div>
 
-        {/* Pie inferior */}
         <div>
           <div style={{
             display: 'flex',

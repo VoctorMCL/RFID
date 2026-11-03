@@ -1,7 +1,3 @@
-// ===================================================================
-// Pop-up Global de Escáner y Validación de Acceso RFID Institucional
-// Corporación Universitaria Lasallista — Alta Prioridad Visual
-// ===================================================================
 import React, { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { apiClient } from '../api/client';
@@ -24,7 +20,6 @@ import {
 
 const DURATION_MS = 6500;
 
-// Ventana para descartar lecturas duplicadas del mismo carnet (rebotes del lector)
 const DUPLICATE_UID_WINDOW_MS = 1500;
 
 export const GlobalAccessModal = () => {
@@ -42,7 +37,6 @@ export const GlobalAccessModal = () => {
   const lastSeenLogIdRef = useRef(null);
   const soundEnabledRef = useRef(true);
 
-  // Cola FIFO: cada escaneo nuevo espera a que termine el pop-up actual
   const queueRef = useRef([]);
   const isShowingRef = useRef(false);
   const isPausedRef = useRef(false);
@@ -50,8 +44,6 @@ export const GlobalAccessModal = () => {
   const lastUidRef = useRef({ uid: null, at: 0 });
   const enrollmentActiveRef = useRef(false);
 
-  // Reproducción de tono sonoro de confirmación o alerta
-  // Sincronizado con la animación popIn (0.3s) del modal
   const playSound = (granted) => {
     if (!soundEnabledRef.current) return;
     try {
@@ -64,40 +56,32 @@ export const GlobalAccessModal = () => {
       const now = ctx.currentTime;
 
       if (granted) {
-        // ═══ ACCESO CONCEDIDO: Acorde ascendente D5 → A5 con armónico suave ═══
-        // Sincronizado: comienza en now+0.15s (tras el popIn del 50%), dura 0.38s
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1);
         gain1.connect(ctx.destination);
         osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(587.33, now + 0.15); // D5
-        osc1.frequency.setValueAtTime(880.00, now + 0.27); // A5
+        osc1.frequency.setValueAtTime(587.33, now + 0.15);
+        osc1.frequency.setValueAtTime(880.00, now + 0.27);
         gain1.gain.setValueAtTime(0.0001, now);
         gain1.gain.linearRampToValueAtTime(0.14, now + 0.17);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.53);
         osc1.start(now + 0.15);
         osc1.stop(now + 0.53);
 
-        // Armónico sutil de acompañamiento (octava superior, más suave)
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.connect(gain2);
         gain2.connect(ctx.destination);
         osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1174.66, now + 0.20); // D6
-        osc2.frequency.setValueAtTime(1760.00, now + 0.30); // A6
+        osc2.frequency.setValueAtTime(1174.66, now + 0.20);
+        osc2.frequency.setValueAtTime(1760.00, now + 0.30);
         gain2.gain.setValueAtTime(0.0001, now);
         gain2.gain.linearRampToValueAtTime(0.04, now + 0.22);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
         osc2.start(now + 0.20);
         osc2.stop(now + 0.50);
       } else {
-        // ═══ ACCESO DENEGADO: Triple tono descendente grave A3 → E3 → C3 ═══
-        // Sincronizado con la animación vibrate-shake (0.55s):
-        //   Tono 1 al 10% de la vibración, Tono 2 al 35%, Tono 3 al 60%
-
-        // Tono 1: A3 (220 Hz) — Alerta inicial
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1);
@@ -110,7 +94,6 @@ export const GlobalAccessModal = () => {
         osc1.start(now + 0.05);
         osc1.stop(now + 0.20);
 
-        // Tono 2: E3 (164.81 Hz) — Descenso
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.connect(gain2);
@@ -123,7 +106,6 @@ export const GlobalAccessModal = () => {
         osc2.start(now + 0.24);
         osc2.stop(now + 0.40);
 
-        // Tono 3: C3 (130.81 Hz) — Denegación definitiva
         const osc3 = ctx.createOscillator();
         const gain3 = ctx.createGain();
         osc3.connect(gain3);
@@ -139,7 +121,6 @@ export const GlobalAccessModal = () => {
     } catch (e) {}
   };
 
-  // Mantener el estado de sonido accesible desde callbacks antiguos (timers)
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
@@ -167,7 +148,6 @@ export const GlobalAccessModal = () => {
     }, 40);
   };
 
-  // Muestra el siguiente pop-up de la cola (si existe)
   const showNext = () => {
     if (isShowingRef.current) return;
 
@@ -193,7 +173,6 @@ export const GlobalAccessModal = () => {
     startCountdown();
   };
 
-  // Cierra el pop-up actual y da paso al siguiente en cola
   const finishCurrent = () => {
     stopCountdown();
     if (!isShowingRef.current) return;
@@ -203,15 +182,12 @@ export const GlobalAccessModal = () => {
     showNext();
   };
 
-  // Durante el enrolamiento (vincular tarjeta con sensor), las lecturas son
-  // parte del formulario y no deben disparar el overlay de acceso concedido/denegado.
   useEffect(() => {
     const handleEnrollmentState = (event) => {
       const active = Boolean(event?.detail?.active);
       enrollmentActiveRef.current = active;
       if (!active) return;
 
-      // Descartar cualquier pop-up o escaneo pendiente en cola
       queueRef.current = [];
       setQueueCount(0);
       stopCountdown();
@@ -227,7 +203,6 @@ export const GlobalAccessModal = () => {
     return () => window.removeEventListener('radar-enrollment-state', handleEnrollmentState);
   }, []);
 
-  // Agrega un escaneo a la cola evitando eventos repetidos del mismo log/carnet
   const enqueueEvent = (data) => {
     const eventId = data.id ?? data.logId;
 
@@ -236,14 +211,12 @@ export const GlobalAccessModal = () => {
       if (shownIdsRef.current.has(idKey)) return;
       shownIdsRef.current.add(idKey);
 
-      // Evitar crecimiento indefinido del set de IDs vistos
       if (shownIdsRef.current.size > 250) {
         const oldest = shownIdsRef.current.values().next().value;
         shownIdsRef.current.delete(oldest);
       }
     }
 
-    // Ignorar lecturas capturadas mientras se está enrolando una tarjeta
     if (enrollmentActiveRef.current) return;
 
     const uid = data.uid ? String(data.uid).trim().toUpperCase() : null;
@@ -276,7 +249,6 @@ export const GlobalAccessModal = () => {
     startTimeRef.current = Date.now() - (DURATION_MS - remainingTimeRef.current);
   };
 
-  // 1. Escuchar eventos en vivo desde WebSocket (Raspberry Pi, CrowPi, ESP32, o llamadas API)
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt' && event.data) {
       const d = event.data;
@@ -297,7 +269,6 @@ export const GlobalAccessModal = () => {
 
   const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
 
-  // 2. Polling reactivo para entornos sin WebSocket directo (ej. Vercel Serverless)
   useEffect(() => {
     if (isWsConnected) return;
 
@@ -305,7 +276,6 @@ export const GlobalAccessModal = () => {
     let inFlight = false;
 
     const poll = async () => {
-      // Evita peticiones solapadas cuyas respuestas puedan llegar desordenadas
       if (inFlight || cancelled) return;
       inFlight = true;
 
@@ -322,7 +292,7 @@ export const GlobalAccessModal = () => {
           if (scan.id !== lastSeenLogIdRef.current) {
             lastSeenLogIdRef.current = scan.id;
             const scanTime = new Date(scan.timestamp).getTime();
-            // Solo abrir modal si el evento ocurrió hace menos de 20 segundos
+
             if (Date.now() - scanTime < 20000) {
               enqueueEvent({
                 id: scan.id,
@@ -339,7 +309,6 @@ export const GlobalAccessModal = () => {
           }
         }
       } catch (err) {
-        // Silencioso durante el polling
       } finally {
         inFlight = false;
       }
@@ -354,7 +323,6 @@ export const GlobalAccessModal = () => {
     };
   }, [isWsConnected]);
 
-  // Cerrar con la tecla Escape
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isVisible) {
@@ -365,7 +333,6 @@ export const GlobalAccessModal = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isVisible]);
 
-  // Si no está visible, no renderizar overlay
   if (!isVisible || !scanEvent) return null;
 
   const granted = Boolean(scanEvent.granted);
@@ -374,7 +341,6 @@ export const GlobalAccessModal = () => {
   const room = scanEvent.room;
   const isVisitor = Boolean(user?.is_visitor || user?.role_name === 'visitor');
 
-  // Formato de hora exacta
   const formatTime = (ts) => {
     try {
       const d = new Date(ts);
@@ -384,7 +350,6 @@ export const GlobalAccessModal = () => {
     }
   };
 
-  // Texto legible de motivos de denegación
   const getDenialText = (reason) => {
     switch (reason) {
       case 'denegado_no_registrado':
@@ -406,14 +371,12 @@ export const GlobalAccessModal = () => {
     }
   };
 
-  // Iniciales para avatar fallback
   const getInitials = (first, last) => {
     const f = (first || '?')[0];
     const l = (last || '')[0] || '';
     return (f + l).toUpperCase();
   };
 
-  // Avatar institucional o foto
   const studentName = user ? (user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()) : 'Usuario no Registrado';
   const avatarUrl = user?.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=${granted ? '065f46' : '991b1b'}&color=ffffff&size=200&bold=true`;
 
@@ -457,9 +420,7 @@ export const GlobalAccessModal = () => {
           animation: 'popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        {/* ============================================================== */}
-        {/* 1. CABECERA GIGANTE: ACCESO CONCEDIDO (VERDE) / DENEGADO (ROJO) */}
-        {/* ============================================================== */}
+
         <div
           style={{
             background: granted
@@ -474,7 +435,7 @@ export const GlobalAccessModal = () => {
             textAlign: 'center'
           }}
         >
-          {/* Botones de control (Silenciar / Cerrar) */}
+
           <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '8px' }}>
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
@@ -516,7 +477,6 @@ export const GlobalAccessModal = () => {
             </button>
           </div>
 
-          {/* Icono Monumental */}
           <div
             style={{
               width: '74px',
@@ -538,7 +498,6 @@ export const GlobalAccessModal = () => {
             )}
           </div>
 
-          {/* TEXTO ENORME: ACCESO CONCEDIDO / DENEGADO */}
           <h1
             style={{
               fontSize: '28px',
@@ -585,9 +544,6 @@ export const GlobalAccessModal = () => {
           )}
         </div>
 
-        {/* ============================================================== */}
-        {/* 2. DATOS DEL ESTUDIANTE (UN ESTUDIANTE SOLO TIENE UN UID)      */}
-        {/* ============================================================== */}
         <div style={{ padding: '22px 24px', backgroundColor: 'var(--bg-card, #ffffff)' }}>
           {user ? (
             <div
@@ -602,7 +558,7 @@ export const GlobalAccessModal = () => {
                 marginBottom: '16px'
               }}
             >
-              {/* Foto del Estudiante */}
+
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <img
                   src={avatarUrl}
@@ -639,7 +595,6 @@ export const GlobalAccessModal = () => {
                 </span>
               </div>
 
-              {/* Información Personal y Académica */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <span
@@ -692,7 +647,6 @@ export const GlobalAccessModal = () => {
               </div>
             </div>
           ) : (
-            /* Tarjeta desconocida / No asociada */
             <div
               style={{
                 display: 'flex',
@@ -731,9 +685,6 @@ export const GlobalAccessModal = () => {
             </div>
           )}
 
-          {/* ============================================================== */}
-          {/* 3. PARÁMETROS DE HARDWARE: UID, PUERTA Y HORA                  */}
-          {/* ============================================================== */}
           <div
             style={{
               display: 'grid',
@@ -742,7 +693,7 @@ export const GlobalAccessModal = () => {
               fontSize: '12px'
             }}
           >
-            {/* UID Tarjeta */}
+
             <div
               style={{
                 padding: '12px 14px',
@@ -765,7 +716,6 @@ export const GlobalAccessModal = () => {
               </div>
             </div>
 
-            {/* Hora Transacción */}
             <div
               style={{
                 padding: '12px 14px',
@@ -788,7 +738,6 @@ export const GlobalAccessModal = () => {
               </div>
             </div>
 
-            {/* Puerta y Ubicación */}
             <div
               style={{
                 gridColumn: '1 / -1',
@@ -818,7 +767,6 @@ export const GlobalAccessModal = () => {
             </div>
           </div>
 
-          {/* Alerta Perimetral Si Aplica */}
           {scanEvent.alarm_triggered && (
             <div
               style={{
@@ -841,9 +789,6 @@ export const GlobalAccessModal = () => {
           )}
         </div>
 
-        {/* ============================================================== */}
-        {/* 4. BARRA DE TIEMPO REGRESIVA (CIERRE AUTOMÁTICO EN 6.5s)       */}
-        {/* ============================================================== */}
         <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--border, #e2e8f0)', overflow: 'hidden' }}>
           <div
             style={{

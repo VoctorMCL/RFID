@@ -67,9 +67,6 @@ ChartJS.register(
   Filler
 );
 
-// =========================================================================
-// HOOK PARA DETECCIÓN EN TIEMPO REAL DEL TEMA (MODO CLARO / OSCURO / AUTO)
-// =========================================================================
 const useCurrentTheme = () => {
   const [isLight, setIsLight] = useState(() => {
     if (typeof document === 'undefined') return false;
@@ -109,11 +106,6 @@ const useCurrentTheme = () => {
   return isLight;
 };
 
-// =========================================================================
-// COMPONENTES DE VISUALIZACIÓN ADAPTABLES A MODO CLARO Y OSCURO
-// =========================================================================
-
-// 1. Radial Gauge de Grafana
 const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = false }) => {
   const clamped = Math.min(Math.max(value, 0), 100);
   const radius = 68;
@@ -126,7 +118,7 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = fa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
       <svg width="200" height="120" viewBox="0 0 200 120" style={{ overflow: 'visible' }}>
-        {/* Pista de fondo */}
+
         <path
           d="M 25 105 A 68 68 0 0 1 175 105"
           fill="none"
@@ -134,7 +126,7 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = fa
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
-        {/* Arco de valor vivo */}
+
         <path
           d="M 25 105 A 68 68 0 0 1 175 105"
           fill="none"
@@ -145,7 +137,7 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = fa
           strokeLinecap="round"
           style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.3s ease' }}
         />
-        {/* Valor central grande */}
+
         <text x="100" y="92" textAnchor="middle" fill={isLight ? '#0f172a' : '#ffffff'} fontSize="30" fontWeight="800">
           {value}%
         </text>
@@ -162,7 +154,6 @@ const GrafanaRadialGauge = ({ value, label = 'Tasa de aprobación', isLight = fa
   );
 };
 
-// 2. Bar Gauge de Grafana (Estudiantes por Carrera)
 const GrafanaBarGauge = ({ items, total, isLight = false }) => {
   if (!items || items.length === 0) {
     return (
@@ -210,7 +201,6 @@ const GrafanaBarGauge = ({ items, total, isLight = false }) => {
   );
 };
 
-// 3. Heatmap de Grafana
 const GrafanaHeatmap = ({ data, isLight = false }) => {
   const days = [
     { dow: 1, label: 'Lunes' },
@@ -303,7 +293,6 @@ const GrafanaHeatmap = ({ data, isLight = false }) => {
   );
 };
 
-// 4. Sparkline de Grafana para Stat Cards
 const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
   const points = (data && data.length > 0) ? data : [0, 0, 0, 0, 0, 0];
   const max = Math.max(...points, 1);
@@ -332,7 +321,6 @@ const GrafanaSparkline = ({ data, color = '#2563eb' }) => {
   );
 };
 
-// 5. Comparativa Temporal: Hoy vs Ayer
 const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
   const todayTotal = comparison?.today_total || 0;
   const yesterdayTotal = comparison?.yesterday_total || 0;
@@ -353,7 +341,7 @@ const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', gap: '10px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {/* Barra Hoy */}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
             <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Jornada Actual (Hoy)</span>
@@ -393,7 +381,6 @@ const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
           </div>
         </div>
 
-        {/* Barra Ayer */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
             <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Jornada Anterior (Ayer)</span>
@@ -434,7 +421,6 @@ const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
         </div>
       </div>
 
-      {/* Métricas Resumen */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
@@ -461,7 +447,6 @@ const GrafanaComparisonBar = ({ comparison, isLight = false }) => {
   );
 };
 
-// 6. Embudo de Auditoría y Control de Acceso
 const GrafanaSecurityFunnel = ({ total, granted, denied, isLight = false }) => {
   const t = total || 49;
   const g = granted || 46;
@@ -545,15 +530,14 @@ const GrafanaSecurityFunnel = ({ total, granted, denied, isLight = false }) => {
   );
 };
 
-// 7. Monitor de Salud y Disponibilidad de Hardware RFID
 const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, isLight = false }) => {
   const latency = dbHealth?.latencyMs || 28;
   const uptime = dbHealth?.uptime || '99.98%';
-  const isOnline = dbHealth?.status === 'online' || true;
+  const isOnline = !dbHealth || dbHealth.status === 'online';
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', height: '100%' }}>
-      {/* 1. Cerraduras */}
+
       <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Cerraduras</span>
@@ -568,7 +552,6 @@ const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, is
         <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>En línea operativas</div>
       </div>
 
-      {/* 2. Latencia Bus SPI */}
       <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Latencia Bus SPI</span>
@@ -583,7 +566,6 @@ const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, is
         <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>RC522 13.56 MHz</div>
       </div>
 
-      {/* 3. Alarmas Perimetrales */}
       <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
           <span>Alarmas</span>
@@ -600,7 +582,6 @@ const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, is
         <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>52 armadas en salas</div>
       </div>
 
-      {/* 4. SLA Base de Datos */}
       <div style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>SLA Base de Datos</span>
@@ -623,7 +604,6 @@ const GrafanaHardwareHealth = ({ totalDoors = 53, activeAlerts = 0, dbHealth, is
   );
 };
 
-// 8. Pareto de Causas de Rechazo e Infracciones
 const GrafanaDenialPareto = ({ reasons, isLight = false }) => {
   if (!reasons || reasons.length === 0) {
     return (
@@ -663,7 +643,6 @@ const GrafanaDenialPareto = ({ reasons, isLight = false }) => {
   );
 };
 
-// 9. Ranking de Salones y Espacios Más Concurridos
 const GrafanaTopRooms = ({ rooms, isLight = false }) => {
   if (!rooms || rooms.length === 0) {
     return (
@@ -714,42 +693,34 @@ const GrafanaTopRooms = ({ rooms, isLight = false }) => {
   );
 };
 
-// Layouts por defecto (24 columnas escalables con minW y minH)
 const DEFAULT_LAYOUTS = {
   lg: [
-    // Fila 0: 4 Stat Cards de Alto Impacto (h: 3)
+
     { i: 'panel_total_stat', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_denied_stat', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_campus_stat', x: 6, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_stay_stat', x: 9, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
 
-    // Fila 3: Gauges Principales y Curvas de Afluencia (h: 7)
     { i: 'panel_radial_gauge', x: 0, y: 3, w: 4, h: 7, minW: 3, minH: 5 },
     { i: 'panel_timeseries', x: 4, y: 3, w: 8, h: 7, minW: 4, minH: 6 },
 
-    // Fila 10: Volumen Semanal Stacked & Comparativa Hoy vs Ayer (h: 8)
     { i: 'panel_weekly_stacked', x: 0, y: 10, w: 7, h: 8, minW: 4, minH: 6 },
     { i: 'panel_today_vs_yesterday', x: 7, y: 10, w: 5, h: 8, minW: 3, minH: 6 },
 
-    // Fila 18: Población y Espacios (h: 8)
     { i: 'panel_bar_gauge', x: 0, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
     { i: 'panel_blocks_donut', x: 4, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
     { i: 'panel_spaces_donut', x: 8, y: 18, w: 4, h: 8, minW: 3, minH: 6 },
 
-    // Fila 26: Seguridad, Auditoría y Hardware (h: 8)
     { i: 'panel_denial_pareto', x: 0, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
     { i: 'panel_security_funnel', x: 4, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
     { i: 'panel_hardware_health', x: 8, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
 
-    // Fila 34: Heatmap y Ranking de Salones (h: 8)
     { i: 'panel_heatmap', x: 0, y: 34, w: 7, h: 8, minW: 5, minH: 5 },
     { i: 'panel_top_rooms', x: 7, y: 34, w: 5, h: 8, minW: 3, minH: 5 },
 
-    // Fila 42: Puertas de Tráfico y Roles Institucionales (h: 8)
     { i: 'panel_top_doors', x: 0, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
     { i: 'panel_roles_donut', x: 6, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
 
-    // Fila 50: Registro de Auditoría Loki (h: 10)
     { i: 'panel_loki_table', x: 0, y: 50, w: 12, h: 10, minW: 6, minH: 6 }
   ]
 };
@@ -801,16 +772,14 @@ export const Dashboard = () => {
 
   const [recentLogs, setRecentLogs] = useState([]);
   const [doors, setDoors] = useState([]);
-  const [timeGranularity, setTimeGranularity] = useState('hour'); // 'hour' | 'minute'
+  const [timeGranularity, setTimeGranularity] = useState('hour');
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Estado reactivo en tiempo real del lector RFID (sin recargar página)
   const [isHardwareSensorOnline, setIsHardwareSensorOnline] = useState(false);
   const lastHardwareActivityRef = useRef(0);
   const seenAccessIdsRef = useRef(new Set());
 
-  // Sistema de Grid Layout resizable y draggable persistente en v3
   const [layouts, setLayouts] = useState(() => {
     try {
       const saved = localStorage.getItem('grafana_dashboard_layouts_v3');
@@ -835,15 +804,12 @@ export const Dashboard = () => {
     } catch (e) {}
   };
 
-  // WebSocket en vivo: escucha escaneos y latidos de hardware sin forzar recarga
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
       const rawEventId = data.logId ?? data.id ?? `${data.uid || ''}:${data.timestamp || ''}`;
       const eventId = rawEventId !== undefined && rawEventId !== null ? String(rawEventId) : '';
 
-      // Evita contar o listar dos veces el mismo escaneo si el evento llega
-      // repetido por WebSocket o por reconexión.
       if (eventId && seenAccessIdsRef.current.has(eventId)) return;
       if (eventId) {
         seenAccessIdsRef.current.add(eventId);
@@ -959,7 +925,6 @@ export const Dashboard = () => {
     return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   };
 
-  // Opciones dinámicas de Chart.js según modo claro u oscuro
   const grafanaChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -1006,7 +971,6 @@ export const Dashboard = () => {
     }
   };
 
-  // 1. Datos TimeSeries: VERDE para autorizados, ROJO para infracciones
   const timeSeriesSource = timeGranularity === 'minute' ? analytics.minute : analytics.hourly;
   const timeSlots = timeSeriesSource.length > 0
     ? timeSeriesSource.map(d => d.time_slot)
@@ -1040,11 +1004,9 @@ export const Dashboard = () => {
     ]
   };
 
-  // 2. Estudiantes en campus por carrera
   const studentsPrograms = analytics.studentsByProgram?.length > 0 ? analytics.studentsByProgram : [];
   const totalStudentsInCampus = studentsPrograms.reduce((acc, p) => acc + (p.active_students || p.count || 0), 0);
 
-  // 3. Distribución por bloque
   const blockStats = analytics.byBlock?.length > 0
     ? analytics.byBlock
     : [
@@ -1071,7 +1033,6 @@ export const Dashboard = () => {
     ]
   };
 
-  // 4. Stacked Bar Chart: Volumen Histórico Semanal (Verde / Rojo)
   const weeklyStackedData = {
     labels: (analytics.weeklyVolume && analytics.weeklyVolume.length > 0)
       ? analytics.weeklyVolume.map(w => w.day_label || w.date_str)
@@ -1113,7 +1074,6 @@ export const Dashboard = () => {
     }
   };
 
-  // 5. Distribución por Rol Institucional
   const rolesList = analytics.rolesDistribution?.length > 0
     ? analytics.rolesDistribution
     : [
@@ -1138,7 +1098,6 @@ export const Dashboard = () => {
     ]
   };
 
-  // 6. Concentración por Categoría de Espacio
   const spacesList = analytics.spaceTypes?.length > 0
     ? analytics.spaceTypes
     : [
@@ -1186,7 +1145,7 @@ export const Dashboard = () => {
 
   return (
     <div style={{ paddingBottom: '40px' }}>
-      {/* Barra superior de Grafana y controles */}
+
       <div style={{
         backgroundColor: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
@@ -1201,7 +1160,7 @@ export const Dashboard = () => {
         boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          {/* Logo SVG estilizado */}
+
           <div style={{
             width: '36px',
             height: '36px',
@@ -1286,7 +1245,6 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* CONTENEDOR REACT-GRID-LAYOUT RESIZABLE Y DRAGGABLE */}
       <div ref={containerRef} style={{ width: '100%' }}>
         {mounted && (
           <ResponsiveGridLayout
@@ -1301,7 +1259,7 @@ export const Dashboard = () => {
             draggableHandle=".panel-drag-handle"
             onLayoutChange={handleLayoutChange}
           >
-            {/* 1. Stat Card: Accesos de Hoy */}
+
             <div key="panel_total_stat" className="grafana-panel" style={{ borderLeft: '3px solid #2563eb' }}>
               <div className="grafana-panel-header panel-drag-handle">
                 <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Total de accesos hoy</span>
@@ -1320,7 +1278,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 2. Stat Card: Infracciones / Denegados */}
             <div key="panel_denied_stat" className="grafana-panel" style={{ borderLeft: stats.deniedToday > 0 ? '3px solid #ef4444' : '3px solid var(--border)' }}>
               <div className="grafana-panel-header panel-drag-handle">
                 <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Infracciones y rechazos</span>
@@ -1339,7 +1296,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 3. Stat Card: Población en Campus */}
             <div key="panel_campus_stat" className="grafana-panel" style={{ borderLeft: '3px solid #22c55e' }}>
               <div className="grafana-panel-header panel-drag-handle">
                 <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Población en campus</span>
@@ -1360,7 +1316,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 4. Stat Card: Permanencia Promedio en Campus */}
             <div key="panel_stay_stat" className="grafana-panel" style={{ borderLeft: '3px solid #3b82f6' }}>
               <div className="grafana-panel-header panel-drag-handle">
                 <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>Tiempo de permanencia promedio</span>
@@ -1381,7 +1336,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 5. Radial Gauge: Tasa de Aprobación */}
             <div key="panel_radial_gauge" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1399,7 +1353,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 6. TimeSeries: Curva de Afluencia y Picos */}
             <div key="panel_timeseries" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1446,7 +1399,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 7. Stacked Bar Chart: Volumen Histórico Semanal */}
             <div key="panel_weekly_stacked" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1462,7 +1414,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 8. Comparativa Directa: Hoy vs Ayer */}
             <div key="panel_today_vs_yesterday" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1476,7 +1427,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 9. Bar Gauge: Estudiantes en Campus por Carrera */}
             <div key="panel_bar_gauge" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1492,7 +1442,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 10. Donut Chart: Distribución por Bloque */}
             <div key="panel_blocks_donut" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1511,7 +1460,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 11. Donut Chart: Concentración por Categoría de Espacio */}
             <div key="panel_spaces_donut" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1530,7 +1478,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 12. Pareto de Causas de Denegación e Infracciones */}
             <div key="panel_denial_pareto" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1544,7 +1491,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 13. Embudo de Seguridad y Validación de Acceso */}
             <div key="panel_security_funnel" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1563,7 +1509,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 14. Salud de Infraestructura y Cerraduras RFID */}
             <div key="panel_hardware_health" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1582,7 +1527,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 15. Heatmap: Horas Pico */}
             <div key="panel_heatmap" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1596,7 +1540,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 16. Ranking de Salones y Laboratorios Más Ocupados */}
             <div key="panel_top_rooms" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1610,7 +1553,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 17. Puertas Más Transitadas */}
             <div key="panel_top_doors" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1653,7 +1595,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 18. Donut Chart: Distribución por Rol Institucional */}
             <div key="panel_roles_donut" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1672,7 +1613,6 @@ export const Dashboard = () => {
               </div>
             </div>
 
-            {/* 19. Tabla Loki: Registros de Auditoría en Tiempo Real */}
             <div key="panel_loki_table" className="grafana-panel">
               <div className="grafana-panel-header panel-drag-handle">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

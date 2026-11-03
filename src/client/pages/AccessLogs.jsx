@@ -96,7 +96,6 @@ export const AccessLogs = () => {
         </button>
       </div>
 
-      {/* Filtros y Búsqueda */}
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 200px auto', gap: '12px' }}>
           <div style={{ position: 'relative' }}>
@@ -127,7 +126,6 @@ export const AccessLogs = () => {
         </form>
       </div>
 
-      {/* Tabla de Logs */}
       <div className="table-container">
         <table className="data-table">
           <thead>
@@ -192,7 +190,6 @@ export const AccessLogs = () => {
         </table>
       </div>
 
-      {/* Paginación */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', color: 'var(--text-muted)', fontSize: '12.5px' }}>
         <div>Total de registros: <b>{pagination.total}</b></div>
         <div style={{ display: 'flex', gap: '8px' }}>

@@ -1,18 +1,51 @@
-// ===================================================================
-// Motor Central de Validación de Acceso RFID y Alarmas — PostgreSQL
-// ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
 
-// Caché en memoria del último evento de escaneo para clientes en polling (Vercel)
 let latestScanEvent = null;
 
-/**
- * Valida un intento de acceso con tarjeta RFID en una puerta
- * POST /api/access/validate
- * Body: { rfid_uid, door_id, access_method }
- */
+const buildCardUser = (card) => ({
+  id: card.user_id,
+  first_name: card.first_name,
+  last_name: card.last_name,
+  name: `${card.first_name || ''} ${card.last_name || ''}`.trim(),
+  document_id: card.document_id,
+  program: card.program,
+  role: card.role_display || 'Estudiante',
+  role_name: card.role_name,
+  photo_url: card.photo_url
+});
+
+const buildVisitorUser = ({
+  id = null,
+  name,
+  documentId,
+  destination,
+  personType = null,
+  reason = null,
+  entryTime = null
+}) => {
+  const parts = String(name || '').trim().split(/\s+/);
+
+  return {
+    id: null,
+    first_name: parts[0] || '',
+    last_name: parts.slice(1).join(' '),
+    name: name || 'Visitante',
+    document_id: documentId || null,
+    program: destination || 'Visitante en campus',
+    role: 'Visitante / Pase Temporal',
+    role_name: 'visitor',
+    photo_url: null,
+    is_visitor: true,
+    person_type: personType,
+    pass_id: id,
+    destination: destination || null,
+    reason,
+    entry_time: entryTime
+  };
+};
+
 const validateAccess = async (req, res) => {
   try {
     const { rfid_uid, door_id, access_method = 'rfid' } = req.body;
@@ -27,7 +60,6 @@ const validateAccess = async (req, res) => {
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
     const doorId = parseInt(door_id, 10);
 
-    // 1 y 2. Consulta concurrente de puerta y tarjeta para mínima latencia (Promise.all)
     const [doorQuery, cardQuery] = await Promise.all([
       db.query(
         `SELECT d.*, r.id as room_id, r.name as room_name, r.has_alarm, r.security_status, b.name as block_name
@@ -64,7 +96,6 @@ const validateAccess = async (req, res) => {
 
     const door = doorQuery.rows[0];
 
-    // Marcar la puerta como online de forma asíncrona sin bloquear la respuesta de acceso
     db.query(`UPDATE doors SET status = 'online', last_heartbeat = NOW() WHERE id = $1`, [door.id]).catch(() => {});
 
     let granted = false;
@@ -78,7 +109,6 @@ const validateAccess = async (req, res) => {
     } else {
       card = cardQuery.rows[0];
 
-      // Un pase temporal activo llega en el mismo JOIN de la tarjeta.
       if (card.visitor_pass_id) {
         visitorPass = {
           id: card.visitor_pass_id,
@@ -91,45 +121,23 @@ const validateAccess = async (req, res) => {
         };
       }
 
-      // La asignación permanente tiene prioridad; si la tarjeta no tiene
-      // titular, un pase temporal activo es su asignación vigente.
       if (card.user_id) {
-        user = {
-          id: card.user_id,
-          first_name: card.first_name,
-          last_name: card.last_name,
-          name: `${card.first_name} ${card.last_name}`.trim(),
-          document_id: card.document_id,
-          program: card.program,
-          role: card.role_display || 'Estudiante',
-          role_name: card.role_name,
-          photo_url: card.photo_url
-        };
+        user = buildCardUser(card);
       } else if (visitorPass) {
-        const nameParts = String(visitorPass.full_name || '').trim().split(/\s+/);
-        user = {
-          id: null,
-          first_name: nameParts[0] || '',
-          last_name: nameParts.slice(1).join(' '),
+        user = buildVisitorUser({
+          id: visitorPass.id,
           name: visitorPass.full_name,
-          document_id: visitorPass.document_id,
-          program: visitorPass.destination || 'Visitante en campus',
-          role: 'Visitante / Pase Temporal',
-          role_name: 'visitor',
-          photo_url: null,
-          is_visitor: true,
-          person_type: visitorPass.person_type,
-          pass_id: visitorPass.id,
+          documentId: visitorPass.document_id,
           destination: visitorPass.destination,
+          personType: visitorPass.person_type,
           reason: visitorPass.reason,
-          entry_time: visitorPass.entry_time
-        };
+          entryTime: visitorPass.entry_time
+        });
       }
 
       if (!card.is_active) {
         denialReason = 'denegado_tarjeta_inactiva';
       } else if (!card.user_id && visitorPass) {
-        // Pase de portería vigente: acceso autorizado con identidad del visitante
         granted = true;
       } else if (!card.user_id) {
         denialReason = 'denegado_sin_usuario_asignado';
@@ -138,22 +146,18 @@ const validateAccess = async (req, res) => {
       } else if (card.access_expiry && new Date(card.access_expiry) < new Date()) {
         denialReason = 'denegado_acceso_expirado';
       } else {
-        // 3. Jerarquía de roles y permisos
-        // A) Rectora / Vigilante con privilegios globales o ficha maestra
         if (card.global_access || card.card_type === 'master') {
           granted = true;
         } else if (card.role_name === 'admin_staff') {
-          // Administrativos en áreas administrativas
           if (door.room_name.toLowerCase().includes('admin') || (door.block_name && door.block_name.toLowerCase().includes('admin'))) {
             granted = true;
           } else {
             denialReason = 'denegado_area_no_autorizada';
           }
         } else {
-          // B) Profesores y Estudiantes: Validación estricta contra articulación horaria en PostgreSQL
           const now = new Date();
-          const currentDay = now.getDay(); // 0=Domingo, 1=Lunes, ...
-          const currentHour = now.toTimeString().split(' ')[0]; // 'HH:MM:SS'
+          const currentDay = now.getDay();
+          const currentHour = now.toTimeString().split(' ')[0];
 
           const schedResult = await db.query(
             `SELECT * FROM schedules
@@ -172,7 +176,6 @@ const validateAccess = async (req, res) => {
       }
     }
 
-    // 4. Lógica de Alarmas
     let alarmTriggered = false;
     let alarmDetails = null;
 
@@ -182,7 +185,7 @@ const validateAccess = async (req, res) => {
         alarmTriggered = true;
         await db.query(`UPDATE rooms SET security_status = 'alert' WHERE id = $1`, [door.room_id]);
 
-        const alertMessage = `🚨 ALERTA CRÍTICA: Intento de apertura no autorizada en ${door.room_name} (${door.name}). Solo deshabilitable desde el cuarto de control de seguridad.`;
+        const alertMessage = `ALERTA CRÍTICA: Intento de apertura no autorizada en ${door.room_name} (${door.name}). Solo deshabilitable desde el cuarto de control de seguridad.`;
 
         const alertInsert = await db.query(
           `INSERT INTO alerts (door_id, room_id, sensor_type, severity, message, timestamp, is_resolved)
@@ -193,7 +196,6 @@ const validateAccess = async (req, res) => {
 
         alarmDetails = alertInsert.rows[0];
 
-        // Envío de correo
         emailService.sendAlertEmail({
           sensor_type: 'alarm_triggered',
           severity: 'critical',
@@ -206,7 +208,6 @@ const validateAccess = async (req, res) => {
       }
     }
 
-    // 5. Desbloqueo si se concedió acceso
     if (granted) {
       await db.query(`UPDATE doors SET is_locked = false WHERE id = $1`, [door.id]);
       setTimeout(async () => {
@@ -217,7 +218,6 @@ const validateAccess = async (req, res) => {
       }, 5000);
     }
 
-    // 6. Registro INMUTABLE en la tabla access_logs de PostgreSQL
     const logInsert = await db.query(
       `INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, timestamp, access_method, granted, denial_reason, notes)
        VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8)
@@ -238,7 +238,6 @@ const validateAccess = async (req, res) => {
 
     const logEntry = logInsert.rows[0];
 
-    // 7. Preparar payload y actualizar caché para polling
     latestScanEvent = {
       id: logEntry.id,
       logId: logEntry.id,
@@ -306,10 +305,6 @@ const validateAccess = async (req, res) => {
   }
 };
 
-/**
- * Obtiene el historial de logs de acceso directamente desde PostgreSQL
- * GET /api/access/logs
- */
 const getAccessLogs = async (req, res) => {
   try {
     const { page = 1, limit = 50, granted, user_id, door_id, search } = req.query;
@@ -386,10 +381,6 @@ const getAccessLogs = async (req, res) => {
   }
 };
 
-/**
- * Obtiene métricas reales del dashboard calculadas en PostgreSQL
- * GET /api/access/logs/stats
- */
 const getStats = async (req, res) => {
   try {
     const [
@@ -470,18 +461,12 @@ const getStats = async (req, res) => {
   }
 };
 
-/**
- * Obtiene el último evento de escaneo RFID registrado (para polling en Vercel)
- * GET /api/access/latest
- */
 const getLatestScan = async (req, res) => {
   try {
-    // Si tenemos evento en memoria reciente (< 15 segundos), retornar de inmediato en 0ms
     if (latestScanEvent && (Date.now() - new Date(latestScanEvent.timestamp).getTime()) < 15000) {
       return res.json({ success: true, data: latestScanEvent });
     }
 
-    // Consulta ultrarrápida usando el índice primario descendente (B-tree reverse scan en <1ms)
     const lastLogQuery = await db.query(
       `SELECT l.*,
               (u.first_name || ' ' || u.last_name) as user_name,
@@ -537,20 +522,13 @@ const getLatestScan = async (req, res) => {
           program: last.program,
           role: last.role_name,
           photo_url: last.photo_url
-        } : (last.visitor_name ? {
-          first_name: '',
-          last_name: '',
+        } : (last.visitor_name ? buildVisitorUser({
+          id: last.visitor_pass_id,
           name: last.visitor_name,
-          document_id: last.visitor_document,
-          program: last.visitor_destination || 'Visitante en campus',
-          role: 'Visitante / Pase Temporal',
-          role_name: 'visitor',
-          photo_url: null,
-          is_visitor: true,
-          pass_id: last.visitor_pass_id,
+          documentId: last.visitor_document,
           destination: last.visitor_destination,
-          person_type: last.visitor_person_type
-        } : null),
+          personType: last.visitor_person_type
+        }) : null),
         door: { id: last.door_id, name: last.door_name, status: last.door_status },
         room: { name: last.room_name, block_name: last.block_name },
         alarm_triggered: !last.granted && last.room_has_alarm
@@ -561,15 +539,8 @@ const getLatestScan = async (req, res) => {
   }
 };
 
-/**
- * Analítica avanzada de telemetría institucional para Grafana
- * Picos por minuto/hora, estudiantes activos por carrera, afluencia semanal,
- * auditoría de infracciones, top espacios y comparativa temporal
- * GET /api/access/analytics
- */
 const getAnalytics = async (req, res) => {
   try {
-    // 1. Picos por hora (hoy en hora Colombia)
     const hourlyQuery = await db.query(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:00') as time_slot,
@@ -582,7 +553,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY time_slot ASC
     `);
 
-    // 2. Picos por minuto (últimos 60 minutos)
     const minuteQuery = await db.query(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:MI') as time_slot,
@@ -595,7 +565,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY time_slot ASC
     `);
 
-    // 3. Estudiantes actualmente en campus por carrera
     const studentsByProgramQuery = await db.query(`
       WITH last_student_access AS (
         SELECT DISTINCT ON (l.user_id)
@@ -619,7 +588,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY active_students DESC
     `);
 
-    // 4. Afluencia semanal por día y carrera
     const weeklyByProgramQuery = await db.query(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
@@ -634,7 +602,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY date_str ASC, count DESC
     `);
 
-    // 5. Tráfico acumulado por Bloque
     const byBlockQuery = await db.query(`
       SELECT
         b.id,
@@ -648,7 +615,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY b.id ASC
     `);
 
-    // 6. Heatmap de intensidad de accesos (Día de la semana vs Hora)
     const heatmapQuery = await db.query(`
       SELECT
         EXTRACT(DOW FROM l.timestamp AT TIME ZONE 'America/Bogota')::int as dow,
@@ -660,7 +626,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY dow, hour
     `);
 
-    // 7. Puertas con mayor tráfico hoy
     const topDoorsQuery = await db.query(`
       SELECT
         d.id,
@@ -677,7 +642,6 @@ const getAnalytics = async (req, res) => {
       LIMIT 6
     `);
 
-    // 8. Volumen Semanal Comparativo (Autorizados vs Denegados día a día)
     const weeklyVolumeQuery = await db.query(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
@@ -691,7 +655,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY date_str ASC
     `);
 
-    // 9. Pareto de Causas de Denegación e Infracciones
     const denialReasonsQuery = await db.query(`
       SELECT
         COALESCE(l.denial_reason, 'Horario no permitido') as reason,
@@ -703,7 +666,6 @@ const getAnalytics = async (req, res) => {
       LIMIT 6
     `);
 
-    // 10. Distribución de Flujo por Rol Institucional Hoy
     const rolesDistQuery = await db.query(`
       SELECT
         COALESCE(r.display_name, 'No Asignado') as role_name,
@@ -716,7 +678,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY count DESC
     `);
 
-    // 11. Espacios y Laboratorios Más Ocupados Hoy
     const topRoomsQuery = await db.query(`
       SELECT
         rm.id,
@@ -733,7 +694,6 @@ const getAnalytics = async (req, res) => {
       LIMIT 6
     `);
 
-    // 12. Comparativa Directa Hoy vs Ayer
     const comparisonQuery = await db.query(`
       SELECT
         COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date THEN 1 END)::int as today_total,
@@ -746,7 +706,6 @@ const getAnalytics = async (req, res) => {
       WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day'
     `);
 
-    // 13. Concentración de Accesos por Categoría de Espacio
     const spaceTypesQuery = await db.query(`
       SELECT
         CASE
@@ -765,7 +724,6 @@ const getAnalytics = async (req, res) => {
       ORDER BY count DESC
     `);
 
-    // 14. Tiempo Promedio de Permanencia en Campus
     const avgStayQuery = await db.query(`
       WITH user_daily_spans AS (
         SELECT
@@ -785,7 +743,6 @@ const getAnalytics = async (req, res) => {
       FROM user_daily_spans
     `);
 
-    // 15. Telemetría en vivo del enlace de base de datos PostgreSQL / Supabase
     const dbPingStart = Date.now();
     await db.query('SELECT 1');
     const dbLatencyMs = Math.max(Date.now() - dbPingStart, 15);

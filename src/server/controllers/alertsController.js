@@ -1,15 +1,6 @@
-// ===================================================================
-// Controlador de Alertas de Seguridad — PostgreSQL
-// ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 
-/**
- * Consulta la lista de alertas de seguridad con filtros por resolución y severidad
- * @route GET /api/alerts
- * @param {import('express').Request} req - Petición con query params is_resolved, severity, limit
- * @param {import('express').Response} res - Listado de alertas
- */
 const getAlerts = async (req, res) => {
   try {
     const { is_resolved, severity, limit = 50 } = req.query;
@@ -48,12 +39,6 @@ const getAlerts = async (req, res) => {
   }
 };
 
-/**
- * Genera una nueva alerta de seguridad manual o por sensor y la difunde por WebSockets
- * @route POST /api/alerts
- * @param {import('express').Request} req - Datos de la alerta
- * @param {import('express').Response} res - Alerta registrada
- */
 const createAlert = async (req, res) => {
   try {
     const { door_id, room_id, sensor_type = 'alarm_triggered', severity = 'high', message } = req.body;
@@ -76,12 +61,6 @@ const createAlert = async (req, res) => {
   }
 };
 
-/**
- * Resuelve y archiva una alerta de seguridad por parte del personal de guardia
- * @route PUT /api/alerts/:id/resolve
- * @param {import('express').Request} req - Petición con ID y nota de resolución
- * @param {import('express').Response} res - Alerta resuelta
- */
 const resolveAlert = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -111,12 +90,6 @@ const resolveAlert = async (req, res) => {
   }
 };
 
-/**
- * Desarma el perímetro de alarma física de una sala desde el centro de control
- * @route POST /api/alerts/disarm-room/:roomId
- * @param {import('express').Request} req - Petición con roomId en params
- * @param {import('express').Response} res - Confirmación de desarme
- */
 const disarmRoomAlarm = async (req, res) => {
   try {
     const roomId = parseInt(req.params.roomId, 10);

@@ -1,17 +1,9 @@
-// ===================================================================
-// Contexto de Autenticación — Control de Acceso RFID (PostgreSQL)
-// Autenticación Exclusiva por Tarjeta RFID + Inactividad + Sesión Única
-// ===================================================================
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../api/client';
 
 const AuthContext = createContext(null);
-const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 Minutos de inactividad
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
-/**
- * Proveedor de contexto de autenticación y autorización basado en roles institucionales
- * @param {{ children: React.ReactNode }} props
- */
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('rfid_token'));
@@ -22,12 +14,7 @@ export const AuthProvider = ({ children }) => {
   });
   const inactivityTimerRef = useRef(null);
 
-  /**
-   * Cierra la sesión activa revocando el token y limpiando el almacenamiento local
-   * @param {string|null} [reason] - Razón del cierre de sesión para mostrar al usuario
-   */
   const logout = useCallback((reason = null) => {
-    // Si hay token, notificar al backend para limpiar active_session_id
     if (localStorage.getItem('rfid_token')) {
       apiClient('/auth/logout', { method: 'POST' }).catch(() => {});
     }
@@ -38,7 +25,7 @@ export const AuthProvider = ({ children }) => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
-    // Solo guardar el mensaje si es un string válido y no un evento u objeto
+
     if (typeof reason === 'string' && reason.trim().length > 0 && reason !== '[object Object]') {
       sessionStorage.setItem('rfid_auth_notice', reason.trim());
       setAuthNotice(reason.trim());
@@ -48,7 +35,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Inicializar estado guardado
   useEffect(() => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('rfid_token');
@@ -68,7 +54,6 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, [logout]);
 
-  // Temporizador de inactividad (15 minutos)
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -96,11 +81,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, [token, resetInactivityTimer]);
 
-  /**
-   * Inicio de sesión exclusivo por Tarjeta Física RFID
-   * @param {string} rfidUid - UID hexadecimal de la tarjeta leída
-   * @returns {Promise<{ success: boolean, user?: any, error?: string }>}
-   */
   const loginWithCard = async (rfidUid) => {
     try {
       sessionStorage.removeItem('rfid_auth_notice');
@@ -138,12 +118,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  /**
-   * Soporte de login alternativo / contingencia / demo
-   * @param {string} email - Correo institucional o alias
-   * @param {string} password - Contraseña
-   * @returns {Promise<{ success: boolean, user?: any, error?: string }>}
-   */
   const login = async (email, password) => {
     try {
       sessionStorage.removeItem('rfid_auth_notice');
@@ -189,7 +163,6 @@ export const AuthProvider = ({ children }) => {
   const roleName = (user?.role?.name || '').toLowerCase();
   const isAuthenticated = Boolean(token && user);
 
-  // Jerarquía estricta de roles institucionales
   const isAdmin = Boolean(user && (roleName === 'admin' || roleName === 'rector'));
   const isCelador = Boolean(user && (roleName === 'celador' || roleName === 'security'));
   const isSecurity = isCelador;
@@ -224,10 +197,6 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-/**
- * Hook para consumir el contexto de autenticación en componentes de la aplicación
- * @returns {NonNullable<React.ContextType<typeof AuthContext>>}
- */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

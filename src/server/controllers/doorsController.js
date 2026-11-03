@@ -1,15 +1,6 @@
-// ===================================================================
-// Controlador de Puertas Inteligentes — Control de Acceso RFID (PostgreSQL)
-// ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 
-/**
- * Obtiene el listado de puertas con su sala, bloque y estado de hardware
- * @route GET /api/doors
- * @param {import('express').Request} req - Petición con query param room_id opcional
- * @param {import('express').Response} res - Listado de puertas
- */
 const getDoors = async (req, res) => {
   try {
     const { room_id } = req.query;
@@ -44,12 +35,6 @@ const getDoors = async (req, res) => {
   }
 };
 
-/**
- * Obtiene los detalles de una puerta específica por su ID
- * @route GET /api/doors/:id
- * @param {import('express').Request} req - Petición con ID en req.params.id
- * @param {import('express').Response} res - Datos de la puerta
- */
 const getDoorById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -80,12 +65,6 @@ const getDoorById = async (req, res) => {
   }
 };
 
-/**
- * Registra una nueva puerta inteligente en una sala
- * @route POST /api/doors
- * @param {import('express').Request} req - Petición con room_id, name, door_type, hardware_ip, mac_address
- * @param {import('express').Response} res - Puerta creada
- */
 const createDoor = async (req, res) => {
   try {
     const { room_id, name, door_type = 'acceso', hardware_ip = '192.168.1.100', mac_address = 'AA:BB:CC:DD:EE:01' } = req.body;
@@ -110,12 +89,6 @@ const createDoor = async (req, res) => {
   }
 };
 
-/**
- * Actualiza los parámetros o estado de una puerta existente
- * @route PUT /api/doors/:id
- * @param {import('express').Request} req - Petición con ID en params y datos a actualizar en body
- * @param {import('express').Response} res - Puerta actualizada
- */
 const updateDoor = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -147,12 +120,6 @@ const updateDoor = async (req, res) => {
   }
 };
 
-/**
- * Elimina una puerta de la base de datos
- * @route DELETE /api/doors/:id
- * @param {import('express').Request} req - Petición con ID en params
- * @param {import('express').Response} res - Mensaje de confirmación
- */
 const deleteDoor = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -166,12 +133,6 @@ const deleteDoor = async (req, res) => {
   }
 };
 
-/**
- * Desbloqueo manual y temporal de puerta por personal autorizado (5 segundos)
- * @route POST /api/doors/:id/unlock
- * @param {import('express').Request} req - Petición con ID de puerta
- * @param {import('express').Response} res - Resultado del desbloqueo
- */
 const unlockDoor = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -179,7 +140,6 @@ const unlockDoor = async (req, res) => {
 
     wsService.broadcast('door_status', { doorId: id, isLocked: false });
 
-    // Bloqueo automático de seguridad tras 5 segundos
     setTimeout(async () => {
       try {
         await db.query(`UPDATE doors SET is_locked = true WHERE id = $1`, [id]);
@@ -193,12 +153,6 @@ const unlockDoor = async (req, res) => {
   }
 };
 
-/**
- * Recibe latido de telemetría desde ESP32 / Raspberry Pi para marcar puerta online
- * @route POST /api/doors/:id/heartbeat
- * @param {import('express').Request} req - Petición con ID de puerta
- * @param {import('express').Response} res - Estado actualizado
- */
 const heartbeat = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

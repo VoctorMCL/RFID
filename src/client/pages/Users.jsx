@@ -28,7 +28,7 @@ export const Users = () => {
     last_name: '',
     email: '',
     document_id: '',
-    role_id: '3', // Estudiante por defecto
+    role_id: '3',
     program: '',
     phone: '',
     rfid_uid: '',
@@ -156,7 +156,6 @@ export const Users = () => {
         )}
       </div>
 
-      {/* Barra de Filtros y Búsqueda */}
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '14px' }}>
           <div style={{ position: 'relative' }}>
@@ -184,7 +183,6 @@ export const Users = () => {
         </div>
       </div>
 
-      {/* Tabla de Usuarios */}
       <div className="table-container">
         <table className="data-table">
           <thead>
@@ -259,7 +257,6 @@ export const Users = () => {
         </table>
       </div>
 
-      {/* Modal Crear / Editar Usuario */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

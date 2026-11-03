@@ -26,12 +26,10 @@ export const InstitutionalMap = () => {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Modales
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isDoorModalOpen, setIsDoorModalOpen] = useState(false);
 
-  // Formularios
   const [blockForm, setBlockForm] = useState({ name: '', description: '', location_info: '' });
   const [roomForm, setRoomForm] = useState({
     name: '',
@@ -78,7 +76,6 @@ export const InstitutionalMap = () => {
     loadData();
   }, []);
 
-  // Manejadores de Creación Dinámica (Bloques, Salas, Puertas)
   const handleCreateBlock = async (e) => {
     e.preventDefault();
     try {
@@ -219,10 +216,8 @@ export const InstitutionalMap = () => {
         )}
       </div>
 
-      {/* Grid de 3 Columnas: Bloques -> Salas -> Puertas */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr 1.3fr', gap: '20px', alignItems: 'start' }}>
-        
-        {/* COLUMNA 1: BLOQUES INSTITUCIONALES */}
+
         <div className="card">
           <div className="card-header">
             <div className="card-title">
@@ -275,7 +270,6 @@ export const InstitutionalMap = () => {
           </div>
         </div>
 
-        {/* COLUMNA 2: SALAS DEL BLOQUE SELECCIONADO */}
         <div className="card">
           <div className="card-header">
             <div className="card-title">
@@ -337,7 +331,6 @@ export const InstitutionalMap = () => {
                     )}
                   </div>
 
-                  {/* Sensores y Alarma */}
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                     {r.has_alarm && (
                       <span className="badge badge-alert" style={{ fontSize: '10px' }}>
@@ -366,7 +359,6 @@ export const InstitutionalMap = () => {
           )}
         </div>
 
-        {/* COLUMNA 3: PUERTAS CON HARDWARE RFID */}
         <div className="card">
           <div className="card-header">
             <div className="card-title">
@@ -446,7 +438,6 @@ export const InstitutionalMap = () => {
         </div>
       </div>
 
-      {/* MODAL: CREAR BLOQUE */}
       <Modal isOpen={isBlockModalOpen} onClose={() => setIsBlockModalOpen(false)} title="Crear Bloque Institucional">
         <form onSubmit={handleCreateBlock}>
           <div className="form-group">
@@ -487,7 +478,6 @@ export const InstitutionalMap = () => {
         </form>
       </Modal>
 
-      {/* MODAL: CREAR SALA */}
       <Modal isOpen={isRoomModalOpen} onClose={() => setIsRoomModalOpen(false)} title={`Crear Sala en ${selectedBlock?.name}`}>
         <form onSubmit={handleCreateRoom}>
           <div className="form-group">
@@ -532,7 +522,6 @@ export const InstitutionalMap = () => {
             </div>
           </div>
 
-          {/* Opciones de Seguridad y Sensores */}
           <div style={{ marginTop: '12px', padding: '12px', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
               Sensores de Seguridad Físicos:
@@ -586,7 +575,6 @@ export const InstitutionalMap = () => {
         </form>
       </Modal>
 
-      {/* MODAL: CREAR PUERTA */}
       <Modal isOpen={isDoorModalOpen} onClose={() => setIsDoorModalOpen(false)} title={`Registrar Puerta en ${selectedRoom?.name}`}>
         <form onSubmit={handleCreateDoor}>
           <div className="form-group">

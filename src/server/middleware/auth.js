@@ -1,13 +1,6 @@
-// ===================================================================
-// Middleware de autenticación y autorización JWT — Control de Acceso RFID
-// Seguridad Reforzada: Sesión Única por Dispositivo y Expiración Estricta
-// ===================================================================
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-/**
- * Middleware: Verifica el token JWT, valida sesión única activa y adjunta req.user
- */
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -77,8 +70,6 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // 🔒 POLÍTICA DE SEGURIDAD: Solo 1 sesión activa por dispositivo / puesto
-    // Si la sesión del token no coincide con active_session_id en la BD, fue cerrada por otro login
     if (decoded.sessionId && user.active_session_id && decoded.sessionId !== user.active_session_id) {
       return res.status(401).json({
         success: false,
@@ -106,9 +97,6 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-/**
- * Middleware: Autoriza solo roles específicos (Admin y Rector tienen superacceso siempre)
- */
 const authorize = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.user) {

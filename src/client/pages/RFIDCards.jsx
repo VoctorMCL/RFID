@@ -1,7 +1,3 @@
-// ===================================================================
-// Gestión y Asignación de Tarjetas RFID — Corporación Universitaria Lasallista
-// Rework Integral: Asignación Obligatoria por Sensor + Pases de Seguridad
-// ===================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -33,22 +29,19 @@ import {
 export const RFIDCards = () => {
   const { isAdmin, canManageSecurity, user } = useAuth();
 
-  // Estados de navegación y datos
-  const [activeTab, setActiveTab] = useState('active_passes'); // 'active_passes' | 'pass_history' | 'inventory'
+  const [activeTab, setActiveTab] = useState('active_passes');
   const [cards, setCards] = useState([]);
   const [passes, setPasses] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Modales
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
   const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
   const [returningPass, setReturningPass] = useState(null);
 
-  // Estado del Formulario de Pase con Sensor
   const [scannedCardUid, setScannedCardUid] = useState('');
-  const [sensorStatus, setSensorStatus] = useState('waiting'); // 'waiting' | 'detected'
+  const [sensorStatus, setSensorStatus] = useState('waiting');
   const [personType, setPersonType] = useState('student');
   const [fullName, setFullName] = useState('');
   const [documentId, setDocumentId] = useState('');
@@ -61,7 +54,6 @@ export const RFIDCards = () => {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Formulario de enrolamiento de inventario (Admin)
   const [invFormData, setInvFormData] = useState({
     uid: '',
     user_id: '',
@@ -73,7 +65,6 @@ export const RFIDCards = () => {
   const wedgeBufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
 
-  // Cargar datos desde la API
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -97,8 +88,6 @@ export const RFIDCards = () => {
     loadData();
   }, [loadData]);
 
-  // Avisar al pop-up global que estamos en modo enrolamiento:
-  // las lecturas del sensor aquí son para vincular la tarjeta, no un intento de acceso.
   useEffect(() => {
     const enrollmentActive = isPassModalOpen || isInventoryModalOpen;
     window.dispatchEvent(
@@ -114,7 +103,6 @@ export const RFIDCards = () => {
     };
   }, [isPassModalOpen, isInventoryModalOpen]);
 
-  // Manejador de escaneo físico para el formulario
   const handlePhysicalScan = useCallback((uid) => {
     if (!uid) return;
     const clean = uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
@@ -125,13 +113,11 @@ export const RFIDCards = () => {
     setFormError('');
   }, []);
 
-  // 1. Escuchar eventos en vivo desde WebSocket
   const handleWsEvent = useCallback((event) => {
     if (event.type === 'visitor_pass_created' || event.type === 'visitor_pass_returned') {
       loadData();
     }
 
-    // Si el modal de nuevo pase está abierto, capturar la tarjeta que pase por el sensor
     if (isPassModalOpen && event.type === 'access_attempt' && event.data?.uid) {
       handlePhysicalScan(event.data.uid);
     }
@@ -139,7 +125,6 @@ export const RFIDCards = () => {
 
   useWebSocket(handleWsEvent);
 
-  // 2. Polling de respaldo para el sensor físico cuando el modal está abierto
   useEffect(() => {
     if (!isPassModalOpen) return;
 
@@ -162,7 +147,6 @@ export const RFIDCards = () => {
     return () => clearInterval(interval);
   }, [isPassModalOpen, handlePhysicalScan]);
 
-  // 3. Soporte para lector USB de teclado en el modal
   useEffect(() => {
     if (!isPassModalOpen) return;
 
@@ -189,7 +173,6 @@ export const RFIDCards = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPassModalOpen, handlePhysicalScan]);
 
-  // Abrir modal de asignación y resetear formulario
   const handleOpenPassModal = () => {
     setScannedCardUid('');
     setSensorStatus('waiting');
@@ -206,13 +189,12 @@ export const RFIDCards = () => {
     setIsPassModalOpen(true);
   };
 
-  // Enviar formulario de nuevo pase
   const handleSubmitPass = async (e) => {
     e.preventDefault();
     setFormError('');
 
     if (!scannedCardUid) {
-      setFormError('⚠️ Debe acercar obligatoriamente una tarjeta física al sensor para vincularla.');
+      setFormError('Debe acercar obligatoriamente una tarjeta física al sensor para vincularla.');
       return;
     }
 
@@ -260,7 +242,6 @@ export const RFIDCards = () => {
     }
   };
 
-  // Registrar devolución de pase
   const handleConfirmReturn = async () => {
     if (!returningPass) return;
     try {
@@ -276,7 +257,6 @@ export const RFIDCards = () => {
     }
   };
 
-  // Acciones sobre tarjetas de inventario
   const handleToggleCardActive = async (card) => {
     try {
       const res = await apiClient(`/rfid-cards/${card.id}`, {
@@ -320,7 +300,6 @@ export const RFIDCards = () => {
     }
   };
 
-  // Cálculos de tiempo transcurrido
   const getElapsedTime = (entryTimeStr) => {
     if (!entryTimeStr) return '—';
     const diffMs = Date.now() - new Date(entryTimeStr).getTime();
@@ -335,7 +314,6 @@ export const RFIDCards = () => {
   const activePasses = passes.filter(p => p.status === 'active');
   const pastPasses = passes.filter(p => p.status === 'returned');
 
-  // Filtrado de búsquedas
   const filteredActivePasses = activePasses.filter(p =>
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
     p.document_id.toLowerCase().includes(search.toLowerCase()) ||
@@ -357,7 +335,7 @@ export const RFIDCards = () => {
 
   return (
     <div>
-      {/* Encabezado Principal */}
+
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 className="page-title">Control de Tarjetas RFID y Pases de Seguridad</h1>
@@ -367,13 +345,12 @@ export const RFIDCards = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
-          {/* Botón Principal: Registrar Pase con Sensor (Visible para Celador y Admin) */}
+
           <button className="btn btn-primary" onClick={handleOpenPassModal} style={{ gap: '8px', padding: '10px 18px', fontWeight: 600 }}>
             <Radio size={17} />
             <span>Vincular Tarjeta con Sensor</span>
           </button>
 
-          {/* Enrolamiento permanente (Admin) */}
           {isAdmin && (
             <button className="btn btn-secondary" onClick={() => setIsInventoryModalOpen(true)} title="Enrolar en inventario fijo">
               <Plus size={16} />
@@ -383,7 +360,6 @@ export const RFIDCards = () => {
         </div>
       </div>
 
-      {/* Banner de Estado del Sensor de Portería */}
       <div className="card" style={{ marginBottom: '20px', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
@@ -424,7 +400,6 @@ export const RFIDCards = () => {
         </div>
       </div>
 
-      {/* Selector de Pestañas (Tabs) */}
       <div style={{
         display: 'flex',
         gap: '8px',
@@ -498,7 +473,6 @@ export const RFIDCards = () => {
         )}
       </div>
 
-      {/* Buscador Común */}
       <div className="card" style={{ marginBottom: '20px', padding: '12px 16px' }}>
         <div style={{ position: 'relative' }}>
           <input
@@ -517,7 +491,6 @@ export const RFIDCards = () => {
         </div>
       </div>
 
-      {/* PESTAÑA 1: PASES ACTIVOS EN CAMPUS */}
       {activeTab === 'active_passes' && (
         <div className="table-container">
           <table className="data-table">
@@ -625,7 +598,6 @@ export const RFIDCards = () => {
         </div>
       )}
 
-      {/* PESTAÑA 2: HISTORIAL DE DEVOLUCIONES */}
       {activeTab === 'pass_history' && (
         <div className="table-container">
           <table className="data-table">
@@ -685,7 +657,6 @@ export const RFIDCards = () => {
         </div>
       )}
 
-      {/* PESTAÑA 3: INVENTARIO GENERAL (Solo Admin) */}
       {activeTab === 'inventory' && isAdmin && (
         <div className="table-container">
           <table className="data-table">
@@ -773,9 +744,6 @@ export const RFIDCards = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: FORMULARIO CON VINCULACIÓN OBLIGATORIA POR SENSOR (REWORK CENTRAL) */}
-      {/* ========================================================================= */}
       <Modal
         isOpen={isPassModalOpen}
         onClose={() => setIsPassModalOpen(false)}
@@ -783,7 +751,7 @@ export const RFIDCards = () => {
         maxWidth="640px"
       >
         <form onSubmit={handleSubmitPass}>
-          {/* PASO 1: DETECCIÓN OBLIGATORIA POR SENSOR */}
+
           <div style={{
             padding: '16px',
             borderRadius: '12px',
@@ -833,7 +801,6 @@ export const RFIDCards = () => {
               )}
             </div>
 
-            {/* Campo UID Bloqueado / Verificado */}
             <div style={{ marginTop: '14px' }}>
               <label className="form-label" style={{ fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 UID Físico Vinculado (Lectura Automática Obligatoria)
@@ -857,7 +824,6 @@ export const RFIDCards = () => {
             </div>
           </div>
 
-          {/* PASO 2: DATOS DEL VISITANTE / ESTUDIANTE */}
           <div style={{
             opacity: sensorStatus === 'detected' ? 1 : 0.45,
             pointerEvents: sensorStatus === 'detected' ? 'auto' : 'none',
@@ -959,7 +925,6 @@ export const RFIDCards = () => {
               </div>
             </div>
 
-            {/* SECCIÓN ESPECIAL PARA ESTUDIANTES: ¿Por qué no tiene su carnet? */}
             {personType === 'student' && (
               <div style={{
                 padding: '14px',
@@ -969,7 +934,7 @@ export const RFIDCards = () => {
                 marginBottom: '14px'
               }}>
                 <label className="form-label" style={{ color: '#ef4444', fontWeight: 700 }}>
-                  🚨 Causa de Ausencia del Carnet Institucional *
+                  Causa de Ausencia del Carnet Institucional *
                 </label>
                 <select
                   className="form-select"
@@ -1061,9 +1026,6 @@ export const RFIDCards = () => {
         </form>
       </Modal>
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: CONFIRMACIÓN DE DEVOLUCIÓN DE TARJETA */}
-      {/* ========================================================================= */}
       <Modal
         isOpen={Boolean(returningPass)}
         onClose={() => setReturningPass(null)}
@@ -1110,9 +1072,6 @@ export const RFIDCards = () => {
         )}
       </Modal>
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: ENROLAMIENTO PERMANENTE EN INVENTARIO (Solo Admin) */}
-      {/* ========================================================================= */}
       {isAdmin && (
         <Modal
           isOpen={isInventoryModalOpen}

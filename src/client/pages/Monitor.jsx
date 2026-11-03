@@ -27,8 +27,6 @@ export const Monitor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVibrating, setIsVibrating] = useState(false);
 
-  // Estado del sensor de hardware RFID (CrowPi 3 / RC522)
-  // Por defecto está en falso (ROJO) hasta que se confirme comunicación física real
   const [hardwareSensors, setHardwareSensors] = useState({});
 
   const resetTimerRef = useRef(null);
@@ -38,8 +36,6 @@ export const Monitor = () => {
   const keyBufferRef = useRef('');
   const lastKeyTimeRef = useRef(Date.now());
 
-  // Reproducir tono sonoro sincronizado con la animación del panel de validación
-  // Tonos idénticos al buzzer físico del CrowPi 3 para coherencia auditiva
   const playBeep = (granted) => {
     if (!soundEnabled) return;
     try {
@@ -51,25 +47,18 @@ export const Monitor = () => {
       const now = ctx.currentTime;
 
       if (granted) {
-        // ═══ ACCESO CONCEDIDO: Doble tono ascendente D5 → A5 ═══
-        // Sincronizado con la transición CSS del borde verde (0.2s ease)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now);     // D5
-        osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.12);
         gain.gain.setValueAtTime(0.12, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
         osc.start(now);
         osc.stop(now + 0.35);
       } else {
-        // ═══ ACCESO DENEGADO: Triple tono descendente grave A3 → E3 → C3 ═══
-        // Sincronizado con la animación vibrate-shake (0.55s):
-        //   Tono 1 en 0s (primer sacudón), Tono 2 en 0.19s, Tono 3 en 0.38s
-
-        // Tono 1: A3 (220 Hz)
         const osc1 = ctx.createOscillator();
         const gain1 = ctx.createGain();
         osc1.connect(gain1);
@@ -81,7 +70,6 @@ export const Monitor = () => {
         osc1.start(now);
         osc1.stop(now + 0.15);
 
-        // Tono 2: E3 (164.81 Hz)
         const osc2 = ctx.createOscillator();
         const gain2 = ctx.createGain();
         osc2.connect(gain2);
@@ -94,7 +82,6 @@ export const Monitor = () => {
         osc2.start(now + 0.19);
         osc2.stop(now + 0.35);
 
-        // Tono 3: C3 (130.81 Hz) — Grave final
         const osc3 = ctx.createOscillator();
         const gain3 = ctx.createGain();
         osc3.connect(gain3);
@@ -113,9 +100,6 @@ export const Monitor = () => {
   };
 
   const handleScanResult = (result) => {
-    // Un mismo escaneo puede llegar por WebSocket, polling o respuesta directa
-    // del lector. Se deduplica por el ID del registro de acceso para que el
-    // flujo en vivo muestre cada lectura una sola vez.
     const logId = result.logId ?? result.id;
     const scanKey = logId !== undefined && logId !== null
       ? `log:${logId}`
@@ -133,17 +117,14 @@ export const Monitor = () => {
     setLastScan(result);
     playBeep(result.granted);
 
-    // Cuando se recibe una lectura de tarjeta, se confirma el sensor en VERDE
     if (result.door?.id) {
       setHardwareSensors(prev => ({ ...prev, [result.door.id]: true }));
     }
 
     if (!result.granted) {
-      // Disparar animación de vibración en denegación / error
       setIsVibrating(false);
       setTimeout(() => setIsVibrating(true), 15);
 
-      // Vibración háptica en dispositivos móviles o pantallas táctiles
       if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
         try {
           window.navigator.vibrate([120, 60, 120, 60, 200]);
@@ -158,7 +139,6 @@ export const Monitor = () => {
       }
     }
 
-    // Agregar al stream en vivo
     setLiveStream(prev => [
       {
         id: scanKey || Date.now(),
@@ -168,7 +148,6 @@ export const Monitor = () => {
       ...prev.slice(0, 19)
     ]);
 
-    // Mantener la pantalla visible durante 6 segundos antes de volver al estado de espera
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     resetTimerRef.current = setTimeout(() => {
       setLastScan(null);
@@ -176,7 +155,6 @@ export const Monitor = () => {
     }, 6000);
   };
 
-  // Escuchar eventos en vivo desde el WebSocket (lecturas de Raspberry Pi, ESP32 u otros clientes)
   const handleWsEvent = (event) => {
     if (event.type === 'access_attempt') {
       const data = event.data;
@@ -212,7 +190,6 @@ export const Monitor = () => {
       });
     }
 
-    // Si llega un heartbeat del hardware
     if (event.type === 'hardware_heartbeat' || event.type === 'door_status') {
       const doorId = event.data?.doorId || (event.data?.door?.id);
       if (doorId) {
@@ -223,7 +200,6 @@ export const Monitor = () => {
 
   const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
 
-  // 1. Captura automática de lectores RFID USB / Teclado en la página
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target?.tagName)) {
@@ -265,15 +241,12 @@ export const Monitor = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedDoorId]);
 
-  // 2. Polling en tiempo real para Vercel Serverless o caídas de WebSocket (detecta lecturas físicas del CrowPi 3)
   useEffect(() => {
     if (isWsConnected) return;
 
     let inFlight = false;
     let cancelled = false;
 
-    // Solo se procesan IDs de log más recientes. Así una respuesta antigua que
-    // llegue fuera de orden no vuelve a pintar un escaneo ya mostrado.
     const isNewerLog = (id) => {
       if (lastSeenLogIdRef.current === null) return false;
       const prev = Number(lastSeenLogIdRef.current);
@@ -287,7 +260,6 @@ export const Monitor = () => {
       inFlight = true;
 
       try {
-        // Intento 1: Endpoint de último escaneo directo (/access/latest)
         const latestRes = await apiClient('/access/latest');
         if (cancelled) return;
         if (latestRes.success && latestRes.data && latestRes.data.id) {
@@ -308,7 +280,6 @@ export const Monitor = () => {
           }
         }
 
-        // Intento 2: Historial de logs (/access/logs?limit=1)
         const res = await apiClient('/access/logs?limit=1');
         if (cancelled) return;
         if (res.success && res.data && res.data.length > 0) {
@@ -346,7 +317,6 @@ export const Monitor = () => {
           }
         }
       } catch (err) {
-        // Silencioso para no ensuciar consola durante polling
       } finally {
         inFlight = false;
       }
@@ -371,7 +341,6 @@ export const Monitor = () => {
           setDoors(res.data);
           setSelectedDoorId(prev => prev || res.data[0].id.toString());
 
-          // El sensor pasa a VERDE si hay latidos reales de hardware en los últimos 90s
           setHardwareSensors(prev => {
             const next = { ...prev };
             res.data.forEach(d => {
@@ -381,7 +350,6 @@ export const Monitor = () => {
           });
         }
 
-        // Consultar último escaneo: marca verde si ocurrió recientemente
         try {
           const latestRes = await apiClient('/access/latest');
           if (!isMounted) return;
@@ -459,8 +427,7 @@ export const Monitor = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
-        
-        {/* PANEL PRINCIPAL: ESCENARIO DE VALIDACIÓN VISUAL */}
+
         <div>
           <div
             className={lastScan !== null && !lastScan.granted && isVibrating ? 'vibrate-error' : ''}
@@ -483,7 +450,7 @@ export const Monitor = () => {
               transition: 'all 0.2s ease'
             }}
           >
-            {/* Estado de Espera */}
+
             {lastScan === null && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{
@@ -529,7 +496,6 @@ export const Monitor = () => {
               </div>
             )}
 
-            {/* Estado de Resultado: ACCESO PERMITIDO */}
             {lastScan !== null && lastScan.granted && (
               <div style={{ width: '100%' }}>
                 <div style={{
@@ -545,7 +511,6 @@ export const Monitor = () => {
                   Acceso Autorizado
                 </div>
 
-                {/* Avatar / Fotografía de Verificación Visual */}
                 <div style={{
                   width: '92px',
                   height: '92px',
@@ -597,7 +562,6 @@ export const Monitor = () => {
               </div>
             )}
 
-            {/* Estado de Resultado: ACCESO DENEGADO (CON ANIMACIÓN DE VIBRACIÓN) */}
             {lastScan !== null && !lastScan.granted && (
               <div style={{ width: '100%' }}>
                 <div style={{
@@ -670,7 +634,6 @@ export const Monitor = () => {
             )}
           </div>
 
-          {/* ESTADO DINÁMICO DEL SENSOR DE HARDWARE RFID (ROJO / VERDE) */}
           <div
             style={{
               marginTop: '16px',
@@ -728,7 +691,6 @@ export const Monitor = () => {
           </div>
         </div>
 
-        {/* FEED LATERAL EN VIVO (EVENTOS WEBSOCKET) */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '680px' }}>
           <div className="card-header">
             <div className="card-title">

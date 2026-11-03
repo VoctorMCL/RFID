@@ -25,7 +25,6 @@ export const Alerts = () => {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [resolutionNote, setResolutionNote] = useState('');
 
-  // Escuchar WebSocket para nuevas alertas o resoluciones
   const handleWsEvent = (event) => {
     if (event.type === 'new_alert') {
       setAlerts(prev => [event.data, ...prev]);
@@ -82,7 +81,6 @@ export const Alerts = () => {
     }
   };
 
-  // Desarmar manualmente la alarma de una sala desde el centro de control
   const handleDisarmRoom = async (roomId) => {
     if (!window.confirm('¿Confirmar desactivación manual de alarma para esta sala desde el centro de control?')) return;
     try {
@@ -117,7 +115,6 @@ export const Alerts = () => {
         </div>
       </div>
 
-      {/* SECCIÓN PROTOTIPO: SALA DE INFORMÁTICA 1 Y SALAS ASEGURADAS */}
       <div className="card" style={{ marginBottom: '24px', border: '1px solid var(--accent-border)' }}>
         <div className="card-header">
           <div className="card-title">
@@ -180,7 +177,6 @@ export const Alerts = () => {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -204,7 +200,6 @@ export const Alerts = () => {
         </div>
       </div>
 
-      {/* Lista de Alertas */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredAlerts.length === 0 ? (
           <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -296,7 +291,6 @@ export const Alerts = () => {
         )}
       </div>
 
-      {/* Modal Resolver Alerta */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Resolución de Alerta de Seguridad">
         <form onSubmit={handleResolveAlert}>
           <div style={{ marginBottom: '14px', fontSize: '13px', color: 'var(--text-secondary)' }}>

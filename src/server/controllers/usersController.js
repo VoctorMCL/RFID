@@ -1,15 +1,6 @@
-// ===================================================================
-// Controlador de Usuarios — PostgreSQL
-// ===================================================================
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 
-/**
- * Consulta la lista de usuarios con filtros por rol, estado y búsqueda por nombre/documento/UID
- * @route GET /api/users
- * @param {import('express').Request} req - Petición con query params role_id, status, search
- * @param {import('express').Response} res - Listado de usuarios
- */
 const getUsers = async (req, res) => {
   try {
     const { role_id, status, search } = req.query;
@@ -54,12 +45,6 @@ const getUsers = async (req, res) => {
   }
 };
 
-/**
- * Consulta la información completa de un usuario por su ID, incluyendo sus tarjetas asociadas
- * @route GET /api/users/:id
- * @param {import('express').Request} req - Petición con ID de usuario
- * @param {import('express').Response} res - Datos del usuario y tarjetas
- */
 const getUserById = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -90,12 +75,6 @@ const getUserById = async (req, res) => {
   }
 };
 
-/**
- * Registra un nuevo usuario en la base de datos y enrola opcionalmente su carnet RFID
- * @route POST /api/users
- * @param {import('express').Request} req - Datos de creación
- * @param {import('express').Response} res - Usuario creado
- */
 const createUser = async (req, res) => {
   try {
     const { first_name, last_name, email, document_id, role_id, program, phone, password, rfid_tag } = req.body;
@@ -116,7 +95,6 @@ const createUser = async (req, res) => {
 
     const newUser = insertUser.rows[0];
 
-    // Enrolar tarjeta física si fue suministrada
     if (rfid_tag && rfid_tag.trim()) {
       const cleanUid = rfid_tag.trim().toUpperCase();
       await db.query(
@@ -134,12 +112,6 @@ const createUser = async (req, res) => {
   }
 };
 
-/**
- * Actualiza los datos de un usuario existente
- * @route PUT /api/users/:id
- * @param {import('express').Request} req - Parámetros y campos a actualizar
- * @param {import('express').Response} res - Usuario actualizado
- */
 const updateUser = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -171,12 +143,6 @@ const updateUser = async (req, res) => {
   }
 };
 
-/**
- * Elimina un usuario de la base de datos
- * @route DELETE /api/users/:id
- * @param {import('express').Request} req - Petición con ID en params
- * @param {import('express').Response} res - Confirmación de eliminación
- */
 const deleteUser = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);

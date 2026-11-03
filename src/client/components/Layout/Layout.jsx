@@ -14,7 +14,6 @@ export const Layout = () => {
     return localStorage.getItem('rfid_sidebar_collapsed') === 'true';
   });
 
-  // Comprime automáticamente la barra lateral al entrar en anchos reducidos
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < NARROW_BREAKPOINT) {
@@ -44,7 +43,6 @@ export const Layout = () => {
         </main>
       </div>
 
-      {/* Pop-up Global de Escaneo y Validación RFID para toda la pantalla */}
       <GlobalAccessModal />
     </div>
   );

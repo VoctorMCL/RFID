@@ -49,49 +49,49 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       to: '/monitor',
       label: 'Escáner y Validación',
       icon: Radio,
-      visible: true // Visible para Celador y Admin
+      visible: true
     },
     {
       to: '/dashboard',
       label: 'Panel Principal',
       icon: LayoutDashboard,
-      visible: isAdmin // Solo Admin
+      visible: isAdmin
     },
     {
       to: '/map',
       label: 'Mapa Institucional',
       icon: Building2,
-      visible: isAdmin // Solo Admin
+      visible: isAdmin
     },
     {
       to: '/users',
       label: 'Personas y Estudiantes',
       icon: Users,
-      visible: isAdmin // Solo Admin
+      visible: isAdmin
     },
     {
       to: '/rfid-cards',
       label: 'Tarjetas RFID y Pases',
       icon: CreditCard,
-      visible: true // Visible para Celador y Admin (Rework)
+      visible: true
     },
     {
       to: '/schedules',
       label: 'Articulación Horaria',
       icon: Calendar,
-      visible: isAdmin // Solo Admin
+      visible: isAdmin
     },
     {
       to: '/logs',
       label: 'Historial de Accesos',
       icon: History,
-      visible: true // Visible para Celador y Admin
+      visible: true
     },
     {
       to: '/alerts',
       label: 'Centro de Alarmas',
       icon: AlertTriangle,
-      visible: isAdmin // Solo Admin
+      visible: isAdmin
     }
   ];
 
@@ -101,7 +101,7 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      {/* Encabezado con Botón de Toggle */}
+
       <div className="sidebar-header" style={{ position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
           <div className="brand-icon" style={{ padding: 0, background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -146,7 +146,6 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
         </button>
       </div>
 
-      {/* Navegación por Módulos */}
       <nav className="sidebar-nav">
         {navItems
           .filter(item => item.visible)
@@ -174,7 +173,6 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
           })}
       </nav>
 
-      {/* Pie de Barra Lateral */}
       <div className="sidebar-footer">
         <div
           style={{

@@ -1,18 +1,8 @@
-// ===================================================================
-// Controlador de Autenticación — Control de Acceso RFID (PostgreSQL)
-// Autenticación FÍSICA con Tarjeta RFID + Control de Sesión Única
-// ===================================================================
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-/**
- * Autenticación exclusiva por Tarjeta Física RFID
- * @route POST /api/auth/rfid-login
- * @param {import('express').Request} req - Petición con rfid_uid y device_info opcional
- * @param {import('express').Response} res - Respuesta con token JWT y datos del usuario
- */
 const loginWithCard = async (req, res) => {
   try {
     const { rfid_uid, device_info } = req.body;
@@ -26,7 +16,6 @@ const loginWithCard = async (req, res) => {
 
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
 
-    // 1. Buscar la tarjeta física y su usuario vinculado en PostgreSQL
     const result = await db.query(
       `SELECT c.id as card_id, c.uid, c.is_active as card_active, c.card_type,
               u.id as user_id, u.first_name, u.last_name, u.email, u.document_id,
@@ -48,7 +37,6 @@ const loginWithCard = async (req, res) => {
 
     const user = result.rows[0];
 
-    // 2. Validar estado de la tarjeta y del usuario
     if (!user.card_active) {
       return res.status(403).json({
         success: false,
@@ -63,7 +51,6 @@ const loginWithCard = async (req, res) => {
       });
     }
 
-    // 3. Restricción de acceso web: solo personal administrativo y de seguridad
     const allowedWebRoles = ['admin', 'rector', 'security', 'celador'];
     const userRole = (user.role_name || '').toLowerCase();
     if (!allowedWebRoles.includes(userRole)) {
@@ -73,7 +60,6 @@ const loginWithCard = async (req, res) => {
       });
     }
 
-    // 4. Generar nueva sesión única e invalidar cualquier sesión previa
     const newSessionId = crypto.randomUUID();
     const deviceString = device_info || req.headers['user-agent'] || 'Terminal Web';
 
@@ -87,7 +73,6 @@ const loginWithCard = async (req, res) => {
       [newSessionId, deviceString, user.user_id]
     );
 
-    // 5. Generar token JWT con sessionId embebido (expiración: 4 horas)
     const token = jwt.sign(
       {
         id: user.user_id,
@@ -136,12 +121,6 @@ const loginWithCard = async (req, res) => {
   }
 };
 
-/**
- * Cierre de sesión y revocación del token en base de datos
- * @route POST /api/auth/logout
- * @param {import('express').Request} req - Petición con usuario autenticado en req.user
- * @param {import('express').Response} res - Resultado de la operación
- */
 const logout = async (req, res) => {
   try {
     if (req.user?.id) {
@@ -153,12 +132,6 @@ const logout = async (req, res) => {
   }
 };
 
-/**
- * Autenticación alternativa por credenciales de contingencia (email/alias + password)
- * @route POST /api/auth/login
- * @param {import('express').Request} req - Petición con email, password y device_info opcional
- * @param {import('express').Response} res - Respuesta con token JWT y datos de usuario
- */
 const login = async (req, res) => {
   try {
     let { email, password, device_info } = req.body;
@@ -267,12 +240,6 @@ const login = async (req, res) => {
   }
 };
 
-/**
- * Consulta del perfil del usuario autenticado actualmente
- * @route GET /api/auth/me
- * @param {import('express').Request} req - Petición con usuario autenticado en req.user
- * @param {import('express').Response} res - Perfil con información personal, rol y tarjeta activa
- */
 const me = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -321,12 +288,6 @@ const me = async (req, res) => {
   }
 };
 
-/**
- * Actualización de contraseña por parte del usuario autenticado
- * @route PUT /api/auth/change-password
- * @param {import('express').Request} req - Petición con currentPassword y newPassword
- * @param {import('express').Response} res - Confirmación de actualización
- */
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;

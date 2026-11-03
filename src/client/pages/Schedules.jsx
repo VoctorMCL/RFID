@@ -37,7 +37,7 @@ export const Schedules = () => {
   const [formData, setFormData] = useState({
     user_id: '',
     room_id: '',
-    day_of_week: '1', // Lunes
+    day_of_week: '1',
     start_time: '07:00',
     end_time: '09:00',
     semester: '2026-2',
@@ -105,7 +105,6 @@ export const Schedules = () => {
   };
 
   const filteredSchedules = schedules.filter(s => {
-    // Si es docente viendo la pantalla, filtrar solo sus horarios a menos que sea rector/admin
     if (isProfessor && !canManageInfrastructure && s.user_id !== currentUser?.id) {
       return false;
     }
@@ -132,7 +131,6 @@ export const Schedules = () => {
         )}
       </div>
 
-      {/* Filtros */}
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
           <div>
@@ -179,7 +177,6 @@ export const Schedules = () => {
         </div>
       </div>
 
-      {/* Tabla de Horarios */}
       <div className="table-container">
         <table className="data-table">
           <thead>
@@ -244,7 +241,6 @@ export const Schedules = () => {
         </table>
       </div>
 
-      {/* Modal Asignar Horario */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Asignar Articulación Horaria">
         <form onSubmit={handleCreateSchedule}>
           <div className="form-group">

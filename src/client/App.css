@@ -1,10 +1,5 @@
-/* ===================================================================
-   Estilos Globales y Paleta Oficial Grafana — Unilasallista
-   Control de Acceso RFID y Telemetría Institucional
-   =================================================================== */
-
 :root {
-  /* Paleta Oscura Oficial Grafana (Como en las capturas) */
+
   --bg-primary: #111217;
   --bg-secondary: #181b1f;
   --bg-tertiary: #22252b;
@@ -12,18 +7,15 @@
   --bg-active: #323844;
   --bg-card: #181b1f;
 
-  /* Bordes Grafana */
   --border: #22252b;
   --border-light: #2c323d;
   --border-focus: #5794f2;
 
-  /* Textos de Alto Contraste para Modo Oscuro */
   --text-primary: #ffffff;
   --text-secondary: #d8d9da;
   --text-muted: #8e8e8e;
   --text-dim: #6e6e6e;
 
-  /* Colores Vívidos Oficiales de Grafana (Kubernetes & BI) */
   --grafana-green: #73bf69;
   --grafana-yellow: #fede00;
   --grafana-blue: #5794f2;
@@ -32,7 +24,6 @@
   --grafana-cyan: #00e5ff;
   --grafana-purple: #b877d9;
 
-  /* Azul Institucional Unilasallista */
   --accent: #5794f2;
   --accent-unilasallista: #002855;
   --accent-hover: #3b82f6;
@@ -40,7 +31,6 @@
   --accent-border: rgba(87, 148, 242, 0.35);
   --accent-text: #ffffff;
 
-  /* Estados de Seguridad */
   --status-ok-bg: rgba(115, 191, 105, 0.15);
   --status-ok-text: #73bf69;
   --status-ok-border: rgba(115, 191, 105, 0.35);
@@ -64,7 +54,6 @@
   --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", Consolas, monospace;
 }
 
-/* MODO CLARO AUTOMÁTICO (Según el tema del dispositivo o sistema operativo) */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg-primary: #f8fafc;
@@ -83,7 +72,7 @@
     --text-muted: #64748b;
     --text-dim: #94a3b8;
 
-    --accent: #002855; /* Azul Oscuro Oficial Unilasallista */
+    --accent: #002855;
     --accent-unilasallista: #002855;
     --accent-hover: #0a3d75;
     --accent-soft: rgba(0, 40, 85, 0.08);
@@ -107,7 +96,6 @@
   }
 }
 
-/* Modo claro forzado si data-theme="light" */
 [data-theme="light"] {
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
@@ -125,7 +113,7 @@
   --text-muted: #64748b;
   --text-dim: #94a3b8;
 
-  --accent: #002855; /* Azul Oscuro Oficial Unilasallista */
+  --accent: #002855;
   --accent-unilasallista: #002855;
   --accent-hover: #0a3d75;
   --accent-soft: rgba(0, 40, 85, 0.08);
@@ -178,7 +166,6 @@ input, select, textarea {
   font-family: inherit;
 }
 
-/* Scrollbar estilizada en grises */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
@@ -194,7 +181,6 @@ input, select, textarea {
   background: var(--text-muted);
 }
 
-/* Layout Principal */
 .app-layout {
   display: flex;
   min-height: 100vh;
@@ -396,7 +382,6 @@ input, select, textarea {
   background-color: var(--bg-primary);
 }
 
-/* Topbar */
 .topbar {
   height: 60px;
   background-color: var(--bg-secondary);
@@ -466,7 +451,6 @@ input, select, textarea {
   margin: 0 auto;
 }
 
-/* Encabezados de página */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -487,7 +471,6 @@ input, select, textarea {
   margin-top: 3px;
 }
 
-/* Tarjetas y Paneles en Grises */
 .card {
   background-color: var(--bg-card);
   border: 1px solid var(--border);
@@ -514,7 +497,6 @@ input, select, textarea {
   gap: 8px;
 }
 
-/* Botones y Acciones */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -588,7 +570,6 @@ input, select, textarea {
   gap: 6px;
 }
 
-/* Inputs y Formularios */
 .form-group {
   margin-bottom: 16px;
 }
@@ -618,7 +599,6 @@ input, select, textarea {
   box-shadow: 0 0 0 3px rgba(0, 40, 85, 0.1);
 }
 
-/* Tablas */
 .table-container {
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -659,7 +639,6 @@ input, select, textarea {
   background-color: var(--bg-hover);
 }
 
-/* Badges y Chips en Sentence Case */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -697,7 +676,6 @@ input, select, textarea {
   border: 1px solid var(--border);
 }
 
-/* Modales */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -749,7 +727,6 @@ input, select, textarea {
   background-color: var(--bg-secondary);
 }
 
-/* Utilidades tipográficas */
 .font-mono {
   font-family: var(--font-mono);
 }
@@ -770,9 +747,6 @@ input, select, textarea {
   }
 }
 
-/* ===================================================================
-   ANIMACIÓN DE VIBRACIONES PARA ERRORES Y ACCESOS DENEGADOS
-   =================================================================== */
 @keyframes vibrate-shake {
   0% { transform: translateX(0) rotate(0deg); }
   10% { transform: translateX(-10px) rotate(-1.5deg); }
@@ -797,10 +771,6 @@ input, select, textarea {
 .input-error {
   animation: vibrate-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
-
-/* ===================================================================
-   SISTEMA DE GRIDS GRAFANA RESIZABLE & DRAGGABLE (REACT-GRID-LAYOUT)
-   =================================================================== */
 
 .grafana-grid {
   position: relative;
@@ -850,7 +820,6 @@ input, select, textarea {
   min-height: 0;
 }
 
-/* Manija de redimensión estilo Grafana (Esquina inferior derecha) */
 .react-grid-item > .react-resizable-handle {
   position: absolute;
   width: 16px;
@@ -880,7 +849,6 @@ input, select, textarea {
   border-color: var(--grafana-blue);
 }
 
-/* Animación y sombreado al arrastrar o soltar */
 .react-grid-item.react-grid-placeholder {
   background: rgba(87, 148, 242, 0.15) !important;
   border: 1px dashed var(--grafana-blue) !important;
@@ -900,10 +868,6 @@ input, select, textarea {
   z-index: 100;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
 }
-
-/* ===================================================================
-   Animaciones Fluidas de Onda Líquida y RADAR para Pantalla de Acceso
-   =================================================================== */
 
 @keyframes liquidWaveMove {
   0% {
@@ -998,7 +962,6 @@ input, select, textarea {
   opacity: 0.4;
 }
 
-/* Responsive Split-Screen Layout para Pantalla RADAR */
 .radar-login-container {
   width: 100vw;
   height: 100vh;
@@ -1036,7 +999,6 @@ input, select, textarea {
   overflow-y: auto;
 }
 
-/* El logo vectorial escala con su contenedor sin deformarse */
 .login-hero-logo {
   width: 86%;
   height: auto;
@@ -1107,11 +1069,6 @@ input, select, textarea {
   }
 }
 
-
-
-/* ===================================================================
-   Estilos de Consola de Login — Tabs, Formularios y Lector RFID
-   =================================================================== */
 .login-tabs-nav {
   display: flex;
   background: rgba(15, 23, 42, 0.7);
@@ -1254,9 +1211,6 @@ input, select, textarea {
   background: rgba(56, 189, 248, 0.1);
 }
 
-/* ===================================================================
-   Ajustes Responsive Generales — Layout y Consola Administrativa
-   =================================================================== */
 @media (max-width: 1200px) {
   .page-container {
     padding: 22px 20px;
@@ -1336,7 +1290,6 @@ input, select, textarea {
     flex-wrap: wrap;
   }
 
-  /* Las rejillas definidas con estilos en línea se apilan en pantallas pequeñas */
   [style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
   }

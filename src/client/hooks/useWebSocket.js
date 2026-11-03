@@ -1,13 +1,5 @@
-// ===================================================================
-// Hook de Conexión en Tiempo Real vía WebSocket — Control de Acceso RFID
-// ===================================================================
 import { useState, useEffect, useRef } from 'react';
 
-/**
- * Hook para gestión de conexión persistente WebSocket con reconexión automática y detección de despliegues cloud
- * @param {(message: any) => void} [onMessageCallback] - Callback opcional para procesamiento de eventos entrantes
- * @returns {{ isConnected: boolean, lastMessage: any, sendMessage: (data: any) => void }}
- */
 export const useWebSocket = (onMessageCallback) => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
@@ -28,8 +20,6 @@ export const useWebSocket = (onMessageCallback) => {
         const customWs = localStorage.getItem('rfid_ws_url');
         const customApi = localStorage.getItem('rfid_api_url');
 
-        // En dominios en la nube como rfid.victormcl.me o vercel.app, la sincronización
-        // en tiempo real opera mediante el motor serverless de alta velocidad de Monitor
         const isCloudDeployment = typeof window !== 'undefined' && (
           window.location.hostname.includes('victormcl.me') ||
           window.location.hostname.includes('vercel.app')
@@ -49,7 +39,7 @@ export const useWebSocket = (onMessageCallback) => {
         } else {
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           const port = window.location.port;
-          // En entorno Vite (5173) conectamos a puerto 4000; en servidor integrado usamos el mismo host:port
+
           const wsHost = (port === '5173')
             ? `${window.location.hostname}:4000`
             : (window.location.host || `${window.location.hostname}:4000`);
@@ -70,7 +60,6 @@ export const useWebSocket = (onMessageCallback) => {
               callbackRef.current(parsed);
             }
           } catch (e) {
-            // Silencioso ante mensajes no JSON
           }
         };
 
@@ -87,7 +76,6 @@ export const useWebSocket = (onMessageCallback) => {
         };
 
         ws.onerror = () => {
-          // El cierre dispara onclose para reconectar
         };
 
         wsRef.current = ws;

@@ -31,7 +31,6 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
     const normRole = (roleName || '').toLowerCase();
     const isAllowed = allowedRoles.includes(normRole) || (allowedRoles.includes('admin') && isAdmin);
     if (!isAllowed) {
-      // Redirigir según el rol
       const target = (normRole === 'celador' || normRole === 'security') ? '/monitor' : '/dashboard';
       return <Navigate to={target} replace />;
     }

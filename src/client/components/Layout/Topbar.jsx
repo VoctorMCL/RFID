@@ -37,7 +37,6 @@ export const Topbar = () => {
         const res = await apiClient('/doors');
         if (!isMounted) return;
         if (res.success && Array.isArray(res.data)) {
-          // Un sensor de hardware está activo si alguna puerta reportó actividad reciente
           const activeDoor = res.data.find(d => d.is_hardware_active);
           if (activeDoor) {
             lastActivityRef.current = Date.now();
@@ -80,7 +79,7 @@ export const Topbar = () => {
       </div>
 
       <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Indicador de Hardware Sensor RFID Real */}
+
         <div
           className="live-indicator"
           title={isSensorActive ? 'Lector RFID activo' : 'Sin comunicación de hardware RFID reciente'}

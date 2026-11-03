@@ -27,10 +27,9 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Ruta pública de autenticación RFID */}
+
           <Route path="/login" element={<Login />} />
 
-          {/* Rutas Protegidas del Ecosistema */}
           <Route
             element={
               <ProtectedRoute>
@@ -38,15 +37,13 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            {/* Redirección inicial según rol */}
+
             <Route path="/" element={<HomeRedirect />} />
 
-            {/* Módulos Compartidos (Celador y Admin) */}
             <Route path="/monitor" element={<Monitor />} />
             <Route path="/logs" element={<AccessLogs />} />
             <Route path="/rfid-cards" element={<RFIDCards />} />
 
-            {/* Módulos Exclusivos del Administrador */}
             <Route
               path="/dashboard"
               element={

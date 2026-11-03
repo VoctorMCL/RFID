@@ -1,14 +1,6 @@
-// ===================================================================
-// Controlador de Pases de Visitantes y Asignación Temporal RFID — PostgreSQL
-// Control de Acceso Institucional — Corporación Universitaria Lasallista
-// ===================================================================
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 
-/**
- * Obtener listado de pases de visitantes y préstamos temporales
- * GET /api/visitor-passes
- */
 const getPasses = async (req, res) => {
   try {
     const { status, search } = req.query;
@@ -53,10 +45,6 @@ const getPasses = async (req, res) => {
   }
 };
 
-/**
- * Registrar un nuevo pase/préstamo de tarjeta física (vínculo obligatorio por sensor)
- * POST /api/visitor-passes
- */
 const createPass = async (req, res) => {
   try {
     const {
@@ -95,7 +83,6 @@ const createPass = async (req, res) => {
     const cleanUid = card_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
     const issuerId = req.user?.id || null;
 
-    // Verificar si esta tarjeta ya tiene un pase activo sin devolver
     const activeCheck = await db.query(
       `SELECT id, full_name FROM visitor_passes WHERE card_uid = $1 AND status = 'active' LIMIT 1`,
       [cleanUid]
@@ -108,7 +95,6 @@ const createPass = async (req, res) => {
       });
     }
 
-    // 1. Asegurar la tarjeta en rfid_cards como 'temporary' y activa
     await db.query(
       `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label, enrolled_at)
        VALUES ($1, NULL, 'temporary', true, $2, NOW())
@@ -117,7 +103,6 @@ const createPass = async (req, res) => {
       [cleanUid, `Pase Temporal: ${full_name}`]
     );
 
-    // 2. Registrar el pase en visitor_passes
     const insertResult = await db.query(
       `INSERT INTO visitor_passes (
          card_uid, person_type, full_name, document_id, phone,
@@ -142,7 +127,6 @@ const createPass = async (req, res) => {
 
     const newPass = insertResult.rows[0];
 
-    // Emitir evento WebSocket para actualización instantánea
     wsService.broadcast('visitor_pass_created', newPass);
 
     return res.status(201).json({
@@ -156,10 +140,6 @@ const createPass = async (req, res) => {
   }
 };
 
-/**
- * Registrar devolución de la tarjeta y salida del campus
- * PUT /api/visitor-passes/:id/return
- */
 const returnPass = async (req, res) => {
   try {
     const passId = parseInt(req.params.id, 10);
@@ -179,7 +159,6 @@ const returnPass = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Este pase ya fue devuelto anteriormente.' });
     }
 
-    // Actualizar estado del pase a 'returned'
     const updateResult = await db.query(
       `UPDATE visitor_passes
        SET status = 'returned',
@@ -191,7 +170,6 @@ const returnPass = async (req, res) => {
 
     const updatedPass = updateResult.rows[0];
 
-    // Desactivar temporalmente la tarjeta física para que no quede activa sin titular
     await db.query(
       `UPDATE rfid_cards
        SET is_active = false,
@@ -200,7 +178,6 @@ const returnPass = async (req, res) => {
       [pass.card_uid]
     );
 
-    // Emitir evento WebSocket
     wsService.broadcast('visitor_pass_returned', updatedPass);
 
     return res.json({
@@ -214,10 +191,6 @@ const returnPass = async (req, res) => {
   }
 };
 
-/**
- * Eliminar registro de pase (solo admin)
- * DELETE /api/visitor-passes/:id
- */
 const deletePass = async (req, res) => {
   try {
     const passId = parseInt(req.params.id, 10);
