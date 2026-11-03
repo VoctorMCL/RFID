@@ -27,15 +27,27 @@ const validateAccess = async (req, res) => {
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
     const doorId = parseInt(door_id, 10);
 
-    // 1. Obtener la puerta y la sala asociada directamente desde PostgreSQL
-    const doorQuery = await db.query(
-      `SELECT d.*, r.id as room_id, r.name as room_name, r.has_alarm, r.security_status, b.name as block_name
-       FROM doors d
-       JOIN rooms r ON r.id = d.room_id
-       LEFT JOIN blocks b ON b.id = r.block_id
-       WHERE d.id = $1`,
-      [doorId]
-    );
+    // 1 y 2. Consulta concurrente de puerta y tarjeta para mínima latencia (Promise.all)
+    const [doorQuery, cardQuery] = await Promise.all([
+      db.query(
+        `SELECT d.*, r.id as room_id, r.name as room_name, r.has_alarm, r.security_status, b.name as block_name
+         FROM doors d
+         JOIN rooms r ON r.id = d.room_id
+         LEFT JOIN blocks b ON b.id = r.block_id
+         WHERE d.id = $1`,
+        [doorId]
+      ),
+      db.query(
+        `SELECT c.*,
+                u.id as user_id, u.first_name, u.last_name, u.document_id, u.program, u.status as user_status, u.access_expiry, u.photo_url,
+                r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
+         FROM rfid_cards c
+         LEFT JOIN users u ON u.id = c.user_id
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE c.uid = $1`,
+        [cleanUid]
+      )
+    ]);
 
     if (doorQuery.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Puerta no registrada en la base de datos' });
@@ -43,25 +55,13 @@ const validateAccess = async (req, res) => {
 
     const door = doorQuery.rows[0];
 
-    // Marcar la puerta como online y actualizar heartbeat
-    await db.query(`UPDATE doors SET status = 'online', last_heartbeat = NOW() WHERE id = $1`, [door.id]);
+    // Marcar la puerta como online de forma asíncrona sin bloquear la respuesta de acceso
+    db.query(`UPDATE doors SET status = 'online', last_heartbeat = NOW() WHERE id = $1`, [door.id]).catch(() => {});
 
     let granted = false;
     let denialReason = null;
     let card = null;
     let user = null;
-
-    // 2. Buscar la tarjeta RFID en PostgreSQL
-    const cardQuery = await db.query(
-      `SELECT c.*,
-              u.id as user_id, u.first_name, u.last_name, u.document_id, u.program, u.status as user_status, u.access_expiry, u.photo_url,
-              r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
-       FROM rfid_cards c
-       LEFT JOIN users u ON u.id = c.user_id
-       LEFT JOIN roles r ON r.id = u.role_id
-       WHERE c.uid = $1`,
-      [cleanUid]
-    );
 
     if (cardQuery.rows.length === 0) {
       denialReason = 'denegado_no_registrado';
@@ -412,11 +412,12 @@ const getStats = async (req, res) => {
  */
 const getLatestScan = async (req, res) => {
   try {
-    if (latestScanEvent) {
+    // Si tenemos evento en memoria reciente (< 15 segundos), retornar de inmediato en 0ms
+    if (latestScanEvent && (Date.now() - new Date(latestScanEvent.timestamp).getTime()) < 15000) {
       return res.json({ success: true, data: latestScanEvent });
     }
 
-    // Si aún no hubo escaneos en esta instancia serverless, consultar el último de PostgreSQL
+    // Consulta ultrarrápida usando el índice primario descendente (B-tree reverse scan en <1ms)
     const lastLogQuery = await db.query(
       `SELECT l.*,
               (u.first_name || ' ' || u.last_name) as user_name,
@@ -431,7 +432,7 @@ const getLatestScan = async (req, res) => {
        LEFT JOIN doors d ON d.id = l.door_id
        LEFT JOIN rooms rm ON rm.id = d.room_id
        LEFT JOIN blocks b ON b.id = rm.block_id
-       ORDER BY l.timestamp DESC
+       ORDER BY l.id DESC
        LIMIT 1`
     );
 

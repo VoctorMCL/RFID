@@ -1,7 +1,6 @@
 // ===================================================================
-// Terminal RADAR — Red de Acceso y Detección mediante Autenticación RFID
-// Corporación Universitaria Lasallista — Caldas, Antioquia
-// Diseño Split-Screen Inmersivo con Animación Líquida de Identificación
+// RADAR — Control de Acceso RFID Institucional
+// Consola de Acceso y Monitoreo v1.0
 // ===================================================================
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +8,6 @@ import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { apiClient } from '../api/client';
 import { RadarLogo } from '../components/RadarLogo';
-import logo from '../assets/logo.svg';
 import {
   CreditCard,
   Radio,
@@ -18,34 +16,41 @@ import {
   AlertTriangle,
   Loader2,
   Lock,
-  Wifi,
   Volume2,
   VolumeX,
-  Shield,
   ShieldCheck,
   User,
   Clock,
-  IdCard,
-  Building,
+  ArrowRight,
   KeyRound,
-  Sparkles,
-  ArrowRight
+  X,
+  Layers
 } from 'lucide-react';
 
 export const Login = () => {
   const { loginWithCard, login, isAuthenticated, isCelador, authNotice, clearAuthNotice } = useAuth();
   const navigate = useNavigate();
 
-  // Estados del sistema
+  // Método activo: 'rfid' (escaneo) o 'credentials' (formulario de usuario/clave)
+  const [activeTab, setActiveTab] = useState('rfid');
+
+  // Estados del escáner RFID
   const [status, setStatus] = useState('idle'); // 'idle' | 'scanning' | 'success' | 'error'
-  const [statusMessage, setStatusMessage] = useState('Aproxime su carnet al sensor físico para ingresar');
+  const [statusMessage, setStatusMessage] = useState('Acerque su carnet al lector para ingresar');
   const [errorMessage, setErrorMessage] = useState('');
   const [lastScannedUid, setLastScannedUid] = useState(null);
   const [authorizedUser, setAuthorizedUser] = useState(null);
   const [entryTimestamp, setEntryTimestamp] = useState(null);
+
+  // Estados del formulario de credenciales
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Configuración general
   const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
-  const [demoLoading, setDemoLoading] = useState(false);
 
   const lastProcessedIdRef = useRef(null);
   const isProcessingRef = useRef(false);
@@ -53,67 +58,147 @@ export const Login = () => {
   const wedgeBufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
 
-  // Reloj institucional en vivo
+  // Reloj en tiempo real
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Redirigir si ya está autenticado
+  // Redirigir si el usuario ya cuenta con sesión activa
   useEffect(() => {
     if (isAuthenticated) {
       navigate(isCelador ? '/monitor' : '/dashboard', { replace: true });
     }
   }, [isAuthenticated, isCelador, navigate]);
 
-  // Alternar sonido y persistir en localStorage
+  // Obtener o desbloquear AudioContext asegurando que esté en estado 'running'
+  const getAudioContext = useCallback(async () => {
+    try {
+      if (!audioCtxRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          audioCtxRef.current = new AudioCtx();
+        }
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
+      }
+      return ctx;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  // Desbloqueo proactivo ante cualquier interacción (click, toque o tecla)
+  useEffect(() => {
+    const unlock = () => {
+      try {
+        if (!audioCtxRef.current) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            audioCtxRef.current = new AudioCtx();
+          }
+        }
+        if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume().catch(() => {});
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('click', unlock, { passive: true });
+    window.addEventListener('keydown', unlock, { passive: true });
+    window.addEventListener('touchstart', unlock, { passive: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
+  // Alternar audio, persistir en localStorage y emitir tono de prueba al activar
   const toggleSound = () => {
     setSoundEnabled(prev => {
       const next = !prev;
       localStorage.setItem('rfid_sound_enabled', String(next));
+      if (next) {
+        getAudioContext().then(ctx => {
+          if (ctx && ctx.state === 'running') {
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+          }
+        }).catch(() => {});
+      }
       return next;
     });
   };
 
-  // Sonidos de confirmación y denegación por Web Audio API
-  const playSound = useCallback((granted) => {
+  // Tonos sonoros de validación Web Audio API (asíncrono y tolerante a suspensión)
+  const playSound = useCallback(async (granted) => {
     if (!soundEnabled) return;
     try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = await getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
       }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
 
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
 
       if (granted) {
-        // Acorde armónico ascendente Lasallista (Acceso Concedido)
+        // Tono ascendente de confirmación (D5 -> A5)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now); // Re5
-        osc.frequency.setValueAtTime(880.00, now + 0.12); // La5
-        gain.gain.setValueAtTime(0.18, now);
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.28, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
         osc.start(now);
         osc.stop(now + 0.45);
       } else {
-        // Tono grave de alerta de seguridad (Acceso Denegado)
+        // Tono grave de alerta (A3 -> D3)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220.00, now); // La3
-        osc.frequency.setValueAtTime(146.83, now + 0.15); // Re3
-        gain.gain.setValueAtTime(0.2, now);
+        osc.frequency.setValueAtTime(220.00, now); // A3
+        osc.frequency.setValueAtTime(146.83, now + 0.15); // D3
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.26, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
         osc.start(now);
         osc.stop(now + 0.5);
       }
-    } catch (e) {}
-  }, [soundEnabled]);
+    } catch (e) {
+      console.warn('Audio no disponible:', e);
+    }
+  }, [soundEnabled, getAudioContext]);
 
-  // Procesar intento de autenticación física por UID
+  // Procesar autenticación física por UID de tarjeta RFID
   const handleCardAuthentication = useCallback(async (uidRaw) => {
     if (!uidRaw || isProcessingRef.current) return;
 
@@ -123,7 +208,7 @@ export const Login = () => {
     isProcessingRef.current = true;
     setLastScannedUid(cleanUid);
     setStatus('scanning');
-    setStatusMessage(`Leyendo chip RFID [${cleanUid}]...`);
+    setStatusMessage(`Leyendo carnet [${cleanUid}]...`);
     setErrorMessage('');
 
     try {
@@ -134,9 +219,8 @@ export const Login = () => {
         setStatus('success');
         setAuthorizedUser(res.user);
         setEntryTimestamp(new Date());
-        setStatusMessage(`¡Bienvenido(a), ${res.user.first_name} ${res.user.last_name}!`);
+        setStatusMessage(`Bienvenido, ${res.user.first_name} ${res.user.last_name}`);
 
-        // Transición fluida tras mostrar la tarjeta y la animación líquida
         setTimeout(() => {
           const userRole = (res.user.role?.name || '').toLowerCase();
           if (userRole === 'celador' || userRole === 'security') {
@@ -144,83 +228,72 @@ export const Login = () => {
           } else {
             navigate('/dashboard', { replace: true });
           }
-        }, 2200);
+        }, 1800);
       } else {
         playSound(false);
         setStatus('error');
-        setErrorMessage(res.error || 'Tarjeta no autorizada para operar el sistema web.');
+        setErrorMessage(res.error || 'Tarjeta no autorizada para acceder al sistema.');
         setStatusMessage('Acceso no autorizado');
 
         setTimeout(() => {
           setStatus('idle');
-          setStatusMessage('Aproxime su carnet al sensor físico para ingresar');
+          setStatusMessage('Acerque su carnet al lector para ingresar');
           isProcessingRef.current = false;
-        }, 3600);
+        }, 3200);
       }
     } catch (err) {
       playSound(false);
       setStatus('error');
-      setErrorMessage(err.message || 'Error de conexión con la base de datos.');
-      setStatusMessage('Fallo de conexión');
+      setErrorMessage(err.message || 'Error de conexión con el servidor.');
+      setStatusMessage('Error de conexión');
 
       setTimeout(() => {
         setStatus('idle');
-        setStatusMessage('Aproxime su carnet al sensor físico para ingresar');
+        setStatusMessage('Acerque su carnet al lector para ingresar');
         isProcessingRef.current = false;
-      }, 3600);
+      }, 3200);
     }
   }, [loginWithCard, navigate, playSound]);
 
-  // Acceso de prueba (solo para revisar los diseños sin lector RFID)
-  const handleDemoAdminLogin = useCallback(async () => {
-    if (demoLoading || isProcessingRef.current) return;
+  // Iniciar sesión con formulario de credenciales
+  const handleCredentialsSubmit = async (e) => {
+    e.preventDefault();
+    if (formLoading) return;
 
-    isProcessingRef.current = true;
-    setDemoLoading(true);
-    setStatus('scanning');
-    setStatusMessage('Acceso de prueba: autenticando administrador...');
-    setErrorMessage('');
+    if (!username.trim() || !password) {
+      setFormError('Por favor complete todos los campos');
+      return;
+    }
+
+    setFormLoading(true);
+    setFormError('');
 
     try {
-      const res = await login('admin', 'acceso2026');
+      const res = await login(username.trim(), password);
 
       if (res.success && res.user) {
         playSound(true);
-        setStatus('success');
-        setAuthorizedUser(res.user);
-        setEntryTimestamp(new Date());
-        setStatusMessage(`¡Bienvenido(a), ${res.user.first_name}!`);
-
-        setTimeout(() => navigate('/dashboard', { replace: true }), 900);
+        setTimeout(() => {
+          const userRole = (res.user.role?.name || '').toLowerCase();
+          if (userRole === 'celador' || userRole === 'security') {
+            navigate('/monitor', { replace: true });
+          } else {
+            navigate('/dashboard', { replace: true });
+          }
+        }, 550);
       } else {
         playSound(false);
-        setStatus('error');
-        setErrorMessage(res.error || 'No se pudo iniciar la sesión de prueba.');
-        setStatusMessage('Acceso de prueba fallido');
-        isProcessingRef.current = false;
-        setDemoLoading(false);
-
-        setTimeout(() => {
-          setStatus('idle');
-          setStatusMessage('Aproxime su carnet al sensor físico para ingresar');
-        }, 3600);
+        setFormError(res.error || 'Usuario o contraseña incorrectos.');
       }
     } catch (err) {
       playSound(false);
-      setStatus('error');
-      setErrorMessage(err.message || 'Error de conexión con la base de datos.');
-      setStatusMessage('Fallo de conexión');
-      isProcessingRef.current = false;
-      setDemoLoading(false);
-
-      setTimeout(() => {
-        setStatus('idle');
-        setStatusMessage('Aproxime su carnet al sensor físico para ingresar');
-      }, 3600);
+      setFormError(err.message || 'Error conectando con el servidor.');
+    } finally {
+      setFormLoading(false);
     }
-  }, [login, navigate, playSound, demoLoading]);
+  };
 
-  // 1. Escuchar eventos de escaneo físico en tiempo real por WebSocket
+  // 1. Escuchar lecturas en vivo desde WebSocket
   const handleWsEvent = useCallback((event) => {
     if (isProcessingRef.current) return;
 
@@ -235,7 +308,7 @@ export const Login = () => {
 
   const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
 
-  // 2. Polling de respaldo para lector físico en caso de desconexión momentánea
+  // 2. Polling de respaldo para lecturas de hardware
   useEffect(() => {
     const pollInterval = setInterval(async () => {
       if (isProcessingRef.current) return;
@@ -253,14 +326,17 @@ export const Login = () => {
           }
         }
       } catch (e) {}
-    }, 1200);
+    }, 280);
 
     return () => clearInterval(pollInterval);
   }, [handleCardAuthentication]);
 
-  // 3. Soporte universal de lectura: Detectores USB tipo teclado cuña
+  // 3. Captura directa de lectores USB (teclado cuña)
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (activeTab === 'credentials' && ['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) {
+        return;
+      }
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const now = Date.now();
@@ -282,7 +358,7 @@ export const Login = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCardAuthentication]);
+  }, [handleCardAuthentication, activeTab]);
 
   const initials = authorizedUser
     ? `${(authorizedUser.first_name || '?')[0]}${(authorizedUser.last_name || '')[0]}`.toUpperCase()
@@ -291,13 +367,20 @@ export const Login = () => {
   const userRoleName = (authorizedUser?.role?.name || '').toLowerCase();
   const isAdminRole = userRoleName === 'admin' || userRoleName === 'rector';
 
+  const hasValidAuthNotice = Boolean(
+    authNotice &&
+    typeof authNotice === 'string' &&
+    authNotice !== '[object Object]' &&
+    authNotice.trim().length > 0
+  );
+
   return (
     <div className="radar-login-container">
       {/* ========================================================================= */}
-      {/* LADO IZQUIERDO: STAGE VISUAL RADAR + REVELACIÓN LÍQUIDA DE IDENTIDAD      */}
+      {/* PANEL IZQUIERDO: STAGE VISUAL RADAR E IDENTIFICACIÓN DEL USUARIO          */}
       {/* ========================================================================= */}
       <div className="radar-login-left">
-        {/* Grilla Cibernética de Fondo */}
+        {/* Grilla sutil de fondo */}
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -310,7 +393,7 @@ export const Login = () => {
           pointerEvents: 'none'
         }} />
 
-        {/* Resplandor Neón Central */}
+        {/* Resplandor central dinámico */}
         <div style={{
           position: 'absolute',
           top: '40%',
@@ -323,64 +406,12 @@ export const Login = () => {
             ? 'radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, transparent 65%)'
             : status === 'error'
             ? 'radial-gradient(circle, rgba(239, 68, 68, 0.22) 0%, transparent 65%)'
-            : 'radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, transparent 65%)',
+            : 'radial-gradient(circle, rgba(14, 165, 233, 0.16) 0%, transparent 65%)',
           pointerEvents: 'none',
-          transition: 'all 0.6s ease'
+          transition: 'all 0.5s ease'
         }} />
 
-        {/* ======================================================== */}
-        {/* CAPA DE ANIMACIÓN LÍQUIDA (Surge cuando se pone el RFID)  */}
-        {/* ======================================================== */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 10,
-          transition: 'transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease',
-          transform: status === 'success' || status === 'scanning' ? 'translateY(0%)' : 'translateY(105%)',
-          opacity: status === 'success' || status === 'scanning' ? 1 : 0
-        }}>
-          {/* Ondas Líquidas Multicapa SVG */}
-          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-            <svg
-              className="liquid-wave-layer liquid-wave-1"
-              viewBox="0 0 1200 120"
-              preserveAspectRatio="none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                height: '140px',
-                fill: 'rgba(56, 189, 248, 0.22)'
-              }}
-            >
-              <path d="M0,0 C150,90 350,-40 500,40 C650,120 900,10 1200,60 L1200,120 L0,120 Z" />
-            </svg>
-            <svg
-              className="liquid-wave-layer liquid-wave-2"
-              viewBox="0 0 1200 120"
-              preserveAspectRatio="none"
-              style={{
-                position: 'absolute',
-                top: '20px',
-                height: '160px',
-                fill: 'rgba(14, 165, 233, 0.35)'
-              }}
-            >
-              <path d="M0,40 C200,10 400,90 600,30 C800,-30 1000,70 1200,20 L1200,120 L0,120 Z" />
-            </svg>
-            <div style={{
-              position: 'absolute',
-              top: '120px',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'linear-gradient(180deg, rgba(7, 21, 54, 0.94) 0%, rgba(3, 11, 29, 0.98) 100%)',
-              backdropFilter: 'blur(12px)'
-            }} />
-          </div>
-        </div>
-
-        {/* Barra Superior Izquierda: Logos y Controles */}
+        {/* Cabecera superior izquierda */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -404,7 +435,7 @@ export const Login = () => {
             </div>
             <div>
               <div style={{
-                fontSize: '15px',
+                fontSize: '16px',
                 fontWeight: 900,
                 letterSpacing: '0.8px',
                 color: '#38bdf8',
@@ -414,7 +445,7 @@ export const Login = () => {
               }}>
                 RADAR
                 <span style={{
-                  fontSize: '9.5px',
+                  fontSize: '10px',
                   fontWeight: 700,
                   padding: '2px 7px',
                   borderRadius: '20px',
@@ -423,21 +454,20 @@ export const Login = () => {
                   color: '#7dd3fc',
                   letterSpacing: '0.5px'
                 }}>
-                  v2.4
+                  v1.0
                 </span>
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                Corporación Universitaria Lasallista
+              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                Control de Acceso y Gestión de Espacios
               </div>
             </div>
           </div>
 
-          {/* Botones de Control y Sonido (Como en el diseño del usuario) */}
+          {/* Controles de sonido y reloj en vivo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={toggleSound}
-              className="sound-toggle-btn"
-              title={soundEnabled ? 'Silenciar confirmaciones sonoras' : 'Activar confirmaciones sonoras'}
+              title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
               style={{
                 width: '38px',
                 height: '38px',
@@ -481,7 +511,7 @@ export const Login = () => {
         </div>
 
         {/* ======================================================== */}
-        {/* CONTENIDO CENTRAL: RADAR EN REPOSO vs REVELACIÓN LÍQUIDA */}
+        {/* ÁREA CENTRAL: REPOSO RADAR O TARJETA DE USUARIO VALIDADO */}
         {/* ======================================================== */}
         <div style={{
           position: 'relative',
@@ -492,50 +522,47 @@ export const Login = () => {
           justifyContent: 'center',
           alignItems: 'center',
           textAlign: 'center',
-          padding: '20px 0'
+          padding: '24px 0'
         }}>
           {status === 'success' && authorizedUser ? (
-            /* ====================================================== */
-            /* REVELACIÓN LÍQUIDA DE DATOS DEL TITULAR (RFID DETECTADO) */
-            /* ====================================================== */
+            /* Vista de usuario verificado con éxito */
             <div style={{
               width: '100%',
-              maxWidth: '460px',
-              animation: 'liquidFadeInContent 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+              maxWidth: '440px',
+              animation: 'liquidFadeInContent 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards'
             }}>
-              {/* Badge de Verificación Exitoso */}
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '7px 16px',
+                padding: '6px 16px',
                 borderRadius: '30px',
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 border: '1px solid rgba(16, 185, 129, 0.4)',
                 color: '#34d399',
                 fontSize: '12px',
                 fontWeight: 700,
-                letterSpacing: '0.6px',
-                marginBottom: '24px',
+                letterSpacing: '0.5px',
+                marginBottom: '20px',
                 boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)'
               }}>
                 <ShieldCheck size={16} />
-                <span>IDENTIFICACIÓN EXITOSA • ACCESO CONCEDIDO</span>
+                <span>ACCESO AUTORIZADO</span>
               </div>
 
-              {/* Foto / Avatar con Anillo Neón */}
+              {/* Foto o Iniciales del Usuario */}
               <div style={{
                 position: 'relative',
-                width: '130px',
-                height: '130px',
-                margin: '0 auto 20px',
+                width: '120px',
+                height: '120px',
+                margin: '0 auto 18px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
                 <div style={{
                   position: 'absolute',
-                  inset: '-8px',
+                  inset: '-6px',
                   borderRadius: '50%',
                   border: `2px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
                   opacity: 0.85,
@@ -543,8 +570,8 @@ export const Login = () => {
                 }} />
 
                 <div style={{
-                  width: '120px',
-                  height: '120px',
+                  width: '112px',
+                  height: '112px',
                   borderRadius: '50%',
                   backgroundColor: '#0b193d',
                   border: `3px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
@@ -552,7 +579,7 @@ export const Login = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: `0 0 35px ${isAdminRole ? 'rgba(56, 189, 248, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`
+                  boxShadow: `0 0 30px ${isAdminRole ? 'rgba(56, 189, 248, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`
                 }}>
                   {authorizedUser.photo_url ? (
                     <img
@@ -562,10 +589,9 @@ export const Login = () => {
                     />
                   ) : (
                     <div style={{
-                      fontSize: '38px',
+                      fontSize: '36px',
                       fontWeight: 800,
-                      color: isAdminRole ? '#38bdf8' : '#34d399',
-                      letterSpacing: '1px'
+                      color: isAdminRole ? '#38bdf8' : '#34d399'
                     }}>
                       {initials}
                     </div>
@@ -573,9 +599,9 @@ export const Login = () => {
                 </div>
               </div>
 
-              {/* Nombre y Cargo */}
+              {/* Nombre completo */}
               <h2 style={{
-                fontSize: '26px',
+                fontSize: '24px',
                 fontWeight: 800,
                 color: '#ffffff',
                 margin: '0 0 6px',
@@ -591,193 +617,179 @@ export const Login = () => {
                 backgroundColor: isAdminRole ? 'rgba(56, 189, 248, 0.15)' : 'rgba(52, 211, 153, 0.15)',
                 border: `1px solid ${isAdminRole ? 'rgba(56, 189, 248, 0.35)' : 'rgba(52, 211, 153, 0.35)'}`,
                 color: isAdminRole ? '#38bdf8' : '#34d399',
-                fontSize: '12.5px',
+                fontSize: '12px',
                 fontWeight: 700,
-                marginBottom: '20px'
+                marginBottom: '18px'
               }}>
-                {authorizedUser.role?.display_name || 'Operador Autorizado'}
+                {authorizedUser.role?.display_name || 'Usuario Autorizado'}
               </div>
 
-              {/* Tarjeta de Metadatos de Ingreso */}
+              {/* Datos del acceso */}
               <div style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.65)',
                 border: '1px solid rgba(56, 189, 248, 0.25)',
                 borderRadius: '12px',
-                padding: '16px 20px',
+                padding: '14px 18px',
                 textAlign: 'left',
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
-                gap: '12px',
+                gap: '10px',
                 boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-                marginBottom: '20px'
+                marginBottom: '16px'
               }}>
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Documento de Identidad
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                    Documento
                   </div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#f1f5f9', fontFamily: 'var(--font-mono)' }}>
-                    {authorizedUser.document_id}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Tarjeta RFID Física
-                  </div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-                    UID: {authorizedUser.rfid_tag || lastScannedUid}
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f1f5f9', fontFamily: 'var(--font-mono)' }}>
+                    {authorizedUser.document_id || '—'}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                    Tarjeta RFID
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
+                    {authorizedUser.rfid_tag || lastScannedUid}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
                     Hora de Ingreso
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
-                    {entryTimestamp ? entryTimestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'Ahora'}
+                    {entryTimestamp ? entryTimestamp.toLocaleTimeString('es-CO') : 'Ahora'}
                   </div>
                 </div>
 
                 <div>
-                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Área / Dependencia
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                    Programa / Área
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
-                    {authorizedUser.program || 'Seguridad Campus'}
+                    {authorizedUser.program || 'General'}
                   </div>
                 </div>
               </div>
 
-              {/* Barra de Progreso de Acceso */}
+              {/* Barra de progreso de redirección */}
               <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', height: '4px', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{
                   height: '100%',
                   backgroundColor: '#38bdf8',
                   borderRadius: '4px',
                   width: '100%',
-                  animation: 'shimmerGleam 2s linear infinite'
+                  animation: 'shimmerGleam 1.8s linear infinite'
                 }} />
               </div>
               <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '8px' }}>
-                Concediendo acceso al entorno institucional...
+                Ingresando al sistema...
               </div>
             </div>
           ) : (
-            /* ====================================================== */
-            /* MODO REPOSO: RADAR INSTITUCIONAL Y TELEMETRÍA EN VIVO  */
-            /* ====================================================== */
+            /* Vista en reposo: Logotipo Radar con anillos */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{
                 position: 'relative',
-                width: '260px',
-                height: '260px',
+                width: '240px',
+                height: '240px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '26px'
+                marginBottom: '24px'
               }}>
-                {/* Ondas Neón concéntricas expansivas */}
                 <div style={{
                   position: 'absolute',
-                  inset: '-20px',
+                  inset: '-16px',
                   borderRadius: '50%',
-                  border: '1px solid rgba(56, 189, 248, 0.25)',
+                  border: '1px solid rgba(56, 189, 248, 0.2)',
                   animation: 'pulseHaloGlow 4s ease-in-out infinite'
                 }} />
                 <div style={{
                   position: 'absolute',
-                  inset: '-45px',
+                  inset: '-36px',
                   borderRadius: '50%',
-                  border: '1px dashed rgba(56, 189, 248, 0.15)',
+                  border: '1px dashed rgba(56, 189, 248, 0.12)',
                   animation: 'radarSweepSpin 20s linear infinite'
                 }} />
 
-                {/* Logotipo Vectorial Radar Oficial */}
-                <RadarLogo size={220} animated />
+                <RadarLogo size={200} animated />
               </div>
 
-              {/* Indicadores de Telemetría Flotante */}
               <div style={{
                 display: 'flex',
-                gap: '12px',
+                gap: '10px',
                 flexWrap: 'wrap',
-                justifyContent: 'center',
-                maxWidth: '440px'
+                justifyContent: 'center'
               }}>
                 <div style={{
-                  padding: '8px 14px',
-                  borderRadius: '10px',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
                   backgroundColor: 'rgba(15, 23, 42, 0.7)',
                   border: '1px solid rgba(56, 189, 248, 0.2)',
                   fontSize: '11.5px',
                   color: '#94a3b8'
                 }}>
-                  Frecuencia: <strong style={{ color: '#38bdf8' }}>13.56 MHz (ISO 14443A)</strong>
+                  Frecuencia: <strong style={{ color: '#38bdf8' }}>13.56 MHz</strong>
                 </div>
                 <div style={{
-                  padding: '8px 14px',
-                  borderRadius: '10px',
+                  padding: '7px 14px',
+                  borderRadius: '8px',
                   backgroundColor: 'rgba(15, 23, 42, 0.7)',
                   border: '1px solid rgba(56, 189, 248, 0.2)',
                   fontSize: '11.5px',
                   color: '#94a3b8'
                 }}>
-                  Lector: <strong style={{ color: '#10b981' }}>SPI MFRC522 Online</strong>
+                  Lector: <strong style={{ color: '#10b981' }}>RC522 Activo</strong>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Barra Inferior Izquierda: Branding Institucional */}
+        {/* Pie inferior izquierdo */}
         <div style={{ position: 'relative', zIndex: 20 }}>
           <h1 style={{
-            fontSize: '32px',
+            fontSize: '28px',
             fontWeight: 900,
-            letterSpacing: '1px',
+            letterSpacing: '0.5px',
             color: '#38bdf8',
-            margin: '0 0 6px',
-            textShadow: '0 0 30px rgba(56, 189, 248, 0.4)'
+            margin: '0 0 4px',
+            textShadow: '0 0 25px rgba(56, 189, 248, 0.35)'
           }}>
             RADAR
           </h1>
           <p style={{
-            fontSize: '14.5px',
-            fontWeight: 600,
-            color: '#f8fafc',
-            margin: '0 0 4px',
-            lineHeight: 1.4
-          }}>
-            Red de Acceso y Detección mediante Autenticación RFID
-          </p>
-          <p style={{
-            fontSize: '12px',
-            color: '#94a3b8',
+            fontSize: '13.5px',
+            fontWeight: 500,
+            color: '#cbd5e1',
             margin: 0
           }}>
-            Plataforma Institucional para la Seguridad y Gestión de Espacios Físicos Universitarios.
+            Sistema Institucional de Control de Acceso y Gestión de Espacios Físicos.
           </p>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* LADO DERECHO: CONSOLA DE ESCANEO Y DETECCIÓN DEL SENSOR FÍSICO            */}
+      {/* PANEL DERECHO: CONSOLA DE ACCESO (RFID O CREDENCIALES)                   */}
       {/* ========================================================================= */}
       <div className="radar-login-right">
-        {/* Encabezado Superior Derecho */}
+        {/* Cabecera superior derecha */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          paddingBottom: '20px'
+          paddingBottom: '16px'
         }}>
           <div>
             <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600 }}>
-              Terminal de Seguridad y Portería
+              Terminal de Ingreso
             </div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: '#f1f5f9' }}>
-              Estación de Autenticación Activa
+              Control de Acceso
             </div>
           </div>
 
@@ -785,7 +797,7 @@ export const Login = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '6px 14px',
+            padding: '5px 12px',
             borderRadius: '20px',
             backgroundColor: isWsConnected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(56, 189, 248, 0.12)',
             border: `1px solid ${isWsConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
@@ -794,200 +806,353 @@ export const Login = () => {
             color: isWsConnected ? '#34d399' : '#38bdf8'
           }}>
             <span style={{
-              width: '8px',
-              height: '8px',
+              width: '7px',
+              height: '7px',
               borderRadius: '50%',
               backgroundColor: isWsConnected ? '#10b981' : '#38bdf8',
-              boxShadow: `0 0 10px ${isWsConnected ? '#10b981' : '#38bdf8'}`
+              boxShadow: `0 0 8px ${isWsConnected ? '#10b981' : '#38bdf8'}`
             }} />
-            <span>{isWsConnected ? 'Hardware Conectado' : 'Sincronización Polling'}</span>
+            <span>{isWsConnected ? 'En línea' : 'Sincronizado'}</span>
           </div>
         </div>
 
-        {/* Notificación de Seguridad / Sesión Expirada */}
-        {authNotice && (
+        {/* Notificación de seguridad / Sesión expirada (descartable) */}
+        {hasValidAuthNotice && (
           <div style={{
-            margin: '20px 0 0',
-            padding: '14px 18px',
-            borderRadius: '12px',
+            margin: '16px 0 0',
+            padding: '12px 16px',
+            borderRadius: '10px',
             backgroundColor: 'rgba(245, 158, 11, 0.12)',
             border: '1px solid rgba(245, 158, 11, 0.35)',
             color: '#fbbf24',
-            fontSize: '13px',
+            fontSize: '12.5px',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '12px',
             lineHeight: 1.4
           }}>
-            <AlertTriangle size={20} style={{ flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>{authNotice}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+              <span>{authNotice}</span>
+            </div>
+            <button
+              onClick={clearAuthNotice}
+              title="Cerrar aviso"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#fbbf24',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                opacity: 0.8
+              }}
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 
-        {/* Centro de la Consola: Target Sensible al RFID */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          padding: '24px 0'
-        }}>
-          {/* Pad / Diana de Lectura RFID */}
-          <div style={{
-            position: 'relative',
-            width: '210px',
-            height: '210px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '28px'
-          }}>
-            {/* Ondas del Sensor */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: `2px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
-              animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
-            }} />
-            <div style={{
-              position: 'absolute',
-              inset: '-16px',
-              borderRadius: '50%',
-              border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
-              animation: 'radarSweepSpin 12s linear infinite'
-            }} />
-
-            {/* Núcleo Sensible al Contacto */}
-            <div style={{
-              width: '135px',
-              height: '135px',
-              borderRadius: '50%',
-              backgroundColor: status === 'error'
-                ? 'rgba(239, 68, 68, 0.15)'
-                : status === 'success'
-                ? 'rgba(16, 185, 129, 0.2)'
-                : 'rgba(15, 23, 42, 0.85)',
-              border: `2.5px solid ${
-                status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
-              }`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: status === 'error'
-                ? '0 0 35px rgba(239, 68, 68, 0.4)'
-                : status === 'success'
-                ? '0 0 40px rgba(16, 185, 129, 0.45)'
-                : '0 0 35px rgba(56, 189, 248, 0.3)',
-              transition: 'all 0.3s ease'
-            }}>
-              {status === 'scanning' ? (
-                <Loader2 size={54} className="spinner" style={{ color: '#38bdf8' }} />
-              ) : status === 'success' ? (
-                <CheckCircle2 size={58} style={{ color: '#10b981' }} />
-              ) : status === 'error' ? (
-                <XCircle size={58} style={{ color: '#ef4444' }} />
-              ) : (
-                <CreditCard size={56} style={{ color: '#38bdf8' }} />
-              )}
-            </div>
+        {/* ======================================================== */}
+        {/* TABS DE SELECCIÓN: CARNET RFID vs CREDENCIALES           */}
+        {/* ======================================================== */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 0' }}>
+          <div className="login-tabs-nav">
+            <button
+              type="button"
+              className={`login-tab-btn ${activeTab === 'rfid' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('rfid');
+                setFormError('');
+              }}
+            >
+              <CreditCard size={16} />
+              <span>Carnet RFID</span>
+            </button>
+            <button
+              type="button"
+              className={`login-tab-btn ${activeTab === 'credentials' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('credentials');
+                setErrorMessage('');
+              }}
+            >
+              <KeyRound size={16} />
+              <span>Credenciales</span>
+            </button>
           </div>
 
-          <h2 style={{
-            fontSize: '22px',
-            fontWeight: 800,
-            color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-            margin: '0 0 8px'
-          }}>
-            {statusMessage}
-          </h2>
-
-          <p style={{
-            fontSize: '13.5px',
-            color: '#94a3b8',
-            maxWidth: '380px',
-            margin: '0 auto 20px',
-            lineHeight: 1.5
-          }}>
-            {status === 'idle' && 'No requiere contraseña. El lector físico MFRC522 detectará su credencial automáticamente al aproximarla.'}
-            {status === 'scanning' && 'Verificando firma criptográfica en base de datos PostgreSQL...'}
-            {status === 'success' && 'Sesión única establecida. Redirigiendo a la consola de mando.'}
-            {status === 'error' && errorMessage}
-          </p>
-
-          {/* Acceso de prueba — solo para revisar los diseños sin lector RFID */}
-          <button
-            type="button"
-            onClick={handleDemoAdminLogin}
-            disabled={demoLoading || status === 'scanning'}
-            className="demo-admin-btn"
-            title="Sesión de prueba con rol administrador (no requiere carnet)"
-          >
-            {demoLoading ? <Loader2 size={16} className="spinner" /> : <Shield size={16} />}
-            <span>{demoLoading ? 'Autenticando...' : 'Entrar como administrador (demo)'}</span>
-            {!demoLoading && <ArrowRight size={15} />}
-          </button>
-
-          {lastScannedUid && (
+          {/* ====================================================== */}
+          {/* TAB 1: ESCANEO DE CARNET RFID                         */}
+          {/* ====================================================== */}
+          {activeTab === 'rfid' && (
             <div style={{
-              display: 'inline-flex',
+              display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              gap: '8px',
-              padding: '6px 16px',
-              borderRadius: '8px',
-              backgroundColor: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              fontSize: '12.5px',
-              fontFamily: 'var(--font-mono)',
-              color: '#38bdf8'
+              textAlign: 'center'
             }}>
-              <Radio size={14} style={{ color: '#38bdf8' }} />
-              <span>UID Detectado: <strong>{lastScannedUid}</strong></span>
+              {/* Pad de lectura RFID */}
+              <div style={{
+                position: 'relative',
+                width: '190px',
+                height: '190px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '22px'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: '50%',
+                  border: `2px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
+                  animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
+                }} />
+                <div style={{
+                  position: 'absolute',
+                  inset: '-14px',
+                  borderRadius: '50%',
+                  border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
+                  animation: 'radarSweepSpin 12s linear infinite'
+                }} />
+
+                <div style={{
+                  width: '125px',
+                  height: '125px',
+                  borderRadius: '50%',
+                  backgroundColor: status === 'error'
+                    ? 'rgba(239, 68, 68, 0.15)'
+                    : status === 'success'
+                    ? 'rgba(16, 185, 129, 0.2)'
+                    : 'rgba(15, 23, 42, 0.85)',
+                  border: `2.5px solid ${
+                    status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
+                  }`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: status === 'error'
+                    ? '0 0 30px rgba(239, 68, 68, 0.4)'
+                    : status === 'success'
+                    ? '0 0 35px rgba(16, 185, 129, 0.45)'
+                    : '0 0 30px rgba(56, 189, 248, 0.3)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  {status === 'scanning' ? (
+                    <Loader2 size={48} className="spinner" style={{ color: '#38bdf8' }} />
+                  ) : status === 'success' ? (
+                    <CheckCircle2 size={52} style={{ color: '#10b981' }} />
+                  ) : status === 'error' ? (
+                    <XCircle size={52} style={{ color: '#ef4444' }} />
+                  ) : (
+                    <CreditCard size={50} style={{ color: '#38bdf8' }} />
+                  )}
+                </div>
+              </div>
+
+              <h2 style={{
+                fontSize: '20px',
+                fontWeight: 800,
+                color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
+                margin: '0 0 6px'
+              }}>
+                {statusMessage}
+              </h2>
+
+              <p style={{
+                fontSize: '13px',
+                color: '#94a3b8',
+                maxWidth: '360px',
+                margin: '0 auto 16px',
+                lineHeight: 1.5
+              }}>
+                {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
+                {status === 'scanning' && 'Validando credencial en el sistema...'}
+                {status === 'success' && 'Sesión establecida correctamente. Redirigiendo...'}
+                {status === 'error' && errorMessage}
+              </p>
+
+              {lastScannedUid && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  color: '#38bdf8',
+                  marginBottom: '12px'
+                }}>
+                  <Radio size={14} style={{ color: '#38bdf8' }} />
+                  <span>UID Detectado: <strong>{lastScannedUid}</strong></span>
+                </div>
+              )}
+
+              {/* Botón para cambiar a credenciales */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('credentials')}
+                className="login-switch-link"
+              >
+                <span>¿Ingresar con usuario y contraseña?</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* ====================================================== */}
+          {/* TAB 2: INGRESO POR CREDENCIALES (USUARIO / CONTRASEÑA) */}
+          {/* ====================================================== */}
+          {activeTab === 'credentials' && (
+            <div className="login-form-card">
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', margin: '0 0 4px' }}>
+                  Autenticación con Credenciales
+                </h2>
+                <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: 0 }}>
+                  Ingrese su correo institucional o usuario asignado
+                </p>
+              </div>
+
+              {formError && (
+                <div style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '12.5px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <XCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCredentialsSubmit}>
+                <div className="login-input-group">
+                  <label className="login-input-label" htmlFor="username">
+                    Usuario o Correo Institucional
+                  </label>
+                  <div className="login-input-wrap">
+                    <User size={16} className="login-input-icon" />
+                    <input
+                      id="username"
+                      type="text"
+                      className="login-text-input"
+                      placeholder="admin o usuario@lasallista.edu.co"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      autoComplete="username"
+                      disabled={formLoading}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                <div className="login-input-group">
+                  <label className="login-input-label" htmlFor="password">
+                    Contraseña
+                  </label>
+                  <div className="login-input-wrap">
+                    <Lock size={16} className="login-input-icon" />
+                    <input
+                      id="password"
+                      type="password"
+                      className="login-text-input"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      disabled={formLoading}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={formLoading}
+                  className="login-submit-btn"
+                >
+                  {formLoading ? (
+                    <>
+                      <Loader2 size={16} className="spinner" />
+                      <span>Iniciando sesión...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Iniciar Sesión</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('rfid');
+                    setFormError('');
+                  }}
+                  className="login-switch-link"
+                >
+                  <span>← Volver al lector RFID</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Políticas de Seguridad y Telemetría Inferior (Llena el espacio armónicamente) */}
+        {/* Políticas de sesión y pie inferior */}
         <div>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '12px',
-            marginBottom: '18px'
+            gap: '10px',
+            marginBottom: '16px'
           }}>
             <div style={{
               backgroundColor: 'rgba(15, 23, 42, 0.65)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              padding: '12px 14px',
+              borderRadius: '8px',
+              padding: '10px 12px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Concurrencia
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                Sesión
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                1 Sesión
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
+                Única
               </div>
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
-                Por estación activa
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
+                Por estación
               </div>
             </div>
 
             <div style={{
               backgroundColor: 'rgba(15, 23, 42, 0.65)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              padding: '12px 14px',
+              borderRadius: '8px',
+              padding: '10px 12px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
                 Inactividad
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                15 Minutos
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
+                15 min
               </div>
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
                 Cierre automático
               </div>
             </div>
@@ -995,18 +1160,18 @@ export const Login = () => {
             <div style={{
               backgroundColor: 'rgba(15, 23, 42, 0.65)',
               border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '10px',
-              padding: '12px 14px',
+              borderRadius: '8px',
+              padding: '10px 12px',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Turno Máximo
+              <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'uppercase' }}>
+                Seguridad
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
-                4 Horas
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>
+                JWT
               </div>
-              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px' }}>
-                Token JWT Seguro
+              <div style={{ fontSize: '10px', color: '#64748b' }}>
+                Token seguro
               </div>
             </div>
           </div>
@@ -1017,14 +1182,14 @@ export const Login = () => {
             justifyContent: 'space-between',
             fontSize: '11.5px',
             color: '#64748b',
-            paddingTop: '12px',
+            paddingTop: '10px',
             borderTop: '1px solid rgba(255, 255, 255, 0.06)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Lock size={12} style={{ color: '#38bdf8' }} />
-              <span>Autenticación por Hardware Criptográfico</span>
+              <span>Sistema de Control de Acceso</span>
             </div>
-            <span>Lasallista © 2026</span>
+            <span>RADAR v1.0</span>
           </div>
         </div>
       </div>

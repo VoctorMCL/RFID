@@ -218,7 +218,7 @@ export const GlobalAccessModal = () => {
           }
         }
       } catch (err) {}
-    }, 1200);
+    }, 280);
 
     return () => clearInterval(interval);
   }, [isWsConnected]);

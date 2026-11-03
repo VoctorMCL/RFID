@@ -303,7 +303,7 @@ export const Monitor = () => {
       } catch (err) {
         // Silencioso para no ensuciar consola durante polling
       }
-    }, 1200);
+    }, 280);
 
     return () => clearInterval(interval);
   }, [isWsConnected]);

@@ -16,7 +16,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('rfid_token'));
   const [loading, setLoading] = useState(true);
-  const [authNotice, setAuthNotice] = useState(() => sessionStorage.getItem('rfid_auth_notice') || '');
+  const [authNotice, setAuthNotice] = useState(() => {
+    const saved = sessionStorage.getItem('rfid_auth_notice');
+    return (saved && saved !== '[object Object]') ? saved : '';
+  });
   const inactivityTimerRef = useRef(null);
 
   /**
@@ -35,9 +38,13 @@ export const AuthProvider = ({ children }) => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
-    if (reason) {
-      sessionStorage.setItem('rfid_auth_notice', reason);
-      setAuthNotice(reason);
+    // Solo guardar el mensaje si es un string válido y no un evento u objeto
+    if (typeof reason === 'string' && reason.trim().length > 0 && reason !== '[object Object]') {
+      sessionStorage.setItem('rfid_auth_notice', reason.trim());
+      setAuthNotice(reason.trim());
+    } else {
+      sessionStorage.removeItem('rfid_auth_notice');
+      setAuthNotice('');
     }
   }, []);
 

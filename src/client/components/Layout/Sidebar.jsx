@@ -90,9 +90,9 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
               <div
                 className="brand-subtitle"
                 style={{ fontSize: '9.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                title="Red de Acceso y Detección mediante Autenticación RFID"
+                title="Sistema de Control de Acceso RFID"
               >
-                Red de Acceso y Detección RFID
+                Control de Acceso RFID
               </div>
             </div>
           )}
@@ -175,7 +175,7 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
         )}
 
         <button
-          onClick={logout}
+          onClick={() => logout()}
           className="btn btn-secondary btn-sm"
           style={{
             width: '100%',
