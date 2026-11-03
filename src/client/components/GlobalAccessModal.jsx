@@ -39,6 +39,7 @@ export const GlobalAccessModal = () => {
   const lastSeenLogIdRef = useRef(null);
 
   // Reproducción de tono sonoro de confirmación o alerta
+  // Sincronizado con la animación popIn (0.3s) del modal
   const playSound = (granted) => {
     if (!soundEnabled) return;
     try {
@@ -49,29 +50,79 @@ export const GlobalAccessModal = () => {
       if (ctx.state === 'suspended') ctx.resume();
 
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
 
       if (granted) {
-        // Tono armónico ascendente Lasallista (Acceso Concedido)
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, now); // D5
-        osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-        osc.start(now);
-        osc.stop(now + 0.38);
+        // ═══ ACCESO CONCEDIDO: Acorde ascendente D5 → A5 con armónico suave ═══
+        // Sincronizado: comienza en now+0.15s (tras el popIn del 50%), dura 0.38s
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now + 0.15); // D5
+        osc1.frequency.setValueAtTime(880.00, now + 0.27); // A5
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.linearRampToValueAtTime(0.14, now + 0.17);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.53);
+        osc1.start(now + 0.15);
+        osc1.stop(now + 0.53);
+
+        // Armónico sutil de acompañamiento (octava superior, más suave)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1174.66, now + 0.20); // D6
+        osc2.frequency.setValueAtTime(1760.00, now + 0.30); // A6
+        gain2.gain.setValueAtTime(0.0001, now);
+        gain2.gain.linearRampToValueAtTime(0.04, now + 0.22);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
+        osc2.start(now + 0.20);
+        osc2.stop(now + 0.50);
       } else {
-        // Tono grave de advertencia (Acceso Denegado)
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220.00, now); // A3
-        osc.frequency.setValueAtTime(164.81, now + 0.14); // E3
-        gain.gain.setValueAtTime(0.16, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc.start(now);
-        osc.stop(now + 0.45);
+        // ═══ ACCESO DENEGADO: Triple tono descendente grave A3 → E3 → C3 ═══
+        // Sincronizado con la animación vibrate-shake (0.55s):
+        //   Tono 1 al 10% de la vibración, Tono 2 al 35%, Tono 3 al 60%
+
+        // Tono 1: A3 (220 Hz) — Alerta inicial
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(220.00, now + 0.05);
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.linearRampToValueAtTime(0.16, now + 0.07);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+        osc1.start(now + 0.05);
+        osc1.stop(now + 0.20);
+
+        // Tono 2: E3 (164.81 Hz) — Descenso
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(164.81, now + 0.24);
+        gain2.gain.setValueAtTime(0.0001, now);
+        gain2.gain.linearRampToValueAtTime(0.14, now + 0.26);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
+        osc2.start(now + 0.24);
+        osc2.stop(now + 0.40);
+
+        // Tono 3: C3 (130.81 Hz) — Denegación definitiva
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.connect(gain3);
+        gain3.connect(ctx.destination);
+        osc3.type = 'sawtooth';
+        osc3.frequency.setValueAtTime(130.81, now + 0.44);
+        gain3.gain.setValueAtTime(0.0001, now);
+        gain3.gain.linearRampToValueAtTime(0.12, now + 0.46);
+        gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.60);
+        osc3.start(now + 0.44);
+        osc3.stop(now + 0.60);
       }
     } catch (e) {}
   };

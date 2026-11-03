@@ -26,6 +26,91 @@ try:
 except ImportError:
     HARDWARE_DISPONIBLE = False
 
+# ============================ BUZZER CrowPi 3 ============================
+# El buzzer pasivo de la CrowPi 3 está conectado al GPIO 18 (PWM capaz).
+# Se controla mediante PWM para generar tonos de frecuencia variable.
+BUZZER_PIN = 18
+buzzer_pwm = None
+buzzer_habilitado = True  # Controlable con --mute
+
+
+def inicializar_buzzer():
+    """Configura el pin del buzzer en modo PWM si el hardware GPIO está disponible."""
+    global buzzer_pwm
+    if not HARDWARE_DISPONIBLE:
+        return
+    try:
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(BUZZER_PIN, GPIO.OUT)
+        buzzer_pwm = GPIO.PWM(BUZZER_PIN, 440)  # Frecuencia inicial de referencia
+    except Exception as e:
+        print(f"  ⚠️ No se pudo inicializar el buzzer en GPIO {BUZZER_PIN}: {e}")
+        buzzer_pwm = None
+
+
+def buzzer_tono(frecuencia, duracion):
+    """Emite un tono simple en el buzzer pasivo.
+    Args:
+        frecuencia: Hz del tono (ej. 1000 para agudo, 300 para grave)
+        duracion: Segundos que dura el tono
+    """
+    global buzzer_pwm
+    if not buzzer_pwm or not buzzer_habilitado:
+        return
+    try:
+        buzzer_pwm.ChangeFrequency(frecuencia)
+        buzzer_pwm.start(50)  # Duty cycle al 50% para volumen óptimo
+        time.sleep(duracion)
+        buzzer_pwm.stop()
+    except Exception:
+        pass
+
+
+def buzzer_acceso_concedido():
+    """Secuencia de pitido para ACCESO CONCEDIDO: dos tonos ascendentes cortos y alegres.
+    Sincronizado con la animación verde del frontend (~0.35s total)."""
+    if not buzzer_pwm or not buzzer_habilitado:
+        return
+    try:
+        # Tono 1: D5 (587 Hz) — 120ms
+        buzzer_pwm.ChangeFrequency(587)
+        buzzer_pwm.start(50)
+        time.sleep(0.12)
+        # Tono 2: A5 (880 Hz) — 200ms (ascendente, confirmación positiva)
+        buzzer_pwm.ChangeFrequency(880)
+        time.sleep(0.20)
+        buzzer_pwm.stop()
+    except Exception:
+        pass
+
+
+def buzzer_acceso_denegado():
+    """Secuencia de pitido para ACCESO DENEGADO: tres tonos descendentes graves y largos.
+    Sincronizado con la animación roja de vibración del frontend (~0.55s total)."""
+    if not buzzer_pwm or not buzzer_habilitado:
+        return
+    try:
+        # Tono 1: A3 (220 Hz) — 140ms
+        buzzer_pwm.ChangeFrequency(220)
+        buzzer_pwm.start(50)
+        time.sleep(0.14)
+        buzzer_pwm.stop()
+        time.sleep(0.05)
+        # Tono 2: E3 (165 Hz) — 160ms (descendente, rechazo)
+        buzzer_pwm.ChangeFrequency(165)
+        buzzer_pwm.start(50)
+        time.sleep(0.16)
+        buzzer_pwm.stop()
+        time.sleep(0.05)
+        # Tono 3: C3 (131 Hz) — 180ms (grave final, denegación definitiva)
+        buzzer_pwm.ChangeFrequency(131)
+        buzzer_pwm.start(50)
+        time.sleep(0.18)
+        buzzer_pwm.stop()
+    except Exception:
+        pass
+
 # ============================ CONFIGURACIÓN ============================
 # Por defecto conecta directamente a la plataforma en la nube (rfid.victormcl.me)
 # Sin necesidad de correr servidores locales en tu laptop o en la CrowPi.
@@ -114,9 +199,13 @@ def enviar_al_backend(api_url, door_id, uid_hex):
                 if granted:
                     print(f"  🟢 [ACCESO CONCEDIDO] Puerta: {door.get('name', 'Principal')} ({room.get('name', 'Sala')})")
                     print(f"     👤 Titular: {user_name} | Doc: {user.get('document_id')} | Rol: {user.get('role')}")
+                    # 🔊 Buzzer: pitido de confirmación sincronizado con la animación verde
+                    buzzer_acceso_concedido()
                 else:
                     reason = d.get("denial_reason")
                     print(f"  🔴 [ACCESO DENEGADO] Causa: {reason}")
+                    # 🔊 Buzzer: pitido de alerta sincronizado con la animación roja de vibración
+                    buzzer_acceso_denegado()
                     if d.get("alarm_triggered"):
                         print("  🚨 [ALARMA CRÍTICA DISPARADA] Notificación de apertura no autorizada enviada.")
             else:
@@ -133,13 +222,27 @@ def main():
     parser.add_argument("--server", default=DEFAULT_API_URL, help="URL del endpoint de validación")
     parser.add_argument("--door", default=DEFAULT_DOOR_ID, type=int, help="ID de la puerta asociada")
     parser.add_argument("--uid", action="store_true", help="Solo leer y mostrar UID (modo offline)")
+    parser.add_argument("--mute", action="store_true", help="Desactivar el buzzer (sin pitidos)")
     args = parser.parse_args()
+
+    # Configurar estado global del buzzer
+    global buzzer_habilitado
+    buzzer_habilitado = not args.mute
 
     print("================================================================")
     print("🔒 Cliente de Lectura RFID (Hardware MFRC522)")
     print(f"📡 Backend: {args.server}")
     print(f"🚪 Puerta ID: {args.door}")
     print("================================================================")
+
+    # Inicializar buzzer del CrowPi 3
+    inicializar_buzzer()
+    if buzzer_habilitado and buzzer_pwm:
+        print(f"🔊 Buzzer activo en GPIO {BUZZER_PIN} — Tonos de confirmación/alerta habilitados")
+    elif not buzzer_habilitado:
+        print("🔇 Buzzer desactivado por flag --mute")
+    else:
+        print("🔇 Buzzer no disponible (GPIO no detectado en este host)")
 
     # Iniciar latido en segundo plano para notificar presencia al dashboard
     threading.Thread(target=bucle_heartbeat, args=(args.server, args.door), daemon=True).start()
@@ -181,6 +284,8 @@ def main():
     except KeyboardInterrupt:
         print("\nSaliendo...")
     finally:
+        if buzzer_pwm:
+            buzzer_pwm.stop()
         GPIO.cleanup()
 
 

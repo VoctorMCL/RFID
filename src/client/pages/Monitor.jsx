@@ -37,7 +37,8 @@ export const Monitor = () => {
   const keyBufferRef = useRef('');
   const lastKeyTimeRef = useRef(Date.now());
 
-  // Reproducir tono sonoro discreto en escala
+  // Reproducir tono sonoro sincronizado con la animación del panel de validación
+  // Tonos idénticos al buzzer físico del CrowPi 3 para coherencia auditiva
   const playBeep = (granted) => {
     if (!soundEnabled) return;
     try {
@@ -45,18 +46,66 @@ export const Monitor = () => {
         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
       const ctx = audioCtxRef.current;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      if (granted) {
+        // ═══ ACCESO CONCEDIDO: Doble tono ascendente D5 → A5 ═══
+        // Sincronizado con la transición CSS del borde verde (0.2s ease)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now);     // D5
+        osc.frequency.setValueAtTime(880.00, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else {
+        // ═══ ACCESO DENEGADO: Triple tono descendente grave A3 → E3 → C3 ═══
+        // Sincronizado con la animación vibrate-shake (0.55s):
+        //   Tono 1 en 0s (primer sacudón), Tono 2 en 0.19s, Tono 3 en 0.38s
 
-      osc.type = 'sine';
-      osc.frequency.value = granted ? 800 : 260;
-      gain.gain.value = 0.12;
+        // Tono 1: A3 (220 Hz)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(220.00, now);
+        gain1.gain.setValueAtTime(0.14, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc1.start(now);
+        osc1.stop(now + 0.15);
 
-      osc.start();
-      osc.stop(ctx.currentTime + (granted ? 0.18 : 0.45));
+        // Tono 2: E3 (164.81 Hz)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(164.81, now + 0.19);
+        gain2.gain.setValueAtTime(0.0001, now);
+        gain2.gain.linearRampToValueAtTime(0.12, now + 0.20);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc2.start(now + 0.19);
+        osc2.stop(now + 0.35);
+
+        // Tono 3: C3 (130.81 Hz) — Grave final
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.connect(gain3);
+        gain3.connect(ctx.destination);
+        osc3.type = 'sawtooth';
+        osc3.frequency.setValueAtTime(130.81, now + 0.38);
+        gain3.gain.setValueAtTime(0.0001, now);
+        gain3.gain.linearRampToValueAtTime(0.10, now + 0.39);
+        gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc3.start(now + 0.38);
+        osc3.stop(now + 0.55);
+      }
     } catch (e) {
       console.warn('Audio no disponible:', e);
     }
