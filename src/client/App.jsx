@@ -14,7 +14,6 @@ import { Schedules } from './pages/Schedules';
 import { AccessLogs } from './pages/AccessLogs';
 import { Alerts } from './pages/Alerts';
 import { NotFound } from './pages/NotFound';
-import { Analytics } from '@vercel/analytics/react';
 
 import './App.css';
 
@@ -90,7 +89,6 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-      <Analytics />
     </AuthProvider>
   );
 }
