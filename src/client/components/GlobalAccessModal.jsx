@@ -48,6 +48,7 @@ export const GlobalAccessModal = () => {
   const isPausedRef = useRef(false);
   const shownIdsRef = useRef(new Set());
   const lastUidRef = useRef({ uid: null, at: 0 });
+  const enrollmentActiveRef = useRef(false);
 
   // Reproducción de tono sonoro de confirmación o alerta
   // Sincronizado con la animación popIn (0.3s) del modal
@@ -202,6 +203,30 @@ export const GlobalAccessModal = () => {
     showNext();
   };
 
+  // Durante el enrolamiento (vincular tarjeta con sensor), las lecturas son
+  // parte del formulario y no deben disparar el overlay de acceso concedido/denegado.
+  useEffect(() => {
+    const handleEnrollmentState = (event) => {
+      const active = Boolean(event?.detail?.active);
+      enrollmentActiveRef.current = active;
+      if (!active) return;
+
+      // Descartar cualquier pop-up o escaneo pendiente en cola
+      queueRef.current = [];
+      setQueueCount(0);
+      stopCountdown();
+      isShowingRef.current = false;
+      isPausedRef.current = false;
+      setIsPaused(false);
+      remainingTimeRef.current = DURATION_MS;
+      setIsVisible(false);
+      setScanEvent(null);
+    };
+
+    window.addEventListener('radar-enrollment-state', handleEnrollmentState);
+    return () => window.removeEventListener('radar-enrollment-state', handleEnrollmentState);
+  }, []);
+
   // Agrega un escaneo a la cola evitando eventos repetidos del mismo log/carnet
   const enqueueEvent = (data) => {
     const eventId = data.id ?? data.logId;
@@ -217,6 +242,9 @@ export const GlobalAccessModal = () => {
         shownIdsRef.current.delete(oldest);
       }
     }
+
+    // Ignorar lecturas capturadas mientras se está enrolando una tarjeta
+    if (enrollmentActiveRef.current) return;
 
     const uid = data.uid ? String(data.uid).trim().toUpperCase() : null;
     if (uid) {
@@ -344,6 +372,7 @@ export const GlobalAccessModal = () => {
   const user = scanEvent.user;
   const door = scanEvent.door;
   const room = scanEvent.room;
+  const isVisitor = Boolean(user?.is_visitor || user?.role_name === 'visitor');
 
   // Formato de hora exacta
   const formatTime = (ts) => {
@@ -657,8 +686,8 @@ export const GlobalAccessModal = () => {
                     color: 'var(--accent, #002855)'
                   }}
                 >
-                  <GraduationCap size={16} />
-                  <span>{user.program || 'Programa Académico General'}</span>
+                  {isVisitor ? <MapPin size={16} /> : <GraduationCap size={16} />}
+                  <span>{isVisitor ? (user.destination || 'Visitante en campus') : (user.program || 'Programa Académico General')}</span>
                 </div>
               </div>
             </div>

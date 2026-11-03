@@ -54,8 +54,8 @@ export const AccessLogs = () => {
     const headers = ['Fecha/Hora', 'Persona', 'Documento', 'UID RFID', 'Puerta', 'Sala', 'Resultado', 'Motivo'];
     const rows = logs.map(l => [
       l.timestamp,
-      l.user_name,
-      l.user_document,
+      l.user_name || l.visitor_name || 'No registrado',
+      l.user_document || l.visitor_document || '—',
       l.rfid_uid_raw,
       l.door_name,
       l.room_name,
@@ -155,8 +155,11 @@ export const AccessLogs = () => {
                     {formatDate(l.timestamp)}
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{l.user_name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Doc: {l.user_document}</div>
+                    <div style={{ fontWeight: 600 }}>{l.user_name || l.visitor_name || 'No registrado'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Doc: {l.user_document || l.visitor_document || '—'}
+                      {!l.user_name && l.visitor_name ? ' · Pase temporal' : ''}
+                    </div>
                   </td>
                   <td className="font-mono" style={{ fontSize: '12.5px' }}>
                     {l.rfid_uid_raw || '—'}

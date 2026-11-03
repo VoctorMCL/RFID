@@ -40,10 +40,19 @@ const validateAccess = async (req, res) => {
       db.query(
         `SELECT c.*,
                 u.id as user_id, u.first_name, u.last_name, u.document_id, u.program, u.status as user_status, u.access_expiry, u.photo_url,
-                r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access
+                r.id as role_id, r.name as role_name, r.display_name as role_display, r.global_access,
+                vp.id as visitor_pass_id, vp.full_name as visitor_full_name, vp.document_id as visitor_document,
+                vp.destination as visitor_destination, vp.reason as visitor_reason,
+                vp.person_type as visitor_person_type, vp.entry_time as visitor_entry_time
          FROM rfid_cards c
          LEFT JOIN users u ON u.id = c.user_id
          LEFT JOIN roles r ON r.id = u.role_id
+         LEFT JOIN LATERAL (
+           SELECT v.* FROM visitor_passes v
+           WHERE v.card_uid = c.uid AND v.status = 'active'
+           ORDER BY v.entry_time DESC
+           LIMIT 1
+         ) vp ON true
          WHERE c.uid = $1`,
         [cleanUid]
       )
@@ -62,12 +71,28 @@ const validateAccess = async (req, res) => {
     let denialReason = null;
     let card = null;
     let user = null;
+    let visitorPass = null;
 
     if (cardQuery.rows.length === 0) {
       denialReason = 'denegado_no_registrado';
     } else {
       card = cardQuery.rows[0];
 
+      // Un pase temporal activo llega en el mismo JOIN de la tarjeta.
+      if (card.visitor_pass_id) {
+        visitorPass = {
+          id: card.visitor_pass_id,
+          full_name: card.visitor_full_name,
+          document_id: card.visitor_document,
+          destination: card.visitor_destination,
+          reason: card.visitor_reason,
+          person_type: card.visitor_person_type,
+          entry_time: card.visitor_entry_time
+        };
+      }
+
+      // La asignación permanente tiene prioridad; si la tarjeta no tiene
+      // titular, un pase temporal activo es su asignación vigente.
       if (card.user_id) {
         user = {
           id: card.user_id,
@@ -80,10 +105,32 @@ const validateAccess = async (req, res) => {
           role_name: card.role_name,
           photo_url: card.photo_url
         };
+      } else if (visitorPass) {
+        const nameParts = String(visitorPass.full_name || '').trim().split(/\s+/);
+        user = {
+          id: null,
+          first_name: nameParts[0] || '',
+          last_name: nameParts.slice(1).join(' '),
+          name: visitorPass.full_name,
+          document_id: visitorPass.document_id,
+          program: visitorPass.destination || 'Visitante en campus',
+          role: 'Visitante / Pase Temporal',
+          role_name: 'visitor',
+          photo_url: null,
+          is_visitor: true,
+          person_type: visitorPass.person_type,
+          pass_id: visitorPass.id,
+          destination: visitorPass.destination,
+          reason: visitorPass.reason,
+          entry_time: visitorPass.entry_time
+        };
       }
 
       if (!card.is_active) {
         denialReason = 'denegado_tarjeta_inactiva';
+      } else if (!card.user_id && visitorPass) {
+        // Pase de portería vigente: acceso autorizado con identidad del visitante
+        granted = true;
       } else if (!card.user_id) {
         denialReason = 'denegado_sin_usuario_asignado';
       } else if (card.user_status !== 'active') {
@@ -183,7 +230,9 @@ const validateAccess = async (req, res) => {
         access_method,
         granted,
         denialReason,
-        granted ? 'Acceso autorizado' : `Intento fallido: ${denialReason}`
+        granted
+          ? (visitorPass ? `Acceso autorizado · Pase temporal: ${visitorPass.full_name}` : 'Acceso autorizado')
+          : `Intento fallido: ${denialReason}`
       ]
     );
 
@@ -277,13 +326,26 @@ const getAccessLogs = async (req, res) => {
              d.name as door_name,
              rm.name as room_name,
              rm.has_alarm as room_has_alarm,
-             b.name as block_name
+             b.name as block_name,
+             vp.visitor_name, vp.visitor_document, vp.visitor_destination, vp.visitor_person_type
       FROM access_logs l
       LEFT JOIN users u ON u.id = l.user_id
       LEFT JOIN roles r ON r.id = u.role_id
       LEFT JOIN doors d ON d.id = l.door_id
       LEFT JOIN rooms rm ON rm.id = d.room_id
       LEFT JOIN blocks b ON b.id = rm.block_id
+      LEFT JOIN LATERAL (
+        SELECT v.full_name AS visitor_name,
+               v.document_id AS visitor_document,
+               v.destination AS visitor_destination,
+               v.person_type AS visitor_person_type
+        FROM visitor_passes v
+        WHERE v.card_uid = l.rfid_uid_raw
+          AND v.entry_time <= l.timestamp + interval '2 seconds'
+          AND (v.exit_time IS NULL OR v.exit_time >= l.timestamp - interval '2 seconds')
+        ORDER BY v.entry_time DESC
+        LIMIT 1
+      ) vp ON true
       WHERE 1=1
     `;
     const params = [];
@@ -306,6 +368,8 @@ const getAccessLogs = async (req, res) => {
         LOWER(l.rfid_uid_raw) LIKE $${params.length} OR
         LOWER(u.first_name) LIKE $${params.length} OR
         LOWER(u.last_name) LIKE $${params.length} OR
+        LOWER(vp.visitor_name) LIKE $${params.length} OR
+        LOWER(vp.visitor_document) LIKE $${params.length} OR
         LOWER(d.name) LIKE $${params.length} OR
         LOWER(rm.name) LIKE $${params.length}
       )`;
@@ -425,13 +489,28 @@ const getLatestScan = async (req, res) => {
               r.display_name as role_name,
               d.name as door_name, d.status as door_status,
               rm.name as room_name, rm.has_alarm as room_has_alarm,
-              b.name as block_name
+              b.name as block_name,
+              vp.visitor_name, vp.visitor_document, vp.visitor_destination,
+              vp.visitor_person_type, vp.visitor_pass_id
        FROM access_logs l
        LEFT JOIN users u ON u.id = l.user_id
        LEFT JOIN roles r ON r.id = u.role_id
        LEFT JOIN doors d ON d.id = l.door_id
        LEFT JOIN rooms rm ON rm.id = d.room_id
        LEFT JOIN blocks b ON b.id = rm.block_id
+       LEFT JOIN LATERAL (
+         SELECT v.full_name AS visitor_name,
+                v.document_id AS visitor_document,
+                v.destination AS visitor_destination,
+                v.person_type AS visitor_person_type,
+                v.id AS visitor_pass_id
+         FROM visitor_passes v
+         WHERE v.card_uid = l.rfid_uid_raw
+           AND v.entry_time <= l.timestamp + interval '2 seconds'
+           AND (v.exit_time IS NULL OR v.exit_time >= l.timestamp - interval '2 seconds')
+         ORDER BY v.entry_time DESC
+         LIMIT 1
+       ) vp ON true
        ORDER BY l.id DESC
        LIMIT 1`
     );
@@ -458,7 +537,20 @@ const getLatestScan = async (req, res) => {
           program: last.program,
           role: last.role_name,
           photo_url: last.photo_url
-        } : null,
+        } : (last.visitor_name ? {
+          first_name: '',
+          last_name: '',
+          name: last.visitor_name,
+          document_id: last.visitor_document,
+          program: last.visitor_destination || 'Visitante en campus',
+          role: 'Visitante / Pase Temporal',
+          role_name: 'visitor',
+          photo_url: null,
+          is_visitor: true,
+          pass_id: last.visitor_pass_id,
+          destination: last.visitor_destination,
+          person_type: last.visitor_person_type
+        } : null),
         door: { id: last.door_id, name: last.door_name, status: last.door_status },
         room: { name: last.room_name, block_name: last.block_name },
         alarm_triggered: !last.granted && last.room_has_alarm

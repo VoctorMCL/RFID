@@ -113,7 +113,7 @@ const createPass = async (req, res) => {
       `INSERT INTO rfid_cards (uid, user_id, card_type, is_active, label, enrolled_at)
        VALUES ($1, NULL, 'temporary', true, $2, NOW())
        ON CONFLICT (uid) DO UPDATE
-       SET card_type = 'temporary', is_active = true, label = $2`,
+       SET card_type = 'temporary', is_active = true, label = $2, user_id = NULL`,
       [cleanUid, `Pase Temporal: ${full_name}`]
     );
 

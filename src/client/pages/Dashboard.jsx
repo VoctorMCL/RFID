@@ -872,9 +872,9 @@ export const Dashboard = () => {
       setRecentLogs(prev => [
         {
           id: data.logId || Date.now(),
-          user_name: data.user ? `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim() : 'No registrado',
+          user_name: data.user ? (data.user.name || `${data.user.first_name || ''} ${data.user.last_name || ''}`.trim()) : 'No registrado',
           user_document: data.user?.document_id || '—',
-          user_program: data.user?.program || '—',
+          user_program: data.user?.program || data.user?.destination || '—',
           role_name: data.user?.role || 'Estudiante',
           rfid_uid_raw: data.uid,
           door_id: data.door?.id,
@@ -1725,13 +1725,13 @@ export const Dashboard = () => {
                           {log.room_name || '—'}
                         </td>
                         <td style={{ padding: '8px 12px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                          {log.user_name || 'No enrolado'}
+                          {log.user_name || log.visitor_name || 'No enrolado'}
                         </td>
                         <td style={{ padding: '8px 12px', color: '#2563eb', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {log.user_program && log.user_program !== '—' ? log.user_program : 'General'}
+                          {(log.user_program && log.user_program !== '—' ? log.user_program : null) || log.visitor_destination || 'General'}
                         </td>
                         <td style={{ padding: '8px 12px', color: 'var(--text-muted)', textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
-                          {log.role_name || 'Estudiante'}
+                          {log.role_name || (log.visitor_name ? 'Visitante' : 'Estudiante')}
                         </td>
                         <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: isLight ? '#0f172a' : '#cbd5e1', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {log.rfid_uid_raw || '—'}

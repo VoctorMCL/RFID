@@ -96,6 +96,14 @@ const enrollCard = async (req, res) => {
         `UPDATE rfid_cards SET is_active = false WHERE user_id = $1 AND uid != $2`,
         [userId, cleanUid]
       );
+
+      // Si la tarjeta tenía un pase temporal vigente, la asignación permanente lo reemplaza
+      await db.query(
+        `UPDATE visitor_passes
+         SET status = 'returned', exit_time = NOW()
+         WHERE card_uid = $1 AND status = 'active'`,
+        [cleanUid]
+      );
     }
 
     const result = await db.query(
@@ -145,6 +153,16 @@ const updateCard = async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Tarjeta no encontrada' });
+    }
+
+    // Al asignar un titular permanente, cerrar cualquier pase temporal vigente del UID
+    if (userId && is_active !== false) {
+      await db.query(
+        `UPDATE visitor_passes
+         SET status = 'returned', exit_time = NOW()
+         WHERE card_uid = $1 AND status = 'active'`,
+        [result.rows[0].uid]
+      );
     }
 
     return res.json({ success: true, data: result.rows[0] });

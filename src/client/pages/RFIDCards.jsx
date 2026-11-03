@@ -97,6 +97,23 @@ export const RFIDCards = () => {
     loadData();
   }, [loadData]);
 
+  // Avisar al pop-up global que estamos en modo enrolamiento:
+  // las lecturas del sensor aquí son para vincular la tarjeta, no un intento de acceso.
+  useEffect(() => {
+    const enrollmentActive = isPassModalOpen || isInventoryModalOpen;
+    window.dispatchEvent(
+      new CustomEvent('radar-enrollment-state', { detail: { active: enrollmentActive } })
+    );
+
+    return () => {
+      if (enrollmentActive) {
+        window.dispatchEvent(
+          new CustomEvent('radar-enrollment-state', { detail: { active: false } })
+        );
+      }
+    };
+  }, [isPassModalOpen, isInventoryModalOpen]);
+
   // Manejador de escaneo físico para el formulario
   const handlePhysicalScan = useCallback((uid) => {
     if (!uid) return;
