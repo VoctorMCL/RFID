@@ -19,50 +19,165 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
+# ============================ LIBRERÍAS DE HARDWARE ============================
+# RPi.GPIO solo es compatible hasta Raspberry Pi 4. La CrowPi 3 puede venir con
+# Raspberry Pi 5, donde el control GPIO se hace con gpiozero/lgpio. Por eso se
+# detectan ambos backends por separado: el lector RFID y el buzzer son independientes.
 try:
     import RPi.GPIO as GPIO
+    GPIO_RPI_DISPONIBLE = True
+except Exception:
+    GPIO = None
+    GPIO_RPI_DISPONIBLE = False
+
+try:
     from mfrc522 import MFRC522
-    HARDWARE_DISPONIBLE = True
-except ImportError:
-    HARDWARE_DISPONIBLE = False
+    RFID_DISPONIBLE = True
+except Exception:
+    MFRC522 = None
+    RFID_DISPONIBLE = False
+
+HARDWARE_DISPONIBLE = RFID_DISPONIBLE
 
 # ============================ BUZZER CrowPi 3 ============================
-# El buzzer pasivo de la CrowPi 3 está conectado al GPIO 18 (PWM capaz).
-# Se controla mediante PWM para generar tonos de frecuencia variable.
-BUZZER_PIN = 18
-buzzer_pwm = None
-buzzer_habilitado = True  # Controlable con --mute
+# En la CrowPi 3 el buzzer está rotulado en la placa como "PI:IO01" y
+# corresponde al GPIO BCM 18 (pin físico 12 del header de 40 pines).
+# Se puede cambiar con RFID_BUZZER_PIN o con --buzzer-pin.
+BUZZER_PIN = int(os.environ.get("RFID_BUZZER_PIN", "18"))
+# "active"  = buzzer activo: suena con nivel alto continuo (CrowPi 3).
+# "passive" = buzzer pasivo: requiere PWM para generar tonos de distinta frecuencia.
+BUZZER_TYPE = os.environ.get("RFID_BUZZER_TYPE", "active").strip().lower()
+buzzer_pwm = None        # Backend RPi.GPIO (PWM), solo para buzzer pasivo
+buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
+buzzer_backend = None    # "rpi" | "gpiozero"
+buzzer_habilitado = True # Controlable con --mute
+
+
+def _modelo_raspberry():
+    """Devuelve el modelo de Raspberry Pi desde el device-tree (si existe)."""
+    try:
+        with open("/proc/device-tree/model", "r", encoding="utf-8", errors="ignore") as f:
+            return f.read().strip("\x00\n ")
+    except Exception:
+        return "modelo desconocido"
 
 
 def inicializar_buzzer():
-    """Configura el pin del buzzer en modo PWM si el hardware GPIO está disponible."""
-    global buzzer_pwm
-    if not HARDWARE_DISPONIBLE:
+    """Configura el buzzer probando RPi.GPIO y, si falla, gpiozero/lgpio.
+
+    En Raspberry Pi 5 RPi.GPIO no puede configurar pines; el fallback con
+    gpiozero usa lgpio y permite controlar igualmente el GPIO BCM 18.
+    """
+    global buzzer_pwm, buzzer_gpiozero, buzzer_backend
+    if not buzzer_habilitado:
         return
+
+    modelo = _modelo_raspberry()
+
+    # 1) Backend clásico RPi.GPIO (Raspberry Pi 1-4)
+    if GPIO_RPI_DISPONIBLE:
+        try:
+            GPIO.setwarnings(False)
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(BUZZER_PIN, GPIO.OUT, initial=GPIO.LOW)
+            if BUZZER_TYPE == "passive":
+                buzzer_pwm = GPIO.PWM(BUZZER_PIN, 440)
+            buzzer_backend = "rpi"
+            return
+        except Exception as e:
+            print(f"  ⚠️ RPi.GPIO no pudo usar el GPIO {BUZZER_PIN} ({e}).")
+            print("     Probando gpiozero/lgpio (necesario en Raspberry Pi 5)...")
+            try:
+                GPIO.cleanup(BUZZER_PIN)
+            except Exception:
+                pass
+
+    # 2) Backend gpiozero (Raspberry Pi 5 con lgpio, o sistemas sin RPi.GPIO)
     try:
-        GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(BUZZER_PIN, GPIO.OUT)
-        buzzer_pwm = GPIO.PWM(BUZZER_PIN, 440)  # Frecuencia inicial de referencia
+        from gpiozero import PWMOutputDevice
+        buzzer_gpiozero = PWMOutputDevice(BUZZER_PIN, frequency=440, initial_value=0)
+        buzzer_backend = "gpiozero"
+        return
     except Exception as e:
-        print(f"  ⚠️ No se pudo inicializar el buzzer en GPIO {BUZZER_PIN}: {e}")
+        print(
+            f"  ⚠️ No se pudo inicializar el buzzer en GPIO BCM {BUZZER_PIN} "
+            f"(CrowPi PI:IO01, pin físico 12). Modelo detectado: {modelo}. Error: {e}"
+        )
+        print("     Instala el soporte GPIO con: sudo apt install -y python3-gpiozero python3-lgpio")
+        print("     Si el error es de permisos, ejecuta: sudo python3 hardware/lector_rfid.py --test-buzzer")
         buzzer_pwm = None
+        buzzer_gpiozero = None
+        buzzer_backend = None
+
+
+def buzzer_disponible():
+    return bool(buzzer_habilitado and (buzzer_pwm or buzzer_gpiozero or buzzer_backend == "rpi"))
+
+
+def _buzzer_on(frecuencia=440):
+    """Enciende el buzzer con la frecuencia indicada según el backend activo."""
+    if buzzer_pwm:
+        buzzer_pwm.ChangeFrequency(frecuencia)
+        buzzer_pwm.start(50)  # Duty cycle al 50% para volumen óptimo
+    elif buzzer_gpiozero:
+        if BUZZER_TYPE == "passive":
+            buzzer_gpiozero.frequency = frecuencia
+            buzzer_gpiozero.value = 0.5
+        else:
+            buzzer_gpiozero.value = 1.0
+    elif buzzer_backend == "rpi":
+        GPIO.output(BUZZER_PIN, GPIO.HIGH)
+
+
+def _buzzer_off():
+    """Apaga el buzzer en cualquiera de los backends."""
+    if buzzer_pwm:
+        buzzer_pwm.stop()
+    elif buzzer_gpiozero:
+        buzzer_gpiozero.value = 0
+    elif buzzer_backend == "rpi":
+        GPIO.output(BUZZER_PIN, GPIO.LOW)
+
+
+def buzzer_cleanup():
+    """Libera el pin y el backend del buzzer."""
+    global buzzer_pwm, buzzer_gpiozero, buzzer_backend
+    try:
+        _buzzer_off()
+    except Exception:
+        pass
+    if buzzer_pwm:
+        try:
+            buzzer_pwm.stop()
+        except Exception:
+            pass
+    if buzzer_gpiozero:
+        try:
+            buzzer_gpiozero.close()
+        except Exception:
+            pass
+    buzzer_pwm = None
+    buzzer_gpiozero = None
+    buzzer_backend = None
+    if GPIO_RPI_DISPONIBLE:
+        try:
+            GPIO.cleanup()
+        except Exception:
+            pass
 
 
 def buzzer_tono(frecuencia, duracion):
-    """Emite un tono simple en el buzzer pasivo.
+    """Emite un tono simple en el buzzer.
     Args:
         frecuencia: Hz del tono (ej. 1000 para agudo, 300 para grave)
         duracion: Segundos que dura el tono
     """
-    global buzzer_pwm
-    if not buzzer_pwm or not buzzer_habilitado:
+    if not buzzer_disponible():
         return
     try:
-        buzzer_pwm.ChangeFrequency(frecuencia)
-        buzzer_pwm.start(50)  # Duty cycle al 50% para volumen óptimo
+        _buzzer_on(frecuencia)
         time.sleep(duracion)
-        buzzer_pwm.stop()
+        _buzzer_off()
     except Exception:
         pass
 
@@ -70,17 +185,16 @@ def buzzer_tono(frecuencia, duracion):
 def buzzer_acceso_concedido():
     """Secuencia de pitido para ACCESO CONCEDIDO: dos tonos ascendentes cortos y alegres.
     Sincronizado con la animación verde del frontend (~0.35s total)."""
-    if not buzzer_pwm or not buzzer_habilitado:
+    if not buzzer_disponible():
         return
     try:
         # Tono 1: D5 (587 Hz) — 120ms
-        buzzer_pwm.ChangeFrequency(587)
-        buzzer_pwm.start(50)
+        _buzzer_on(587)
         time.sleep(0.12)
         # Tono 2: A5 (880 Hz) — 200ms (ascendente, confirmación positiva)
-        buzzer_pwm.ChangeFrequency(880)
+        _buzzer_on(880)
         time.sleep(0.20)
-        buzzer_pwm.stop()
+        _buzzer_off()
     except Exception:
         pass
 
@@ -88,26 +202,23 @@ def buzzer_acceso_concedido():
 def buzzer_acceso_denegado():
     """Secuencia de pitido para ACCESO DENEGADO: tres tonos descendentes graves y largos.
     Sincronizado con la animación roja de vibración del frontend (~0.55s total)."""
-    if not buzzer_pwm or not buzzer_habilitado:
+    if not buzzer_disponible():
         return
     try:
         # Tono 1: A3 (220 Hz) — 140ms
-        buzzer_pwm.ChangeFrequency(220)
-        buzzer_pwm.start(50)
+        _buzzer_on(220)
         time.sleep(0.14)
-        buzzer_pwm.stop()
+        _buzzer_off()
         time.sleep(0.05)
         # Tono 2: E3 (165 Hz) — 160ms (descendente, rechazo)
-        buzzer_pwm.ChangeFrequency(165)
-        buzzer_pwm.start(50)
+        _buzzer_on(165)
         time.sleep(0.16)
-        buzzer_pwm.stop()
+        _buzzer_off()
         time.sleep(0.05)
         # Tono 3: C3 (131 Hz) — 180ms (grave final, denegación definitiva)
-        buzzer_pwm.ChangeFrequency(131)
-        buzzer_pwm.start(50)
+        _buzzer_on(131)
         time.sleep(0.18)
-        buzzer_pwm.stop()
+        _buzzer_off()
     except Exception:
         pass
 
@@ -119,7 +230,6 @@ DEFAULT_API_URL = os.environ.get(
     "https://rfid.victormcl.me/api/access/validate"
 )
 DEFAULT_DOOR_ID = 1  # 1 = Puerta Principal — Sala de Informática 1
-SEGUNDOS_ENTRE_LECTURAS = 1.0
 # =======================================================================
 
 
@@ -252,16 +362,31 @@ def enviar_al_backend(api_url, door_id, uid_hex):
 
 
 def main():
+    global buzzer_habilitado, BUZZER_PIN, BUZZER_TYPE
+
     parser = argparse.ArgumentParser(description="Lector RFID RC522 — Control de Acceso")
     parser.add_argument("--server", default=DEFAULT_API_URL, help="URL del endpoint de validación")
     parser.add_argument("--door", default=DEFAULT_DOOR_ID, type=int, help="ID de la puerta asociada")
     parser.add_argument("--uid", action="store_true", help="Solo leer y mostrar UID (modo offline)")
     parser.add_argument("--mute", action="store_true", help="Desactivar el buzzer (sin pitidos)")
+    parser.add_argument(
+        "--buzzer-pin", type=int, default=BUZZER_PIN,
+        help="GPIO BCM del buzzer (CrowPi 3: 18 = etiqueta PI:IO01, pin físico 12)"
+    )
+    parser.add_argument(
+        "--buzzer-type", choices=["active", "passive"], default=BUZZER_TYPE,
+        help="Tipo de buzzer: active (CrowPi 3) o passive (requiere PWM)"
+    )
+    parser.add_argument(
+        "--test-buzzer", action="store_true",
+        help="Emitir la secuencia de prueba del buzzer y salir"
+    )
     args = parser.parse_args()
 
     # Configurar estado global del buzzer
-    global buzzer_habilitado
     buzzer_habilitado = not args.mute
+    BUZZER_PIN = args.buzzer_pin
+    BUZZER_TYPE = args.buzzer_type
 
     print("================================================================")
     print("🔒 Cliente de Lectura RFID (Hardware MFRC522)")
@@ -271,19 +396,36 @@ def main():
 
     # Inicializar buzzer del CrowPi 3
     inicializar_buzzer()
-    if buzzer_habilitado and buzzer_pwm:
-        print(f"🔊 Buzzer activo en GPIO {BUZZER_PIN} — Tonos de confirmación/alerta habilitados")
+    if buzzer_disponible():
+        print(
+            f"🔊 Buzzer listo — CrowPi PI:IO01 / GPIO BCM {BUZZER_PIN} "
+            f"(pin físico 12, tipo {BUZZER_TYPE}, backend {buzzer_backend})"
+        )
     elif not buzzer_habilitado:
         print("🔇 Buzzer desactivado por flag --mute")
     else:
-        print("🔇 Buzzer no disponible (GPIO no detectado en este host)")
+        print(f"🔇 Buzzer no disponible en GPIO BCM {BUZZER_PIN} (CrowPi PI:IO01)")
+
+    # Modo diagnóstico: probar el buzzer y salir
+    if args.test_buzzer:
+        if buzzer_disponible():
+            print("🎵 Probando secuencia de acceso concedido...")
+            buzzer_acceso_concedido()
+            time.sleep(0.4)
+            print("🎵 Probando secuencia de acceso denegado...")
+            buzzer_acceso_denegado()
+            print("✅ Prueba de buzzer finalizada.")
+        else:
+            print("❌ No se pudo probar el buzzer: no hay backend GPIO disponible.")
+        buzzer_cleanup()
+        return
 
     # Iniciar latido en segundo plano para notificar presencia al dashboard
     threading.Thread(target=bucle_heartbeat, args=(args.server, args.door), daemon=True).start()
     print(f"💓 Telemetría activa: enviando pulsos de hardware a puerta {args.door}")
 
     if not HARDWARE_DISPONIBLE:
-        print("ℹ️  Librerías RPi.GPIO / mfrc522 no detectadas en este host.")
+        print("ℹ️  Librería mfrc522 no detectada en este host (modo simulación).")
         print("   Para simular lecturas en modo consola, escribe un UID Hex (ej. A1B2C3D4):")
         try:
             while True:
@@ -295,7 +437,8 @@ def main():
             return
 
     lector = MFRC522()
-    ultimo_uid, ultimo_t = None, 0.0
+    ultimo_uid = None
+    ausencia_inicio = None
 
     try:
         while True:
@@ -303,24 +446,31 @@ def main():
             if estado == lector.MI_OK:
                 estado, uid_bytes = lector.MFRC522_Anticoll()
                 if estado == lector.MI_OK and uid_bytes:
-                    ahora = time.time()
+                    ausencia_inicio = None
                     uid_hex = norm_uid(uid_bytes)
-                    if uid_hex != ultimo_uid or (ahora - ultimo_t) > SEGUNDOS_ENTRE_LECTURAS:
+                    # Solo se procesa una vez por presentación física del carnet.
+                    if uid_hex != ultimo_uid:
                         ultimo_uid = uid_hex
-                        ultimo_t = ahora
                         hora = datetime.now().strftime("%H:%M:%S")
                         print(f"[{hora}] Tarjeta detectada: {uid_hex}")
 
                         if not args.uid:
                             enviar_al_backend(args.server, args.door, uid_hex)
+            else:
+                # Permitir volver a leer el mismo carnet solo tras retirarlo
+                # (se exige ausencia continua para evitar rebotes del lector)
+                if ultimo_uid is not None:
+                    if ausencia_inicio is None:
+                        ausencia_inicio = time.time()
+                    elif (time.time() - ausencia_inicio) > 0.5:
+                        ultimo_uid = None
+                        ausencia_inicio = None
 
             time.sleep(0.02)
     except KeyboardInterrupt:
         print("\nSaliendo...")
     finally:
-        if buzzer_pwm:
-            buzzer_pwm.stop()
-        GPIO.cleanup()
+        buzzer_cleanup()
 
 
 if __name__ == "__main__":

@@ -19,20 +19,13 @@ import {
   Volume2,
   VolumeX,
   ShieldCheck,
-  User,
   Clock,
-  ArrowRight,
-  KeyRound,
-  X,
-  Layers
+  X
 } from 'lucide-react';
 
 export const Login = () => {
-  const { loginWithCard, login, isAuthenticated, isCelador, authNotice, clearAuthNotice } = useAuth();
+  const { loginWithCard, isAuthenticated, isCelador, authNotice, clearAuthNotice } = useAuth();
   const navigate = useNavigate();
-
-  // Método activo: 'rfid' (escaneo) o 'credentials' (formulario de usuario/clave)
-  const [activeTab, setActiveTab] = useState('rfid');
 
   // Estados del escáner RFID
   const [status, setStatus] = useState('idle'); // 'idle' | 'scanning' | 'success' | 'error'
@@ -41,12 +34,6 @@ export const Login = () => {
   const [lastScannedUid, setLastScannedUid] = useState(null);
   const [authorizedUser, setAuthorizedUser] = useState(null);
   const [entryTimestamp, setEntryTimestamp] = useState(null);
-
-  // Estados del formulario de credenciales
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState('');
 
   // Configuración general
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -255,44 +242,6 @@ export const Login = () => {
     }
   }, [loginWithCard, navigate, playSound]);
 
-  // Iniciar sesión con formulario de credenciales
-  const handleCredentialsSubmit = async (e) => {
-    e.preventDefault();
-    if (formLoading) return;
-
-    if (!username.trim() || !password) {
-      setFormError('Por favor complete todos los campos');
-      return;
-    }
-
-    setFormLoading(true);
-    setFormError('');
-
-    try {
-      const res = await login(username.trim(), password);
-
-      if (res.success && res.user) {
-        playSound(true);
-        setTimeout(() => {
-          const userRole = (res.user.role?.name || '').toLowerCase();
-          if (userRole === 'celador' || userRole === 'security') {
-            navigate('/monitor', { replace: true });
-          } else {
-            navigate('/dashboard', { replace: true });
-          }
-        }, 550);
-      } else {
-        playSound(false);
-        setFormError(res.error || 'Usuario o contraseña incorrectos.');
-      }
-    } catch (err) {
-      playSound(false);
-      setFormError(err.message || 'Error conectando con el servidor.');
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
   // 1. Escuchar lecturas en vivo desde WebSocket
   const handleWsEvent = useCallback((event) => {
     if (isProcessingRef.current) return;
@@ -334,9 +283,6 @@ export const Login = () => {
   // 3. Captura directa de lectores USB (teclado cuña)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (activeTab === 'credentials' && ['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) {
-        return;
-      }
       if (e.ctrlKey || e.altKey || e.metaKey) return;
 
       const now = Date.now();
@@ -358,7 +304,7 @@ export const Login = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCardAuthentication, activeTab]);
+  }, [handleCardAuthentication]);
 
   const initials = authorizedUser
     ? `${(authorizedUser.first_name || '?')[0]}${(authorizedUser.last_name || '')[0]}`.toUpperCase()
@@ -855,262 +801,115 @@ export const Login = () => {
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* TABS DE SELECCIÓN: CARNET RFID vs CREDENCIALES           */}
-        {/* ======================================================== */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 0' }}>
-          <div className="login-tabs-nav">
-            <button
-              type="button"
-              className={`login-tab-btn ${activeTab === 'rfid' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('rfid');
-                setFormError('');
-              }}
-            >
-              <CreditCard size={16} />
-              <span>Carnet RFID</span>
-            </button>
-            <button
-              type="button"
-              className={`login-tab-btn ${activeTab === 'credentials' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('credentials');
-                setErrorMessage('');
-              }}
-            >
-              <KeyRound size={16} />
-              <span>Credenciales</span>
-            </button>
-          </div>
-
           {/* ====================================================== */}
-          {/* TAB 1: ESCANEO DE CARNET RFID                         */}
+          {/* ESCANEO DE CARNET RFID — ÚNICO MÉTODO DE INGRESO      */}
           {/* ====================================================== */}
-          {activeTab === 'rfid' && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center'
+          }}>
+            {/* Pad de lectura RFID */}
             <div style={{
+              position: 'relative',
+              width: '190px',
+              height: '190px',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              textAlign: 'center'
+              justifyContent: 'center',
+              marginBottom: '22px'
             }}>
-              {/* Pad de lectura RFID */}
               <div style={{
-                position: 'relative',
-                width: '190px',
-                height: '190px',
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                border: `2px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
+                animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
+              }} />
+              <div style={{
+                position: 'absolute',
+                inset: '-14px',
+                borderRadius: '50%',
+                border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
+                animation: 'radarSweepSpin 12s linear infinite'
+              }} />
+
+              <div style={{
+                width: '125px',
+                height: '125px',
+                borderRadius: '50%',
+                backgroundColor: status === 'error'
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : status === 'success'
+                  ? 'rgba(16, 185, 129, 0.2)'
+                  : 'rgba(15, 23, 42, 0.85)',
+                border: `2.5px solid ${
+                  status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
+                }`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '22px'
+                boxShadow: status === 'error'
+                  ? '0 0 30px rgba(239, 68, 68, 0.4)'
+                  : status === 'success'
+                  ? '0 0 35px rgba(16, 185, 129, 0.45)'
+                  : '0 0 30px rgba(56, 189, 248, 0.3)',
+                transition: 'all 0.3s ease'
               }}>
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  borderRadius: '50%',
-                  border: `2px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
-                  animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
-                }} />
-                <div style={{
-                  position: 'absolute',
-                  inset: '-14px',
-                  borderRadius: '50%',
-                  border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
-                  animation: 'radarSweepSpin 12s linear infinite'
-                }} />
-
-                <div style={{
-                  width: '125px',
-                  height: '125px',
-                  borderRadius: '50%',
-                  backgroundColor: status === 'error'
-                    ? 'rgba(239, 68, 68, 0.15)'
-                    : status === 'success'
-                    ? 'rgba(16, 185, 129, 0.2)'
-                    : 'rgba(15, 23, 42, 0.85)',
-                  border: `2.5px solid ${
-                    status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
-                  }`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: status === 'error'
-                    ? '0 0 30px rgba(239, 68, 68, 0.4)'
-                    : status === 'success'
-                    ? '0 0 35px rgba(16, 185, 129, 0.45)'
-                    : '0 0 30px rgba(56, 189, 248, 0.3)',
-                  transition: 'all 0.3s ease'
-                }}>
-                  {status === 'scanning' ? (
-                    <Loader2 size={48} className="spinner" style={{ color: '#38bdf8' }} />
-                  ) : status === 'success' ? (
-                    <CheckCircle2 size={52} style={{ color: '#10b981' }} />
-                  ) : status === 'error' ? (
-                    <XCircle size={52} style={{ color: '#ef4444' }} />
-                  ) : (
-                    <CreditCard size={50} style={{ color: '#38bdf8' }} />
-                  )}
-                </div>
-              </div>
-
-              <h2 style={{
-                fontSize: '20px',
-                fontWeight: 800,
-                color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-                margin: '0 0 6px'
-              }}>
-                {statusMessage}
-              </h2>
-
-              <p style={{
-                fontSize: '13px',
-                color: '#94a3b8',
-                maxWidth: '360px',
-                margin: '0 auto 16px',
-                lineHeight: 1.5
-              }}>
-                {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
-                {status === 'scanning' && 'Validando credencial en el sistema...'}
-                {status === 'success' && 'Sesión establecida correctamente. Redirigiendo...'}
-                {status === 'error' && errorMessage}
-              </p>
-
-              {lastScannedUid && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  fontSize: '12px',
-                  fontFamily: 'var(--font-mono)',
-                  color: '#38bdf8',
-                  marginBottom: '12px'
-                }}>
-                  <Radio size={14} style={{ color: '#38bdf8' }} />
-                  <span>UID Detectado: <strong>{lastScannedUid}</strong></span>
-                </div>
-              )}
-
-              {/* Botón para cambiar a credenciales */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('credentials')}
-                className="login-switch-link"
-              >
-                <span>¿Ingresar con usuario y contraseña?</span>
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          )}
-
-          {/* ====================================================== */}
-          {/* TAB 2: INGRESO POR CREDENCIALES (USUARIO / CONTRASEÑA) */}
-          {/* ====================================================== */}
-          {activeTab === 'credentials' && (
-            <div className="login-form-card">
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', margin: '0 0 4px' }}>
-                  Autenticación con Credenciales
-                </h2>
-                <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: 0 }}>
-                  Ingrese su correo institucional o usuario asignado
-                </p>
-              </div>
-
-              {formError && (
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  color: '#f87171',
-                  fontSize: '12.5px',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <XCircle size={16} style={{ flexShrink: 0 }} />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleCredentialsSubmit}>
-                <div className="login-input-group">
-                  <label className="login-input-label" htmlFor="username">
-                    Usuario o Correo Institucional
-                  </label>
-                  <div className="login-input-wrap">
-                    <User size={16} className="login-input-icon" />
-                    <input
-                      id="username"
-                      type="text"
-                      className="login-text-input"
-                      placeholder="admin o usuario@lasallista.edu.co"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      autoComplete="username"
-                      disabled={formLoading}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div className="login-input-group">
-                  <label className="login-input-label" htmlFor="password">
-                    Contraseña
-                  </label>
-                  <div className="login-input-wrap">
-                    <Lock size={16} className="login-input-icon" />
-                    <input
-                      id="password"
-                      type="password"
-                      className="login-text-input"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      disabled={formLoading}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={formLoading}
-                  className="login-submit-btn"
-                >
-                  {formLoading ? (
-                    <>
-                      <Loader2 size={16} className="spinner" />
-                      <span>Iniciando sesión...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Iniciar Sesión</span>
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('rfid');
-                    setFormError('');
-                  }}
-                  className="login-switch-link"
-                >
-                  <span>← Volver al lector RFID</span>
-                </button>
+                {status === 'scanning' ? (
+                  <Loader2 size={48} className="spinner" style={{ color: '#38bdf8' }} />
+                ) : status === 'success' ? (
+                  <CheckCircle2 size={52} style={{ color: '#10b981' }} />
+                ) : status === 'error' ? (
+                  <XCircle size={52} style={{ color: '#ef4444' }} />
+                ) : (
+                  <CreditCard size={50} style={{ color: '#38bdf8' }} />
+                )}
               </div>
             </div>
-          )}
+
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: 800,
+              color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
+              margin: '0 0 6px'
+            }}>
+              {statusMessage}
+            </h2>
+
+            <p style={{
+              fontSize: '13px',
+              color: '#94a3b8',
+              maxWidth: '360px',
+              margin: '0 auto 16px',
+              lineHeight: 1.5
+            }}>
+              {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
+              {status === 'scanning' && 'Validando carnet en el sistema...'}
+              {status === 'success' && 'Sesión establecida correctamente. Redirigiendo...'}
+              {status === 'error' && errorMessage}
+            </p>
+
+            {lastScannedUid && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                fontSize: '12px',
+                fontFamily: 'var(--font-mono)',
+                color: '#38bdf8'
+              }}>
+                <Radio size={14} style={{ color: '#38bdf8' }} />
+                <span>UID Detectado: <strong>{lastScannedUid}</strong></span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Políticas de sesión y pie inferior */}

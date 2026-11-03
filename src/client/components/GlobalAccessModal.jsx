@@ -24,24 +24,35 @@ import {
 
 const DURATION_MS = 6500;
 
+// Ventana para descartar lecturas duplicadas del mismo carnet (rebotes del lector)
+const DUPLICATE_UID_WINDOW_MS = 1500;
+
 export const GlobalAccessModal = () => {
   const [scanEvent, setScanEvent] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [progress, setProgress] = useState(100);
   const [isPaused, setIsPaused] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
 
-  const closeTimerRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const startTimeRef = useRef(0);
   const remainingTimeRef = useRef(DURATION_MS);
   const audioCtxRef = useRef(null);
   const lastSeenLogIdRef = useRef(null);
+  const soundEnabledRef = useRef(true);
+
+  // Cola FIFO: cada escaneo nuevo espera a que termine el pop-up actual
+  const queueRef = useRef([]);
+  const isShowingRef = useRef(false);
+  const isPausedRef = useRef(false);
+  const shownIdsRef = useRef(new Set());
+  const lastUidRef = useRef({ uid: null, at: 0 });
 
   // Reproducción de tono sonoro de confirmación o alerta
   // Sincronizado con la animación popIn (0.3s) del modal
   const playSound = (granted) => {
-    if (!soundEnabled) return;
+    if (!soundEnabledRef.current) return;
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -127,41 +138,114 @@ export const GlobalAccessModal = () => {
     } catch (e) {}
   };
 
-  const showModal = (data) => {
-    setScanEvent(data);
+  // Mantener el estado de sonido accesible desde callbacks antiguos (timers)
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  const stopCountdown = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  const startCountdown = () => {
+    stopCountdown();
+    progressIntervalRef.current = setInterval(() => {
+      if (isPausedRef.current) return;
+
+      const elapsed = Date.now() - startTimeRef.current;
+      const remaining = Math.max(0, DURATION_MS - elapsed);
+      remainingTimeRef.current = remaining;
+      setProgress((remaining / DURATION_MS) * 100);
+
+      if (remaining <= 0) {
+        finishCurrent();
+      }
+    }, 40);
+  };
+
+  // Muestra el siguiente pop-up de la cola (si existe)
+  const showNext = () => {
+    if (isShowingRef.current) return;
+
+    const next = queueRef.current.shift();
+    setQueueCount(queueRef.current.length);
+
+    if (!next) {
+      setIsVisible(false);
+      setScanEvent(null);
+      return;
+    }
+
+    isShowingRef.current = true;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    setScanEvent(next);
     setIsVisible(true);
     setProgress(100);
     remainingTimeRef.current = DURATION_MS;
     startTimeRef.current = Date.now();
-    playSound(Boolean(data.granted));
 
-    // Limpiar temporizadores anteriores
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    playSound(Boolean(next.granted));
+    startCountdown();
+  };
 
-    // Barra de tiempo progresiva
-    progressIntervalRef.current = setInterval(() => {
-      if (!isPaused) {
-        const elapsed = Date.now() - startTimeRef.current;
-        const remaining = Math.max(0, DURATION_MS - elapsed);
-        const pct = (remaining / DURATION_MS) * 100;
-        setProgress(pct);
-        if (remaining <= 0) {
-          clearInterval(progressIntervalRef.current);
-          setIsVisible(false);
-        }
+  // Cierra el pop-up actual y da paso al siguiente en cola
+  const finishCurrent = () => {
+    stopCountdown();
+    if (!isShowingRef.current) return;
+
+    isShowingRef.current = false;
+    remainingTimeRef.current = DURATION_MS;
+    showNext();
+  };
+
+  // Agrega un escaneo a la cola evitando eventos repetidos del mismo log/carnet
+  const enqueueEvent = (data) => {
+    const eventId = data.id ?? data.logId;
+
+    if (eventId !== undefined && eventId !== null) {
+      const idKey = String(eventId);
+      if (shownIdsRef.current.has(idKey)) return;
+      shownIdsRef.current.add(idKey);
+
+      // Evitar crecimiento indefinido del set de IDs vistos
+      if (shownIdsRef.current.size > 250) {
+        const oldest = shownIdsRef.current.values().next().value;
+        shownIdsRef.current.delete(oldest);
       }
-    }, 40);
+    }
 
-    closeTimerRef.current = setTimeout(() => {
-      setIsVisible(false);
-    }, DURATION_MS);
+    const uid = data.uid ? String(data.uid).trim().toUpperCase() : null;
+    if (uid) {
+      const now = Date.now();
+      const last = lastUidRef.current;
+      if (last.uid === uid && now - last.at < DUPLICATE_UID_WINDOW_MS) return;
+      lastUidRef.current = { uid, at: now };
+    }
+
+    queueRef.current.push(data);
+    setQueueCount(queueRef.current.length);
+    showNext();
   };
 
   const handleClose = () => {
-    setIsVisible(false);
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    finishCurrent();
+  };
+
+  const handlePause = () => {
+    if (isPausedRef.current) return;
+    isPausedRef.current = true;
+    setIsPaused(true);
+  };
+
+  const handleResume = () => {
+    if (!isPausedRef.current) return;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    startTimeRef.current = Date.now() - (DURATION_MS - remainingTimeRef.current);
   };
 
   // 1. Escuchar eventos en vivo desde WebSocket (Raspberry Pi, CrowPi, ESP32, o llamadas API)
@@ -169,7 +253,7 @@ export const GlobalAccessModal = () => {
     if (event.type === 'access_attempt' && event.data) {
       const d = event.data;
       lastSeenLogIdRef.current = d.logId || d.id;
-      showModal({
+      enqueueEvent({
         id: d.logId || d.id,
         granted: Boolean(d.granted),
         denial_reason: d.denialReason || d.denial_reason,
@@ -189,9 +273,18 @@ export const GlobalAccessModal = () => {
   useEffect(() => {
     if (isWsConnected) return;
 
-    const interval = setInterval(async () => {
+    let cancelled = false;
+    let inFlight = false;
+
+    const poll = async () => {
+      // Evita peticiones solapadas cuyas respuestas puedan llegar desordenadas
+      if (inFlight || cancelled) return;
+      inFlight = true;
+
       try {
         const res = await apiClient('/access/latest');
+        if (cancelled) return;
+
         if (res.success && res.data && res.data.id) {
           const scan = res.data;
           if (lastSeenLogIdRef.current === null) {
@@ -203,7 +296,7 @@ export const GlobalAccessModal = () => {
             const scanTime = new Date(scan.timestamp).getTime();
             // Solo abrir modal si el evento ocurrió hace menos de 20 segundos
             if (Date.now() - scanTime < 20000) {
-              showModal({
+              enqueueEvent({
                 id: scan.id,
                 granted: Boolean(scan.granted),
                 denial_reason: scan.denial_reason,
@@ -217,10 +310,20 @@ export const GlobalAccessModal = () => {
             }
           }
         }
-      } catch (err) {}
-    }, 280);
+      } catch (err) {
+        // Silencioso durante el polling
+      } finally {
+        inFlight = false;
+      }
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(poll, 280);
+    poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [isWsConnected]);
 
   // Cerrar con la tecla Escape
@@ -307,11 +410,8 @@ export const GlobalAccessModal = () => {
       }}
     >
       <div
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => {
-          setIsPaused(false);
-          startTimeRef.current = Date.now() - (DURATION_MS * (1 - progress / 100));
-        }}
+        onMouseEnter={handlePause}
+        onMouseLeave={handleResume}
         style={{
           width: '100%',
           maxWidth: '560px',
@@ -437,6 +537,23 @@ export const GlobalAccessModal = () => {
               ? 'Apertura electromecánica autorizada · Cerradura desbloqueada'
               : getDenialText(scanEvent.denial_reason)}
           </div>
+
+          {queueCount > 0 && (
+            <div
+              style={{
+                marginTop: '10px',
+                padding: '3px 10px',
+                borderRadius: '9999px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                letterSpacing: '0.02em'
+              }}
+            >
+              {queueCount} {queueCount === 1 ? 'escaneo en espera' : 'escaneos en espera'}
+            </div>
+          )}
         </div>
 
         {/* ============================================================== */}

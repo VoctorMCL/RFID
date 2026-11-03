@@ -60,6 +60,17 @@ En Raspberry Pi OS / Linux con bus SPI habilitado (`sudo raspi-config` -> Interf
 pip install spidev mfrc522 RPi.GPIO
 ```
 
+> **Raspberry Pi 5 / CrowPi 3 con Pi 5:** `RPi.GPIO` no puede controlar los pines en
+> Pi 5. Instala `gpiozero` y `lgpio`; el script los usa automáticamente como respaldo:
+>
+> ```bash
+> sudo apt install -y python3-gpiozero python3-lgpio
+> ```
+>
+> **Buzzer CrowPi 3:** la placa lo rotula como **`PI:IO01`**, que corresponde al
+> **GPIO BCM 18** (pin físico 12 del header de 40 pines). Es un buzzer activo.
+> Puedes probarlo sin arrancar el lector con `python3 hardware/lector_rfid.py --test-buzzer`.
+
 ### Ejecución del Lector
 
 ```bash
@@ -74,6 +85,13 @@ python3 hardware/lector_rfid.py --server http://192.168.1.100:4000
 
 # Modo diagnóstico (solo lee y muestra el UID de tarjetas sin enviar HTTP)
 python3 hardware/lector_rfid.py --uid
+
+# Probar únicamente el buzzer de la CrowPi 3 (CrowPi PI:IO01 = BCM 18)
+python3 hardware/lector_rfid.py --test-buzzer
+
+# Silenciar el buzzer o cambiar su pin/tipo
+python3 hardware/lector_rfid.py --mute
+python3 hardware/lector_rfid.py --buzzer-pin 18 --buzzer-type active
 ```
 
 ### Opciones de Línea de Comandos
@@ -83,6 +101,10 @@ python3 hardware/lector_rfid.py --uid
 | `--server <url>` | URL base del servidor backend o endpoint | `https://rfid.victormcl.me/api/access/validate` (o `http://localhost:4000`) |
 | `--door <id>` | ID de la puerta según la base de datos | `1` |
 | `--uid` | Diagnóstico: imprime UID sin enviar HTTP | `false` |
+| `--mute` | Desactiva los pitidos del buzzer | `false` |
+| `--buzzer-pin <bcm>` | GPIO BCM del buzzer (CrowPi 3: `18` = `PI:IO01`) | `18` (`RFID_BUZZER_PIN`) |
+| `--buzzer-type <tipo>` | `active` (CrowPi 3) o `passive` (requiere PWM) | `active` (`RFID_BUZZER_TYPE`) |
+| `--test-buzzer` | Emite las secuencias de prueba y sale | `false` |
 
 ### Telemetría de Presencia en Segundo Plano (Heartbeat)
 El script `lector_rfid.py` inicia de forma autónoma un hilo en segundo plano (`threading.Thread`) que emite un pulso HTTP cada 8 segundos a:
