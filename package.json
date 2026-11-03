@@ -16,6 +16,7 @@
     "seed:supabase": "node seed-supabase.js"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^2.4.3",
     "chart.js": "^4.6.1",
     "cors": "^2.8.5",
