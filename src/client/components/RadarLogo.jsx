@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 export const RadarLogo = ({ size = 28, animated = false, className = '' }) => {
+  const rawId = useId();
+  const uid = rawId.replace(/[^a-zA-Z0-9]/g, '');
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -12,56 +15,60 @@ export const RadarLogo = ({ size = 28, animated = false, className = '' }) => {
       style={{ display: 'inline-block', flexShrink: 0, verticalAlign: 'middle' }}
     >
       <defs>
-
-        <radialGradient id={`radarBg_${size}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#0f172a" />
-          <stop offset="60%" stopColor="#0b1329" />
-          <stop offset="100%" stopColor="#020617" />
-        </radialGradient>
-
-        <linearGradient id={`radarSweep_${size}`} x1="50%" y1="50%" x2="90%" y2="10%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.8" />
-          <stop offset="50%" stopColor="#0284c7" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#0369a1" stopOpacity="0" />
+        <linearGradient id={`ring_${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="60%" stopColor="#0ea5e9" />
+          <stop offset="100%" stopColor="#1d4ed8" />
         </linearGradient>
 
-        <filter id={`radarGlow_${size}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
+        <linearGradient id={`wave_${uid}`} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#2563eb" />
+          <stop offset="45%" stopColor="#0ea5e9" />
+          <stop offset="100%" stopColor="#38bdf8" />
+        </linearGradient>
+
+        <linearGradient id={`sweep_${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="#0284c7" stopOpacity="0" />
+        </linearGradient>
+
+        <radialGradient id={`glow_${uid}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.75" />
+          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
-      <circle cx="50" cy="50" r="47" stroke="#1d4ed8" strokeWidth="2.4" fill={`url(#radarBg_${size})`} />
-      <circle cx="50" cy="50" r="44" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.4" strokeDasharray="2 3" />
+      {/* Lente circular profundo minimalista */}
+      <circle cx="50" cy="50" r="46" fill="#040816" stroke={`url(#ring_${uid})`} strokeWidth="2.2" />
 
-      <line x1="50" y1="3" x2="50" y2="8" stroke="#38bdf8" strokeWidth="1.8" />
-      <line x1="50" y1="92" x2="50" y2="97" stroke="#38bdf8" strokeWidth="1.8" />
-      <line x1="3" y1="50" x2="8" y2="50" stroke="#38bdf8" strokeWidth="1.8" />
-      <line x1="92" y1="50" x2="97" y2="50" stroke="#38bdf8" strokeWidth="1.8" />
+      {/* Guías concéntricas tenues de alta precisión */}
+      <circle cx="50" cy="50" r="38" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.1" />
+      <circle cx="50" cy="50" r="26" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.1" />
+      <circle cx="50" cy="50" r="14" stroke="#38bdf8" strokeWidth="1" strokeOpacity="0.12" />
 
-      <circle cx="50" cy="50" r="35" stroke="#2563eb" strokeWidth="1.3" strokeOpacity="0.55" />
-      <circle cx="50" cy="50" r="23" stroke="#38bdf8" strokeWidth="1.2" strokeOpacity="0.65" />
-      <circle cx="50" cy="50" r="11" stroke="#60a5fa" strokeWidth="1.1" strokeOpacity="0.75" />
-
-      <line x1="50" y1="7" x2="50" y2="93" stroke="#1d4ed8" strokeWidth="1" strokeOpacity="0.6" strokeDasharray="3 3" />
-      <line x1="7" y1="50" x2="93" y2="50" stroke="#1d4ed8" strokeWidth="1" strokeOpacity="0.6" strokeDasharray="3 3" />
-
-      <line x1="19" y1="19" x2="81" y2="81" stroke="#1e3a8a" strokeWidth="0.8" strokeOpacity="0.45" />
-      <line x1="19" y1="81" x2="81" y2="19" stroke="#1e3a8a" strokeWidth="0.8" strokeOpacity="0.45" />
-
-      <g style={animated ? { transformOrigin: '50px 50px', animation: 'spin 4s linear infinite' } : undefined}>
-        <path d="M 50 50 L 83 17 A 47 47 0 0 0 50 3 Z" fill={`url(#radarSweep_${size})`} />
-        <line x1="50" y1="50" x2="83" y2="17" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" filter={`url(#radarGlow_${size})`} />
+      {/* Haz de barrido rotativo */}
+      <g style={animated ? { transformOrigin: '50px 50px', animation: 'spin 5s linear infinite' } : undefined}>
+        <path d="M 50 50 L 50 4 A 46 46 0 0 1 82.5 17.5 Z" fill={`url(#sweep_${uid})`} />
+        <line x1="50" y1="50" x2="50" y2="4" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" />
       </g>
 
-      <path d="M 68 26 A 11 11 0 0 1 76 34" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.9" filter={`url(#radarGlow_${size})`} />
-      <path d="M 72 22 A 17 17 0 0 1 82 32" stroke="#0ea5e9" strokeWidth="1.6" strokeLinecap="round" strokeOpacity="0.65" />
+      {/* Ondas RFID / NFC de acceso con trazo moderno redondeado */}
+      <path d="M 50 36 A 14 14 0 0 1 64 50" stroke={`url(#wave_${uid})`} strokeWidth="3.6" strokeLinecap="round" />
+      <path d="M 50 24 A 26 26 0 0 1 76 50" stroke={`url(#wave_${uid})`} strokeWidth="3.8" strokeLinecap="round" />
+      <path d="M 50 12 A 38 38 0 0 1 88 50" stroke={`url(#wave_${uid})`} strokeWidth="4.2" strokeLinecap="round" />
 
-      <circle cx="67" cy="31" r="3.2" fill="#38bdf8" filter={`url(#radarGlow_${size})`} />
-      <circle cx="67" cy="31" r="1.5" fill="#ffffff" />
+      {/* Eco sutil para equilibrio y rotación simétrica */}
+      <path d="M 50 64 A 14 14 0 0 1 36 50" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.22" />
+      <path d="M 50 76 A 26 26 0 0 1 24 50" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.12" />
 
-      <circle cx="50" cy="50" r="3.8" fill="#2563eb" />
-      <circle cx="50" cy="50" r="1.8" fill="#e0f2fe" filter={`url(#radarGlow_${size})`} />
+      {/* Tarjeta / Tag RFID detectada en el campo */}
+      <circle cx="68.4" cy="31.6" r="3.2" fill="#38bdf8" />
+      <circle cx="68.4" cy="31.6" r="1.4" fill="#ffffff" />
+
+      {/* Baliza del sensor central */}
+      <circle cx="50" cy="50" r="8" fill={`url(#glow_${uid})`} />
+      <circle cx="50" cy="50" r="3.5" fill="#38bdf8" />
+      <circle cx="50" cy="50" r="1.5" fill="#ffffff" />
     </svg>
   );
 };
