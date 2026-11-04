@@ -22,8 +22,6 @@ router.get('/health', healthController.getHealth);
 
 router.post('/auth/rfid-login', authLimiter, authController.loginWithCard);
 
-router.post('/auth/login', authLimiter, authController.login);
-
 router.post('/access/validate', accessValidateLimiter, accessController.validateAccess);
 
 router.get('/access/latest', accessController.getLatestScan);
@@ -34,7 +32,6 @@ router.use(authenticate);
 
 router.get('/auth/me', authController.me);
 router.post('/auth/logout', authController.logout);
-router.put('/auth/change-password', authLimiter, authController.changePassword);
 
 router.get('/roles', rolesController.getRoles);
 router.get('/roles/:id', rolesController.getRoleById);

@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const db = require('../config/db');
 
 const normalizeUid = (uid) => String(uid || '').trim().replace(/[\s:\-]/g, '').toUpperCase();
@@ -187,13 +186,13 @@ const createUser = async (req, res) => {
       });
     }
 
-    const hash = await bcrypt.hash(crypto.randomUUID(), 10);
+    const rfidOnlyToken = 'RFID_AUTH_ONLY';
 
     const insertUser = await db.query(
       `INSERT INTO users (first_name, last_name, email, password_hash, document_id, role_id, program, phone, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
        RETURNING id, first_name, last_name, email, document_id, role_id, program, phone, status`,
-      [first_name.trim(), last_name.trim(), email.trim().toLowerCase(), hash, document_id.trim(), parseInt(role_id, 10), program || null, phone || null]
+      [first_name.trim(), last_name.trim(), email.trim().toLowerCase(), rfidOnlyToken, document_id.trim(), parseInt(role_id, 10), program || null, phone || null]
     );
 
     const newUser = insertUser.rows[0];

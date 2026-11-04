@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { getJwtSecret } = require('../config/security');
@@ -133,116 +132,6 @@ const logout = async (req, res) => {
   }
 };
 
-const login = async (req, res) => {
-  try {
-    let { email, password, device_info } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Correo institucional y contraseña requeridos' });
-    }
-
-    email = email.trim().toLowerCase();
-    if (email === 'admin') email = 'admin@lasallista.edu.co';
-    if (email === 'celador' || email === 'seguridad' || email === 'vigilancia') email = 'celador@lasallista.edu.co';
-
-    const userResult = await db.query(
-      `SELECT u.*, r.name as role_name, r.display_name as role_display, r.global_access
-       FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE LOWER(u.email) = $1`,
-      [email]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Credenciales inválidas o usuario no registrado' });
-    }
-
-    const user = userResult.rows[0];
-
-    const allowedWebRoles = ['admin', 'rector', 'security', 'celador'];
-    const userRole = (user.role_name || '').toLowerCase();
-    if (!allowedWebRoles.includes(userRole)) {
-      return res.status(403).json({
-        success: false,
-        error: 'Acceso denegado: Esta cuenta no tiene permisos para el portal web.'
-      });
-    }
-
-    if (user.status !== 'active') {
-      return res.status(403).json({ success: false, error: 'Usuario inactivo o suspendido' });
-    }
-
-    if (!user.password_hash) {
-      return res.status(401).json({
-        success: false,
-        error: 'Esta cuenta no tiene contraseña configurada. Inicie sesión con su carnet físico RFID.'
-      });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!isMatch) {
-      return res.status(401).json({ success: false, error: 'Credenciales inválidas o contraseña incorrecta' });
-    }
-
-    const newSessionId = crypto.randomUUID();
-    const deviceString = device_info || req.headers['user-agent'] || 'Terminal Web';
-
-    await db.query(
-      `UPDATE users SET active_session_id = $1, last_login_at = NOW(), last_login_device = $2, updated_at = NOW() WHERE id = $3`,
-      [newSessionId, deviceString, user.id]
-    );
-
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role_id: user.role_id,
-        role_name: user.role_name,
-        global_access: user.global_access,
-        sessionId: newSessionId
-      },
-      getJwtSecret(),
-      { expiresIn: '4h' }
-    );
-
-    const cardResult = await db.query(
-      `SELECT uid, card_type, is_active FROM rfid_cards WHERE user_id = $1 AND is_active = true LIMIT 1`,
-      [user.id]
-    );
-    const userCard = cardResult.rows[0] || null;
-
-    return res.json({
-      success: true,
-      data: {
-        token,
-        sessionId: newSessionId,
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          email: user.email,
-          document_id: user.document_id,
-          program: user.program,
-          photo_url: user.photo_url || null,
-          role_id: user.role_id,
-          role: {
-            id: user.role_id,
-            name: user.role_name,
-            display_name: user.role_display,
-            global_access: user.global_access
-          },
-          status: user.status,
-          rfid_tag: userCard ? userCard.uid : null
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error en login PostgreSQL:', error);
-    return res.status(500).json({ success: false, error: 'Error de conexión: ' + error.message });
-  }
-};
-
 const me = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -291,43 +180,4 @@ const me = async (req, res) => {
   }
 };
 
-const changePassword = async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, error: 'Todos los campos son obligatorios' });
-    }
-
-    if (String(newPassword).length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'La nueva contraseña debe tener al menos 8 caracteres para garantizar la seguridad.'
-      });
-    }
-
-    const userId = req.user.id;
-    const userResult = await db.query(`SELECT id, password_hash FROM users WHERE id = $1`, [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
-    }
-
-    const user = userResult.rows[0];
-    if (!user.password_hash) {
-      return res.status(400).json({ success: false, error: 'El usuario no posee contraseña previa configurada' });
-    }
-
-    const match = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!match) {
-      return res.status(400).json({ success: false, error: 'La contraseña actual no coincide' });
-    }
-
-    const newHash = await bcrypt.hash(newPassword, 12);
-    await db.query(`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`, [newHash, userId]);
-
-    return res.json({ success: true, message: 'Contraseña actualizada correctamente en PostgreSQL' });
-  } catch (error) {
-    return res.status(500).json({ success: false, error: 'Error al actualizar contraseña: ' + error.message });
-  }
-};
-
-module.exports = { loginWithCard, logout, login, me, changePassword };
+module.exports = { loginWithCard, logout, me };
