@@ -17,13 +17,18 @@ const getJwtSecret = () => {
 
 /**
  * Limiter general de peticiones a la API:
- * Máximo 300 peticiones por ventana de 15 minutos por IP.
+ * Protege contra abusos masivos, pero excluye endpoints de polling continuo
+ * (/health y /access/latest) para no cortar las verificaciones de estado ni la lectura en vivo de tarjetas.
  */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 6000,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    const url = req.originalUrl || req.url || '';
+    return url.includes('/health') || url.includes('/access/latest');
+  },
   message: {
     success: false,
     error: 'Tasa de solicitudes excedida. Por motivos de ciberseguridad, intente de nuevo en unos minutos.'
