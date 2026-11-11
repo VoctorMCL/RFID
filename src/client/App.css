@@ -1104,30 +1104,30 @@ input, select, textarea {
   }
 
   .login-hero-logo {
-    max-width: 320px !important;
-    max-height: 320px !important;
+    max-width: 440px !important;
+    max-height: 440px !important;
   }
 
   .radar-hero-wrapper {
-    width: clamp(220px, 38vh, 320px) !important;
-    height: clamp(220px, 38vh, 320px) !important;
+    width: clamp(280px, 45vh, 420px) !important;
+    height: clamp(280px, 45vh, 420px) !important;
     margin-bottom: 12px !important;
   }
 
   .login-scan-pad {
-    width: clamp(200px, 34vh, 300px) !important;
-    height: clamp(200px, 34vh, 300px) !important;
-    margin-bottom: 12px !important;
+    width: clamp(260px, 43vh, 400px) !important;
+    height: clamp(260px, 43vh, 400px) !important;
+    margin-bottom: 14px !important;
   }
 
   .login-scan-core {
-    width: clamp(130px, 22vh, 190px) !important;
-    height: clamp(130px, 22vh, 190px) !important;
+    width: clamp(165px, 27vh, 260px) !important;
+    height: clamp(165px, 27vh, 260px) !important;
   }
 
   .login-status-title {
-    font-size: clamp(24px, 3.8vh, 32px) !important;
-    margin-bottom: 6px !important;
+    font-size: clamp(30px, 4.6vh, 42px) !important;
+    margin-bottom: 8px !important;
   }
 }
 

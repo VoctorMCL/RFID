@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 
-export const RadarLogo = ({ size = 28, animated = false, className = '' }) => {
+export const RadarLogo = ({ size = 28, animated = false, className = '', style = {} }) => {
   const rawId = useId();
   const uid = rawId.replace(/[^a-zA-Z0-9]/g, '');
 
@@ -12,7 +12,7 @@ export const RadarLogo = ({ size = 28, animated = false, className = '' }) => {
       height={size}
       fill="none"
       className={className}
-      style={{ display: 'inline-block', flexShrink: 0, verticalAlign: 'middle' }}
+      style={{ display: 'inline-block', flexShrink: 0, verticalAlign: 'middle', ...style }}
     >
       <defs>
         <linearGradient id={`ring_${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
