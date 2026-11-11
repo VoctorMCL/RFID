@@ -1077,8 +1077,8 @@ input, select, textarea {
 .login-hero-logo {
   width: 100%;
   height: 100%;
-  max-width: 320px;
-  max-height: 320px;
+  max-width: 460px;
+  max-height: 460px;
 }
 
 .login-status-chip {
@@ -1100,34 +1100,34 @@ input, select, textarea {
 @media (max-height: 760px) {
   .radar-login-left,
   .radar-login-right {
-    padding: clamp(12px, 1.8vh, 20px) clamp(16px, 2.8vw, 36px);
+    padding: clamp(10px, 1.8vh, 18px) clamp(16px, 2.5vw, 32px);
   }
 
   .login-hero-logo {
-    max-width: 230px !important;
-    max-height: 230px !important;
+    max-width: 320px !important;
+    max-height: 320px !important;
   }
 
   .radar-hero-wrapper {
-    width: clamp(160px, 26vh, 230px) !important;
-    height: clamp(160px, 26vh, 230px) !important;
+    width: clamp(220px, 38vh, 320px) !important;
+    height: clamp(220px, 38vh, 320px) !important;
     margin-bottom: 12px !important;
   }
 
   .login-scan-pad {
-    width: clamp(140px, 22vh, 190px) !important;
-    height: clamp(140px, 22vh, 190px) !important;
+    width: clamp(200px, 34vh, 300px) !important;
+    height: clamp(200px, 34vh, 300px) !important;
     margin-bottom: 12px !important;
   }
 
   .login-scan-core {
-    width: clamp(90px, 15vh, 120px) !important;
-    height: clamp(90px, 15vh, 120px) !important;
+    width: clamp(130px, 22vh, 190px) !important;
+    height: clamp(130px, 22vh, 190px) !important;
   }
 
   .login-status-title {
-    font-size: clamp(18px, 2.8vh, 24px) !important;
-    margin-bottom: 4px !important;
+    font-size: clamp(24px, 3.8vh, 32px) !important;
+    margin-bottom: 6px !important;
   }
 }
 

@@ -699,8 +699,8 @@ export const Login = () => {
                 className="radar-hero-wrapper"
                 style={{
                   position: 'relative',
-                  width: 'clamp(180px, 30vh, 320px)',
-                  height: 'clamp(180px, 30vh, 320px)',
+                  width: 'clamp(240px, 42vh, 440px)',
+                  height: 'clamp(240px, 42vh, 440px)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -709,52 +709,52 @@ export const Login = () => {
               >
                 <div style={{
                   position: 'absolute',
-                  inset: '-12px',
+                  inset: '-16px',
                   borderRadius: '50%',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                  border: '1.5px solid rgba(56, 189, 248, 0.25)',
                   animation: 'pulseHaloGlow 4s ease-in-out infinite'
                 }} />
                 <div style={{
                   position: 'absolute',
-                  inset: '-28px',
+                  inset: '-36px',
                   borderRadius: '50%',
-                  border: '1px dashed rgba(56, 189, 248, 0.12)',
+                  border: '1.5px dashed rgba(56, 189, 248, 0.15)',
                   animation: 'radarSweepSpin 20s linear infinite'
                 }} />
 
-                <RadarLogo size={280} animated className="login-hero-logo" />
+                <RadarLogo size={420} animated className="login-hero-logo" />
               </div>
 
               <div className="login-status-chips" style={{
                 display: 'flex',
-                gap: '10px',
+                gap: '12px',
                 flexWrap: 'wrap',
                 justifyContent: 'center'
               }}>
                 <div className="login-status-chip" style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
                   backgroundColor: databaseKnown && databaseOnline
-                    ? 'rgba(16, 185, 129, 0.12)'
+                    ? 'rgba(16, 185, 129, 0.14)'
                     : databaseKnown
-                    ? 'rgba(239, 68, 68, 0.12)'
+                    ? 'rgba(239, 68, 68, 0.14)'
                     : 'rgba(15, 23, 42, 0.7)',
                   border: `1px solid ${
                     databaseKnown && databaseOnline
-                      ? 'rgba(16, 185, 129, 0.4)'
+                      ? 'rgba(16, 185, 129, 0.45)'
                       : databaseKnown
-                      ? 'rgba(239, 68, 68, 0.4)'
+                      ? 'rgba(239, 68, 68, 0.45)'
                       : 'rgba(148, 163, 184, 0.25)'
                   }`,
-                  fontSize: '12.5px',
+                  fontSize: '14px',
                   color: '#94a3b8',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '10px'
                 }}>
                   <span style={{
-                    width: '8px',
-                    height: '8px',
+                    width: '10px',
+                    height: '10px',
                     borderRadius: '50%',
                     backgroundColor: databaseKnown && databaseOnline ? '#10b981' : databaseKnown ? '#ef4444' : '#64748b',
                     boxShadow: databaseKnown && databaseOnline
@@ -772,29 +772,29 @@ export const Login = () => {
                 </div>
 
                 <div className="login-status-chip" style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  borderRadius: '10px',
                   backgroundColor: readerKnown && readerOnline
-                    ? 'rgba(16, 185, 129, 0.12)'
+                    ? 'rgba(16, 185, 129, 0.14)'
                     : readerKnown
-                    ? 'rgba(239, 68, 68, 0.12)'
+                    ? 'rgba(239, 68, 68, 0.14)'
                     : 'rgba(15, 23, 42, 0.7)',
                   border: `1px solid ${
                     readerKnown && readerOnline
-                      ? 'rgba(16, 185, 129, 0.4)'
+                      ? 'rgba(16, 185, 129, 0.45)'
                       : readerKnown
-                      ? 'rgba(239, 68, 68, 0.4)'
+                      ? 'rgba(239, 68, 68, 0.45)'
                       : 'rgba(148, 163, 184, 0.25)'
                   }`,
-                  fontSize: '12.5px',
+                  fontSize: '14px',
                   color: '#94a3b8',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '10px'
                 }}>
                   <span style={{
-                    width: '8px',
-                    height: '8px',
+                    width: '10px',
+                    height: '10px',
                     borderRadius: '50%',
                     backgroundColor: readerKnown && readerOnline ? '#10b981' : readerKnown ? '#ef4444' : '#64748b',
                     boxShadow: readerKnown && readerOnline
@@ -817,21 +817,22 @@ export const Login = () => {
 
         <div style={{ position: 'relative', zIndex: 20 }}>
           <h1 style={{
-            fontSize: 'clamp(32px, 3vw, 44px)',
+            fontSize: 'clamp(36px, 5.2vh, 52px)',
             fontWeight: 900,
-            letterSpacing: '0.5px',
+            letterSpacing: '0.8px',
             color: '#38bdf8',
-            margin: '0 0 4px',
-            textShadow: '0 0 25px rgba(56, 189, 248, 0.35)'
+            margin: '0 0 6px',
+            textShadow: '0 0 25px rgba(56, 189, 248, 0.4)'
           }}>
             RADAR
           </h1>
           <p style={{
-            fontSize: 'clamp(14px, 1.15vw, 16px)',
+            fontSize: 'clamp(14.5px, 2vh, 18px)',
             fontWeight: 500,
             color: '#cbd5e1',
             margin: 0,
-            maxWidth: '520px'
+            maxWidth: '560px',
+            lineHeight: 1.45
           }}>
             Sistema Institucional de Control de Acceso y Gestión de Espacios Físicos.
           </p>
@@ -928,78 +929,78 @@ export const Login = () => {
 
             <div className="login-scan-pad" style={{
               position: 'relative',
-              width: 'clamp(150px, 24vh, 240px)',
-              height: 'clamp(150px, 24vh, 240px)',
+              width: 'clamp(220px, 36vh, 380px)',
+              height: 'clamp(220px, 36vh, 380px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 'clamp(14px, 2vh, 22px)'
+              marginBottom: 'clamp(16px, 2.5vh, 28px)'
             }}>
               <div style={{
                 position: 'absolute',
                 inset: 0,
                 borderRadius: '50%',
-                border: `2px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
+                border: `2.5px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.4)' : status === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(56, 189, 248, 0.4)'}`,
                 animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
               }} />
               <div style={{
                 position: 'absolute',
-                inset: '-12px',
+                inset: '-16px',
                 borderRadius: '50%',
-                border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
+                border: `1.5px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.3)' : status === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.25)'}`,
                 animation: 'radarSweepSpin 12s linear infinite'
               }} />
 
               <div className="login-scan-core" style={{
-                width: 'clamp(96px, 15vh, 150px)',
-                height: 'clamp(96px, 15vh, 150px)',
+                width: 'clamp(140px, 22vh, 240px)',
+                height: 'clamp(140px, 22vh, 240px)',
                 borderRadius: '50%',
                 backgroundColor: status === 'error'
                   ? 'rgba(239, 68, 68, 0.15)'
                   : status === 'success'
                   ? 'rgba(16, 185, 129, 0.2)'
                   : 'rgba(15, 23, 42, 0.85)',
-                border: `2.5px solid ${
+                border: `3px solid ${
                   status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
                 }`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: status === 'error'
-                  ? '0 0 30px rgba(239, 68, 68, 0.4)'
+                  ? '0 0 35px rgba(239, 68, 68, 0.45)'
                   : status === 'success'
-                  ? '0 0 35px rgba(16, 185, 129, 0.45)'
-                  : '0 0 30px rgba(56, 189, 248, 0.3)',
+                  ? '0 0 45px rgba(16, 185, 129, 0.5)'
+                  : '0 0 35px rgba(56, 189, 248, 0.35)',
                 transition: 'all 0.3s ease'
               }}>
                 {status === 'scanning' ? (
-                  <Loader2 size={46} className="spinner" style={{ color: '#38bdf8' }} />
+                  <Loader2 size={68} className="spinner" style={{ color: '#38bdf8' }} />
                 ) : status === 'success' ? (
-                  <CheckCircle2 size={50} style={{ color: '#10b981' }} />
+                  <CheckCircle2 size={78} style={{ color: '#10b981' }} />
                 ) : status === 'error' ? (
-                  <XCircle size={50} style={{ color: '#ef4444' }} />
+                  <XCircle size={78} style={{ color: '#ef4444' }} />
                 ) : (
-                  <CreditCard size={48} style={{ color: '#38bdf8' }} />
+                  <CreditCard size={74} style={{ color: '#38bdf8' }} />
                 )}
               </div>
             </div>
 
             <h2 className="login-status-title" style={{
-              fontSize: 'clamp(20px, 3vh, 32px)',
+              fontSize: 'clamp(26px, 4.2vh, 42px)',
               fontWeight: 800,
               lineHeight: 1.18,
               color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-              margin: '0 auto clamp(6px, 1vh, 10px)',
-              maxWidth: '560px',
+              margin: '0 auto clamp(8px, 1.2vh, 14px)',
+              maxWidth: '620px',
               textWrap: 'balance'
             }}>
               {statusMessage}
             </h2>
 
             <p style={{
-              fontSize: '14.5px',
+              fontSize: 'clamp(15px, 2.2vh, 19px)',
               color: '#94a3b8',
-              maxWidth: '430px',
+              maxWidth: '520px',
               margin: '0 auto 18px',
               lineHeight: 1.55
             }}>
