@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { apiClient } from '../../api/client';
-import { Cpu, Menu } from 'lucide-react';
+import { Cpu, Menu, Maximize2, Minimize2 } from 'lucide-react';
 
 const routeTitles = {
   '/dashboard': 'Panel Principal de Telemetría (Grafana)',
@@ -18,6 +18,25 @@ const routeTitles = {
 export const Topbar = ({ isCollapsed, onToggleSidebar }) => {
   const location = useLocation();
   const [isSensorActive, setIsSensorActive] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
 
   const lastActivityRef = React.useRef(0);
 
@@ -124,6 +143,16 @@ export const Topbar = ({ isCollapsed, onToggleSidebar }) => {
             {isSensorActive ? 'Lector activo' : 'Lector desconectado'}
           </span>
         </div>
+
+        <button
+          onClick={toggleFullscreen}
+          className="topbar-sidebar-toggle"
+          title={isFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla entera (Kiosco / Fullscreen)'}
+          aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla entera'}
+          style={{ width: '34px', height: '34px' }}
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
       </div>
     </header>
   );

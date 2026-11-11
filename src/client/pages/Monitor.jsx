@@ -476,7 +476,7 @@ export const Monitor = () => {
   };
 
   return (
-    <div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', minHeight: 0 }}>
       <div className="page-header" style={{ marginBottom: '20px' }}>
         <div>
           <h1 className="page-title" style={{ fontSize: '20px', fontWeight: 800 }}>
@@ -500,7 +500,7 @@ export const Monitor = () => {
 
       <div className="monitor-grid">
 
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{
@@ -551,6 +551,7 @@ export const Monitor = () => {
               borderRadius: 'var(--radius-lg)',
               padding: '36px',
               minHeight: '440px',
+              flex: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -802,7 +803,7 @@ export const Monitor = () => {
           </div>
         </div>
 
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '680px' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '480px' }}>
           <div className="card-header">
             <div className="card-title">
               <Clock size={18} />
