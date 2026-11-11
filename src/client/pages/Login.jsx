@@ -34,7 +34,6 @@ export const Login = () => {
   const [authorizedUser, setAuthorizedUser] = useState(null);
   const [entryTimestamp, setEntryTimestamp] = useState(null);
 
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -64,11 +63,6 @@ export const Login = () => {
   const audioCtxRef = useRef(null);
   const wedgeBufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -448,9 +442,6 @@ export const Login = () => {
                   v1.0
                 </span>
               </div>
-              <div style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 500 }}>
-                Control de Acceso y Gestión de Espacios
-              </div>
             </div>
           </div>
 
@@ -496,29 +487,6 @@ export const Login = () => {
             >
               {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
             </button>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '9px',
-              padding: '8px 18px',
-              borderRadius: '24px',
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              border: '1.5px solid rgba(56, 189, 248, 0.3)',
-              fontSize: '14.5px',
-              fontWeight: 600,
-              fontFamily: 'var(--font-mono)',
-              color: '#38bdf8'
-            }}>
-              <span style={{
-                width: '9px',
-                height: '9px',
-                borderRadius: '50%',
-                backgroundColor: '#10b981',
-                boxShadow: '0 0 10px #10b981'
-              }} />
-              <span>{currentTime.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
-            </div>
           </div>
         </div>
 
@@ -820,7 +788,7 @@ export const Login = () => {
 
         <div style={{ position: 'relative', zIndex: 20 }}>
           <h1 style={{
-            fontSize: 'clamp(36px, 5.2vh, 52px)',
+            fontSize: 'clamp(38px, 5.5vh, 56px)',
             fontWeight: 900,
             letterSpacing: '0.8px',
             color: '#38bdf8',
@@ -830,14 +798,15 @@ export const Login = () => {
             RADAR
           </h1>
           <p style={{
-            fontSize: 'clamp(14.5px, 2vh, 18px)',
+            fontSize: 'clamp(16px, 2.3vh, 20px)',
             fontWeight: 500,
             color: '#cbd5e1',
+            letterSpacing: '0.4px',
             margin: 0,
             maxWidth: '560px',
             lineHeight: 1.45
           }}>
-            Sistema Institucional de Control de Acceso y Gestión de Espacios Físicos.
+            Radio Detection and Ranging
           </p>
         </div>
       </div>
@@ -1047,7 +1016,7 @@ export const Login = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Lock size={15} style={{ color: '#38bdf8' }} />
-              <span>Sistema de Control de Acceso</span>
+              <span>Radio Detection and Ranging</span>
             </div>
             <span style={{ fontWeight: 600 }}>RADAR v1.0</span>
           </div>
