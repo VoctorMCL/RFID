@@ -16,7 +16,9 @@ import {
   Volume2,
   VolumeX,
   ShieldCheck,
-  X
+  X,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 const LOGIN_REDIRECT_DELAY_MS = 2600;
@@ -34,6 +36,25 @@ export const Login = () => {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  };
 
   const [health, setHealth] = useState({ database: null, reader: null });
 
@@ -435,6 +456,27 @@ export const Login = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla entera (Kiosco / Fullscreen)'}
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                border: `1px solid ${isFullscreen ? 'rgba(56, 189, 248, 0.5)' : 'rgba(148, 163, 184, 0.25)'}`,
+                color: isFullscreen ? '#38bdf8' : '#94a3b8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: isFullscreen ? '0 0 12px rgba(56, 189, 248, 0.35)' : 'none'
+              }}
+            >
+              {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            </button>
+
+            <button
               onClick={toggleSound}
               title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
               style={{
@@ -653,31 +695,34 @@ export const Login = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div style={{
-                position: 'relative',
-                width: 'clamp(260px, 28vw, 360px)',
-                height: 'clamp(260px, 28vw, 360px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '28px'
-              }}>
+              <div
+                className="radar-hero-wrapper"
+                style={{
+                  position: 'relative',
+                  width: 'clamp(180px, 30vh, 320px)',
+                  height: 'clamp(180px, 30vh, 320px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 'clamp(14px, 2.5vh, 26px)'
+                }}
+              >
                 <div style={{
                   position: 'absolute',
-                  inset: '-16px',
+                  inset: '-12px',
                   borderRadius: '50%',
                   border: '1px solid rgba(56, 189, 248, 0.2)',
                   animation: 'pulseHaloGlow 4s ease-in-out infinite'
                 }} />
                 <div style={{
                   position: 'absolute',
-                  inset: '-36px',
+                  inset: '-28px',
                   borderRadius: '50%',
                   border: '1px dashed rgba(56, 189, 248, 0.12)',
                   animation: 'radarSweepSpin 20s linear infinite'
                 }} />
 
-                <RadarLogo size={300} animated className="login-hero-logo" />
+                <RadarLogo size={280} animated className="login-hero-logo" />
               </div>
 
               <div className="login-status-chips" style={{
@@ -883,12 +928,12 @@ export const Login = () => {
 
             <div className="login-scan-pad" style={{
               position: 'relative',
-              width: 'clamp(210px, 20vw, 260px)',
-              height: 'clamp(210px, 20vw, 260px)',
+              width: 'clamp(150px, 24vh, 240px)',
+              height: 'clamp(150px, 24vh, 240px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: '26px'
+              marginBottom: 'clamp(14px, 2vh, 22px)'
             }}>
               <div style={{
                 position: 'absolute',
@@ -899,15 +944,15 @@ export const Login = () => {
               }} />
               <div style={{
                 position: 'absolute',
-                inset: '-14px',
+                inset: '-12px',
                 borderRadius: '50%',
                 border: `1px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.25)' : status === 'success' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.2)'}`,
                 animation: 'radarSweepSpin 12s linear infinite'
               }} />
 
               <div className="login-scan-core" style={{
-                width: 'clamp(136px, 13vw, 168px)',
-                height: 'clamp(136px, 13vw, 168px)',
+                width: 'clamp(96px, 15vh, 150px)',
+                height: 'clamp(96px, 15vh, 150px)',
                 borderRadius: '50%',
                 backgroundColor: status === 'error'
                   ? 'rgba(239, 68, 68, 0.15)'
@@ -928,23 +973,23 @@ export const Login = () => {
                 transition: 'all 0.3s ease'
               }}>
                 {status === 'scanning' ? (
-                  <Loader2 size={54} className="spinner" style={{ color: '#38bdf8' }} />
+                  <Loader2 size={46} className="spinner" style={{ color: '#38bdf8' }} />
                 ) : status === 'success' ? (
-                  <CheckCircle2 size={60} style={{ color: '#10b981' }} />
+                  <CheckCircle2 size={50} style={{ color: '#10b981' }} />
                 ) : status === 'error' ? (
-                  <XCircle size={60} style={{ color: '#ef4444' }} />
+                  <XCircle size={50} style={{ color: '#ef4444' }} />
                 ) : (
-                  <CreditCard size={58} style={{ color: '#38bdf8' }} />
+                  <CreditCard size={48} style={{ color: '#38bdf8' }} />
                 )}
               </div>
             </div>
 
             <h2 className="login-status-title" style={{
-              fontSize: 'clamp(26px, 2.4vw, 36px)',
+              fontSize: 'clamp(20px, 3vh, 32px)',
               fontWeight: 800,
               lineHeight: 1.18,
               color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-              margin: '0 auto 10px',
+              margin: '0 auto clamp(6px, 1vh, 10px)',
               maxWidth: '560px',
               textWrap: 'balance'
             }}>
