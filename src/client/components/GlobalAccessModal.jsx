@@ -279,7 +279,7 @@ export const GlobalAccessModal = () => {
     let inFlight = false;
 
     const poll = async () => {
-      if (inFlight || cancelled) return;
+      if (inFlight || cancelled || (typeof document !== 'undefined' && document.hidden)) return;
       inFlight = true;
 
       try {
@@ -317,7 +317,7 @@ export const GlobalAccessModal = () => {
       }
     };
 
-    const interval = setInterval(poll, 280);
+    const interval = setInterval(poll, 1500);
     poll();
 
     return () => {

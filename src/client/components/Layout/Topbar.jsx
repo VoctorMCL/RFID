@@ -59,7 +59,10 @@ export const Topbar = ({ isCollapsed, onToggleSidebar }) => {
     };
 
     checkSensorStatus();
-    const interval = setInterval(checkSensorStatus, 3500);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      checkSensorStatus();
+    }, 8000);
     return () => {
       isMounted = false;
       clearInterval(interval);

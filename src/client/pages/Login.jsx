@@ -68,7 +68,10 @@ export const Login = () => {
     };
 
     checkHealth();
-    const interval = setInterval(checkHealth, 5000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      checkHealth();
+    }, 10000);
 
     return () => {
       isMounted = false;
@@ -281,7 +284,7 @@ export const Login = () => {
 
   useEffect(() => {
     const pollInterval = setInterval(async () => {
-      if (isProcessingRef.current) return;
+      if (isProcessingRef.current || (typeof document !== 'undefined' && document.hidden)) return;
 
       try {
         const res = await apiClient('/access/latest');
@@ -296,7 +299,7 @@ export const Login = () => {
           }
         }
       } catch (e) {}
-    }, 280);
+    }, 1500);
 
     return () => clearInterval(pollInterval);
   }, [handleCardAuthentication]);

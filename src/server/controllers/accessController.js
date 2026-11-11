@@ -3,6 +3,8 @@ const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
 
 let latestScanEvent = null;
+let cachedLatestScanResult = null;
+let cachedLatestScanTime = 0;
 
 const buildCardUser = (card) => ({
   id: card.user_id,
@@ -274,6 +276,9 @@ const validateAccess = async (req, res) => {
       alarm: alarmDetails
     };
 
+    cachedLatestScanResult = latestScanEvent;
+    cachedLatestScanTime = Date.now();
+
     wsService.broadcast('hardware_heartbeat', {
       doorId: door.id,
       doorName: door.name,
@@ -479,6 +484,11 @@ const getLatestScan = async (req, res) => {
       return res.json({ success: true, data: latestScanEvent });
     }
 
+    const now = Date.now();
+    if (cachedLatestScanResult && (now - cachedLatestScanTime) < 1500) {
+      return res.json({ success: true, data: cachedLatestScanResult });
+    }
+
     const lastLogQuery = await db.query(
       `SELECT l.*,
               (u.first_name || ' ' || u.last_name) as user_name,
@@ -517,34 +527,39 @@ const getLatestScan = async (req, res) => {
     }
 
     const last = lastLogQuery.rows[0];
+    const payload = {
+      id: last.id,
+      logId: last.id,
+      granted: last.granted,
+      denial_reason: last.denial_reason,
+      timestamp: last.timestamp,
+      uid: last.rfid_uid_raw,
+      user: last.user_name ? {
+        first_name: last.first_name,
+        last_name: last.last_name,
+        name: last.user_name,
+        document_id: last.document_id,
+        program: last.program,
+        role: last.role_name,
+        photo_url: last.photo_url
+      } : (last.visitor_name ? buildVisitorUser({
+        id: last.visitor_pass_id,
+        name: last.visitor_name,
+        documentId: last.visitor_document,
+        destination: last.visitor_destination,
+        personType: last.visitor_person_type
+      }) : null),
+      door: { id: last.door_id, name: last.door_name, status: last.door_status },
+      room: { name: last.room_name, block_name: last.block_name },
+      alarm_triggered: !last.granted && last.room_has_alarm
+    };
+
+    cachedLatestScanResult = payload;
+    cachedLatestScanTime = Date.now();
+
     return res.json({
       success: true,
-      data: {
-        id: last.id,
-        logId: last.id,
-        granted: last.granted,
-        denial_reason: last.denial_reason,
-        timestamp: last.timestamp,
-        uid: last.rfid_uid_raw,
-        user: last.user_name ? {
-          first_name: last.first_name,
-          last_name: last.last_name,
-          name: last.user_name,
-          document_id: last.document_id,
-          program: last.program,
-          role: last.role_name,
-          photo_url: last.photo_url
-        } : (last.visitor_name ? buildVisitorUser({
-          id: last.visitor_pass_id,
-          name: last.visitor_name,
-          documentId: last.visitor_document,
-          destination: last.visitor_destination,
-          personType: last.visitor_person_type
-        }) : null),
-        door: { id: last.door_id, name: last.door_name, status: last.door_status },
-        room: { name: last.room_name, block_name: last.block_name },
-        alarm_triggered: !last.granted && last.room_has_alarm
-      }
+      data: payload
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Error al consultar último escaneo: ' + error.message });

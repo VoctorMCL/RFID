@@ -66,6 +66,7 @@ export const useRfidSensor = ({
       if (cancelled) return;
 
       interval = setInterval(async () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         try {
           const res = await apiClient('/access/latest');
           const scan = res.data;

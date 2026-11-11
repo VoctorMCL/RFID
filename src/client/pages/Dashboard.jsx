@@ -1025,7 +1025,10 @@ export const Dashboard = () => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => loadData(true), 4000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadData(true);
+    }, 8000);
     const sensorTimer = setInterval(() => {
       const isRecent = (Date.now() - lastHardwareActivityRef.current) < 90000;
       const isDbActive = doors.some(d => d.is_hardware_active) || stats.activeSensors > 0;

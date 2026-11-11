@@ -307,7 +307,7 @@ export const Monitor = () => {
     };
 
     const poll = async () => {
-      if (inFlight || cancelled) return;
+      if (inFlight || cancelled || (typeof document !== 'undefined' && document.hidden)) return;
       inFlight = true;
 
       try {
@@ -329,41 +329,16 @@ export const Monitor = () => {
               return;
             }
           }
+          return;
         }
 
-        const res = await apiClient('/access/logs?limit=1');
-        if (cancelled) return;
-        if (res.success && res.data && res.data.length > 0) {
-          const latest = res.data[0];
-          if (latest.id) {
-            if (lastSeenLogIdRef.current === null) {
+        if (lastSeenLogIdRef.current === null) {
+          const res = await apiClient('/access/logs?limit=1');
+          if (cancelled) return;
+          if (res.success && res.data && res.data.length > 0) {
+            const latest = res.data[0];
+            if (latest.id) {
               lastSeenLogIdRef.current = latest.id;
-            } else if (isNewerLog(latest.id)) {
-              lastSeenLogIdRef.current = latest.id;
-              const logTime = new Date(latest.timestamp).getTime();
-              if (Date.now() - logTime < 90000) {
-                if (latest.door_id) {
-                  setHardwareSensors(prev => ({ ...prev, [latest.door_id]: true }));
-                }
-                handleScanResult({
-                  id: latest.id,
-                  logId: latest.id,
-                  granted: latest.granted,
-                  denial_reason: latest.denial_reason,
-                  timestamp: latest.timestamp,
-                  uid: latest.rfid_uid_raw,
-                  user: latest.user_name && latest.user_name !== 'Desconocido' ? {
-                    first_name: latest.user_name.split(' ')[0] || '',
-                    last_name: latest.user_name.split(' ').slice(1).join(' ') || '',
-                    document_id: latest.user_document,
-                    program: latest.user_program || '',
-                    role: latest.role_name || ''
-                  } : null,
-                  door: { id: latest.door_id, name: latest.door_name },
-                  room: { id: latest.room_id, name: latest.room_name },
-                  alarm_triggered: !latest.granted && latest.room_has_alarm
-                });
-              }
             }
           }
         }
@@ -374,7 +349,7 @@ export const Monitor = () => {
     };
 
     poll();
-    const interval = setInterval(poll, 280);
+    const interval = setInterval(poll, 1500);
 
     return () => {
       cancelled = true;
@@ -404,24 +379,16 @@ export const Monitor = () => {
             return next;
           });
         }
-
-        try {
-          const latestRes = await apiClient('/access/latest');
-          if (!isMounted) return;
-          if (latestRes.success && latestRes.data && latestRes.data.door?.id) {
-            const scanTime = new Date(latestRes.data.timestamp).getTime();
-            if (Date.now() - scanTime < 90000) {
-              setHardwareSensors(prev => ({ ...prev, [latestRes.data.door.id]: true }));
-            }
-          }
-        } catch (e) {}
       } catch (err) {
         console.error('Error cargando puertas:', err);
       }
     };
 
     fetchDoorsAndStatus();
-    const interval = setInterval(fetchDoorsAndStatus, 3000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchDoorsAndStatus();
+    }, 6000);
 
     return () => {
       isMounted = false;

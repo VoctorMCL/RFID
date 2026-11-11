@@ -129,6 +129,7 @@ export const RFIDCards = () => {
     if (!isPassModalOpen) return;
 
     const interval = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         const res = await apiClient('/access/latest');
         if (res.success && res.data?.uid) {
