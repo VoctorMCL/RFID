@@ -36,6 +36,13 @@ export const Layout = () => {
   return (
     <div className={`app-layout ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar isCollapsed={isCollapsed} onToggle={handleToggle} />
+      {!isCollapsed && (
+        <div
+          className="sidebar-backdrop"
+          onClick={handleToggle}
+          aria-hidden="true"
+        />
+      )}
       <div className="main-content" style={{ minWidth: 0 }}>
         <Topbar isCollapsed={isCollapsed} onToggleSidebar={handleToggle} />
         <main className="page-container">

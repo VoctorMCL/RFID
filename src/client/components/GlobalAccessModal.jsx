@@ -424,9 +424,10 @@ export const GlobalAccessModal = () => {
         style={{
           width: '100%',
           maxWidth: '560px',
+          maxHeight: '92vh',
+          overflowY: 'auto',
           backgroundColor: 'var(--bg-card, #ffffff)',
           borderRadius: '16px',
-          overflow: 'hidden',
           boxShadow: granted
             ? '0 25px 60px -15px rgba(16, 185, 129, 0.4), 0 0 0 1px rgba(16, 185, 129, 0.25)'
             : '0 25px 60px -15px rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239, 68, 68, 0.25)',
@@ -703,9 +704,8 @@ export const GlobalAccessModal = () => {
           )}
 
           <div
+            className="form-row-2col"
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
               gap: '10px',
               fontSize: '12px'
             }}

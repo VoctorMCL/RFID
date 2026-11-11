@@ -531,7 +531,7 @@ export const Monitor = () => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+      <div className="monitor-grid">
 
         <div>
           <div className="card" style={{ marginBottom: '16px' }}>
@@ -685,15 +685,15 @@ export const Monitor = () => {
                   Documento: {lastScan.user?.document_id} · {lastScan.user?.program || 'Sin programa'}
                 </div>
 
-                <div style={{
-                  marginTop: '20px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid var(--border)',
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                  textAlign: 'left'
-                }}>
+                <div
+                  className="scanner-details-grid"
+                  style={{
+                    marginTop: '20px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid var(--border)',
+                    textAlign: 'left'
+                  }}
+                >
                   <div style={{ backgroundColor: 'var(--bg-tertiary)', padding: '10px 14px', borderRadius: 'var(--radius-sm)' }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Punto de acceso</div>
                     <div style={{ fontSize: '13px', fontWeight: 600 }}>{selectedDoor?.name || lastScan.door?.name}</div>

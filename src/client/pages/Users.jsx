@@ -233,7 +233,7 @@ export const Users = () => {
       </div>
 
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '14px' }}>
+        <div className="users-filter-bar">
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -339,7 +339,7 @@ export const Users = () => {
         title={editingUser ? `Editar Usuario: ${editingUser.first_name}` : 'Registrar Nuevo Usuario'}
       >
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Nombre(s)</label>
               <input
@@ -364,7 +364,7 @@ export const Users = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+          <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Correo Institucional</label>
               <input
@@ -389,7 +389,7 @@ export const Users = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: showAcademicField ? '1fr 1fr' : '1fr', gap: '12px' }}>
+          <div className={showAcademicField ? 'form-row-2col' : ''}>
             <div className="form-group">
               <label className="form-label">Rol Institucional</label>
               <select

@@ -400,13 +400,7 @@ export const RFIDCards = () => {
         </div>
       </div>
 
-      <div style={{
-        display: 'flex',
-        gap: '8px',
-        borderBottom: '1px solid var(--border)',
-        marginBottom: '20px',
-        paddingBottom: '2px'
-      }}>
+      <div className="tabs-nav-scroll">
         <button
           onClick={() => setActiveTab('active_passes')}
           style={{
@@ -833,7 +827,7 @@ export const RFIDCards = () => {
               Paso 2: Información de Seguridad y Motivo de Ingreso
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-row-2col" style={{ gap: '14px', marginBottom: '14px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Tipo de Persona *</label>
                 <select
@@ -867,7 +861,7 @@ export const RFIDCards = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-row-2col" style={{ gap: '14px', marginBottom: '14px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Nombre Completo *</label>
                 <input
@@ -893,7 +887,7 @@ export const RFIDCards = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+            <div className="form-row-2col" style={{ gap: '14px', marginBottom: '14px' }}>
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label">Teléfono de Contacto</label>
                 <input
@@ -1107,7 +1101,7 @@ export const RFIDCards = () => {
               </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-row-2col">
               <div className="form-group">
                 <label className="form-label">Tipo de Tarjeta</label>
                 <select

@@ -695,7 +695,6 @@ const GrafanaTopRooms = ({ rooms, isLight = false }) => {
 
 const DEFAULT_LAYOUTS = {
   lg: [
-
     { i: 'panel_total_stat', x: 0, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_denied_stat', x: 3, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
     { i: 'panel_campus_stat', x: 6, y: 0, w: 3, h: 3, minW: 2, minH: 3 },
@@ -715,13 +714,121 @@ const DEFAULT_LAYOUTS = {
     { i: 'panel_security_funnel', x: 4, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
     { i: 'panel_hardware_health', x: 8, y: 26, w: 4, h: 8, minW: 3, minH: 6 },
 
-    { i: 'panel_heatmap', x: 0, y: 34, w: 7, h: 8, minW: 5, minH: 5 },
+    { i: 'panel_heatmap', x: 0, y: 34, w: 7, h: 8, minW: 4, minH: 5 },
     { i: 'panel_top_rooms', x: 7, y: 34, w: 5, h: 8, minW: 3, minH: 5 },
 
     { i: 'panel_top_doors', x: 0, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
     { i: 'panel_roles_donut', x: 6, y: 42, w: 6, h: 8, minW: 3, minH: 5 },
 
-    { i: 'panel_loki_table', x: 0, y: 50, w: 12, h: 10, minW: 6, minH: 6 }
+    { i: 'panel_loki_table', x: 0, y: 50, w: 12, h: 10, minW: 4, minH: 6 }
+  ],
+  md: [
+    { i: 'panel_total_stat', x: 0, y: 0, w: 5, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_denied_stat', x: 5, y: 0, w: 5, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_campus_stat', x: 0, y: 3, w: 5, h: 3, minW: 2, minH: 3 },
+    { i: 'panel_stay_stat', x: 5, y: 3, w: 5, h: 3, minW: 2, minH: 3 },
+
+    { i: 'panel_radial_gauge', x: 0, y: 6, w: 4, h: 7, minW: 2, minH: 5 },
+    { i: 'panel_timeseries', x: 4, y: 6, w: 6, h: 7, minW: 3, minH: 6 },
+
+    { i: 'panel_weekly_stacked', x: 0, y: 13, w: 5, h: 8, minW: 3, minH: 6 },
+    { i: 'panel_today_vs_yesterday', x: 5, y: 13, w: 5, h: 8, minW: 3, minH: 6 },
+
+    { i: 'panel_bar_gauge', x: 0, y: 21, w: 5, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_blocks_donut', x: 5, y: 21, w: 5, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_spaces_donut', x: 0, y: 29, w: 5, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_denial_pareto', x: 5, y: 29, w: 5, h: 8, minW: 2, minH: 6 },
+
+    { i: 'panel_security_funnel', x: 0, y: 37, w: 5, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_hardware_health', x: 5, y: 37, w: 5, h: 8, minW: 2, minH: 6 },
+
+    { i: 'panel_heatmap', x: 0, y: 45, w: 10, h: 8, minW: 3, minH: 5 },
+    { i: 'panel_top_rooms', x: 0, y: 53, w: 5, h: 8, minW: 2, minH: 5 },
+    { i: 'panel_top_doors', x: 5, y: 53, w: 5, h: 8, minW: 2, minH: 5 },
+
+    { i: 'panel_roles_donut', x: 0, y: 61, w: 10, h: 8, minW: 3, minH: 5 },
+    { i: 'panel_loki_table', x: 0, y: 69, w: 10, h: 10, minW: 3, minH: 6 }
+  ],
+  sm: [
+    { i: 'panel_total_stat', x: 0, y: 0, w: 3, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_denied_stat', x: 3, y: 0, w: 3, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_campus_stat', x: 0, y: 3, w: 3, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_stay_stat', x: 3, y: 3, w: 3, h: 3, minW: 1, minH: 3 },
+
+    { i: 'panel_radial_gauge', x: 0, y: 6, w: 6, h: 7, minW: 2, minH: 5 },
+    { i: 'panel_timeseries', x: 0, y: 13, w: 6, h: 7, minW: 2, minH: 6 },
+
+    { i: 'panel_weekly_stacked', x: 0, y: 20, w: 6, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_today_vs_yesterday', x: 0, y: 28, w: 6, h: 8, minW: 2, minH: 6 },
+
+    { i: 'panel_bar_gauge', x: 0, y: 36, w: 6, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_blocks_donut', x: 0, y: 44, w: 6, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_spaces_donut', x: 0, y: 52, w: 6, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_denial_pareto', x: 0, y: 60, w: 6, h: 8, minW: 2, minH: 6 },
+
+    { i: 'panel_security_funnel', x: 0, y: 68, w: 6, h: 8, minW: 2, minH: 6 },
+    { i: 'panel_hardware_health', x: 0, y: 76, w: 6, h: 8, minW: 2, minH: 6 },
+
+    { i: 'panel_heatmap', x: 0, y: 84, w: 6, h: 8, minW: 2, minH: 5 },
+    { i: 'panel_top_rooms', x: 0, y: 92, w: 6, h: 8, minW: 2, minH: 5 },
+    { i: 'panel_top_doors', x: 0, y: 100, w: 6, h: 8, minW: 2, minH: 5 },
+
+    { i: 'panel_roles_donut', x: 0, y: 108, w: 6, h: 8, minW: 2, minH: 5 },
+    { i: 'panel_loki_table', x: 0, y: 116, w: 6, h: 10, minW: 2, minH: 6 }
+  ],
+  xs: [
+    { i: 'panel_total_stat', x: 0, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_denied_stat', x: 2, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_campus_stat', x: 0, y: 3, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_stay_stat', x: 2, y: 3, w: 2, h: 3, minW: 1, minH: 3 },
+
+    { i: 'panel_radial_gauge', x: 0, y: 6, w: 4, h: 7, minW: 1, minH: 5 },
+    { i: 'panel_timeseries', x: 0, y: 13, w: 4, h: 7, minW: 1, minH: 6 },
+
+    { i: 'panel_weekly_stacked', x: 0, y: 20, w: 4, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_today_vs_yesterday', x: 0, y: 28, w: 4, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_bar_gauge', x: 0, y: 36, w: 4, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_blocks_donut', x: 0, y: 44, w: 4, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_spaces_donut', x: 0, y: 52, w: 4, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_denial_pareto', x: 0, y: 60, w: 4, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_security_funnel', x: 0, y: 68, w: 4, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_hardware_health', x: 0, y: 76, w: 4, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_heatmap', x: 0, y: 84, w: 4, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_top_rooms', x: 0, y: 92, w: 4, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_top_doors', x: 0, y: 100, w: 4, h: 8, minW: 1, minH: 5 },
+
+    { i: 'panel_roles_donut', x: 0, y: 108, w: 4, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_loki_table', x: 0, y: 116, w: 4, h: 10, minW: 1, minH: 6 }
+  ],
+  xxs: [
+    { i: 'panel_total_stat', x: 0, y: 0, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_denied_stat', x: 0, y: 3, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_campus_stat', x: 0, y: 6, w: 2, h: 3, minW: 1, minH: 3 },
+    { i: 'panel_stay_stat', x: 0, y: 9, w: 2, h: 3, minW: 1, minH: 3 },
+
+    { i: 'panel_radial_gauge', x: 0, y: 12, w: 2, h: 7, minW: 1, minH: 5 },
+    { i: 'panel_timeseries', x: 0, y: 19, w: 2, h: 7, minW: 1, minH: 6 },
+
+    { i: 'panel_weekly_stacked', x: 0, y: 26, w: 2, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_today_vs_yesterday', x: 0, y: 34, w: 2, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_bar_gauge', x: 0, y: 42, w: 2, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_blocks_donut', x: 0, y: 50, w: 2, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_spaces_donut', x: 0, y: 58, w: 2, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_denial_pareto', x: 0, y: 66, w: 2, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_security_funnel', x: 0, y: 74, w: 2, h: 8, minW: 1, minH: 6 },
+    { i: 'panel_hardware_health', x: 0, y: 82, w: 2, h: 8, minW: 1, minH: 6 },
+
+    { i: 'panel_heatmap', x: 0, y: 90, w: 2, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_top_rooms', x: 0, y: 98, w: 2, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_top_doors', x: 0, y: 106, w: 2, h: 8, minW: 1, minH: 5 },
+
+    { i: 'panel_roles_donut', x: 0, y: 114, w: 2, h: 8, minW: 1, minH: 5 },
+    { i: 'panel_loki_table', x: 0, y: 122, w: 2, h: 10, minW: 1, minH: 6 }
   ]
 };
 
@@ -782,8 +889,19 @@ export const Dashboard = () => {
 
   const [layouts, setLayouts] = useState(() => {
     try {
-      const saved = localStorage.getItem('grafana_dashboard_layouts_v3');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('grafana_dashboard_layouts_v4');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            lg: parsed.lg || DEFAULT_LAYOUTS.lg,
+            md: parsed.md || DEFAULT_LAYOUTS.md,
+            sm: parsed.sm || DEFAULT_LAYOUTS.sm,
+            xs: parsed.xs || DEFAULT_LAYOUTS.xs,
+            xxs: parsed.xxs || DEFAULT_LAYOUTS.xxs
+          };
+        }
+      }
     } catch (e) {}
     return DEFAULT_LAYOUTS;
   });
@@ -793,13 +911,14 @@ export const Dashboard = () => {
   const handleLayoutChange = (currentLayout, allLayouts) => {
     setLayouts(allLayouts);
     try {
-      localStorage.setItem('grafana_dashboard_layouts_v3', JSON.stringify(allLayouts));
+      localStorage.setItem('grafana_dashboard_layouts_v4', JSON.stringify(allLayouts));
     } catch (e) {}
   };
 
   const resetLayout = () => {
     setLayouts(DEFAULT_LAYOUTS);
     try {
+      localStorage.removeItem('grafana_dashboard_layouts_v4');
       localStorage.removeItem('grafana_dashboard_layouts_v3');
     } catch (e) {}
   };
@@ -1245,7 +1364,7 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      <div ref={containerRef} style={{ width: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'hidden' }}>
         {mounted && (
           <ResponsiveGridLayout
             width={containerWidth}

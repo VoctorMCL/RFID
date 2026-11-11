@@ -132,7 +132,7 @@ export const Schedules = () => {
       </div>
 
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px' }}>
           <div>
             <label className="form-label">Filtrar por persona</label>
             <select
@@ -277,7 +277,7 @@ export const Schedules = () => {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+          <div className="form-row-3col" style={{ gap: '10px' }}>
             <div className="form-group">
               <label className="form-label">Día</label>
               <select
@@ -313,7 +313,7 @@ export const Schedules = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px' }}>
+          <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Materia / Asignatura</label>
               <input

@@ -216,7 +216,7 @@ export const InstitutionalMap = () => {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr 1.3fr', gap: '20px', alignItems: 'start' }}>
+      <div className="map-columns-grid">
 
         <div className="card">
           <div className="card-header">
@@ -491,7 +491,7 @@ export const InstitutionalMap = () => {
               required
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">Piso</label>
               <input
@@ -544,7 +544,7 @@ export const InstitutionalMap = () => {
                 <span>Cámara de Seguridad Activa</span>
               </label>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+            <div className="form-row-2col" style={{ marginTop: '10px' }}>
               <div>
                 <label className="form-label">Sensores de Movimiento</label>
                 <input
@@ -600,7 +600,7 @@ export const InstitutionalMap = () => {
               <option value="acceso_2">Acceso 2</option>
             </select>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="form-row-2col">
             <div className="form-group">
               <label className="form-label">IP del Microcontrolador (ESP32)</label>
               <input

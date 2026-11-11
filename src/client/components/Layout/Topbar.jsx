@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { apiClient } from '../../api/client';
-import { Cpu } from 'lucide-react';
+import { Cpu, Menu } from 'lucide-react';
 
 const routeTitles = {
   '/dashboard': 'Panel Principal de Telemetría (Grafana)',
@@ -15,7 +15,7 @@ const routeTitles = {
   '/alerts': 'Centro de Alarmas de Seguridad'
 };
 
-export const Topbar = () => {
+export const Topbar = ({ isCollapsed, onToggleSidebar }) => {
   const location = useLocation();
   const [isSensorActive, setIsSensorActive] = useState(false);
 
@@ -70,7 +70,17 @@ export const Topbar = () => {
 
   return (
     <header className="topbar">
-      <div className="topbar-left">
+      <div className="topbar-left" style={{ minWidth: 0, flex: 1 }}>
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="topbar-sidebar-toggle"
+            title={isCollapsed ? 'Expandir barra lateral' : 'Colapsar barra lateral'}
+            aria-label="Alternar barra lateral"
+          >
+            <Menu size={18} />
+          </button>
+        )}
         <div className="breadcrumb" style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text-secondary)' }}>
           <span style={{ color: '#38bdf8', fontWeight: 700, letterSpacing: '0.5px' }}>RADAR</span>
           &nbsp;›&nbsp;
@@ -78,7 +88,7 @@ export const Topbar = () => {
         </div>
       </div>
 
-      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
 
         <div
           className="live-indicator"

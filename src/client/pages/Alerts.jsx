@@ -124,7 +124,7 @@ export const Alerts = () => {
           <span className="badge badge-alert">Centro de control activo</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '14px' }}>
           {rooms.filter(r => r.has_alarm).map(r => (
             <div
               key={r.id}
@@ -135,7 +135,9 @@ export const Alerts = () => {
                 borderRadius: 'var(--radius)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px'
               }}
             >
               <div>
@@ -178,12 +180,12 @@ export const Alerts = () => {
       </div>
 
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Filtrar Severidad:</span>
             <select
               className="form-select"
-              style={{ width: '180px' }}
+              style={{ minWidth: '160px', width: 'auto' }}
               value={severityFilter}
               onChange={e => setSeverityFilter(e.target.value)}
             >

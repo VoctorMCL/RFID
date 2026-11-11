@@ -97,7 +97,7 @@ export const AccessLogs = () => {
       </div>
 
       <div className="card" style={{ marginBottom: '20px', padding: '14px 18px' }}>
-        <form onSubmit={handleSearchSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 200px auto', gap: '12px' }}>
+        <form onSubmit={handleSearchSubmit} className="access-logs-filter-form">
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -190,7 +190,7 @@ export const AccessLogs = () => {
         </table>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', color: 'var(--text-muted)', fontSize: '12.5px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', color: 'var(--text-muted)', fontSize: '12.5px', flexWrap: 'wrap', gap: '12px' }}>
         <div>Total de registros: <b>{pagination.total}</b></div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
