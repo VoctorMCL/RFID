@@ -10,6 +10,7 @@ Documentación técnica, arquitectónica y de usuario del **Ecosistema Inteligen
 | :--- | :--- | :--- |
 | [👤 Manual de Usuario](./USER_MANUAL.md) | Celadores, Administradores | Guía paso a paso: Terminal RADAR, monitor en vivo, pases de visitantes, enrolamiento, asignación de horarios, gestión de alarmas. |
 | [📖 README Principal](../README.md) | Todos (puerta de entrada) | Visión global, características clave, arquitectura rápida, stack tecnológico, arranque con `./start.sh`. |
+| [🧭 Guía de orientación del proyecto](./PROJECT_OVERVIEW.md) | Nuevos desarrolladores e integradores | Relación entre frontend, API, persistencia y hardware; puesta en marcha y flujo de una lectura RFID. |
 | [🏛️ Arquitectura del Sistema](./ARCHITECTURE.md) | Arquitectos, Evaluadores | Modelo de 4 capas (C4), flujo de validación, escalabilidad modular de campus, WebSockets, sesión única y resiliencia. |
 | [📑 Especificación de Requisitos (SRS)](./REQUIREMENTS.md) | Analistas, Docentes, PO | Requisitos de Usuario (RU), Funcionales (RF-001..018) y No Funcionales (RNF-001..016) con matriz de trazabilidad. |
 | [🎯 Casos de Uso](./USE_CASES.md) | Desarrolladores, QA | CU-001 a CU-010 detallados con actores, precondiciones, flujos principales, alternos y postcondiciones. |
