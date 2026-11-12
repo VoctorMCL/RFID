@@ -44,9 +44,12 @@ HARDWARE_DISPONIBLE = RFID_DISPONIBLE
 # corresponde al GPIO BCM 18 (pin físico 12 del header de 40 pines).
 # Se puede cambiar con RFID_BUZZER_PIN o con --buzzer-pin.
 BUZZER_PIN = int(os.environ.get("RFID_BUZZER_PIN", "18"))
-# "active"  = buzzer activo: suena con nivel alto continuo (CrowPi 3).
+# "active"  = buzzer activo. En CrowPi 3 PI:IO01 normalmente es activo en bajo.
 # "passive" = buzzer pasivo: requiere PWM para generar tonos de distinta frecuencia.
 BUZZER_TYPE = os.environ.get("RFID_BUZZER_TYPE", "active").strip().lower()
+BUZZER_ACTIVE_HIGH = os.environ.get("RFID_BUZZER_ACTIVE_HIGH", "0").strip().lower() in (
+    "1", "true", "yes", "on"
+)
 buzzer_pwm = None        # Backend RPi.GPIO (PWM), solo para buzzer pasivo
 buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
 buzzer_backend = None    # "rpi" | "gpiozero"
@@ -79,7 +82,8 @@ def inicializar_buzzer():
         try:
             GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BCM)
-            GPIO.setup(BUZZER_PIN, GPIO.OUT, initial=GPIO.LOW)
+            inactive_level = GPIO.LOW if BUZZER_ACTIVE_HIGH else GPIO.HIGH
+            GPIO.setup(BUZZER_PIN, GPIO.OUT, initial=inactive_level)
             if BUZZER_TYPE == "passive":
                 buzzer_pwm = GPIO.PWM(BUZZER_PIN, 440)
             buzzer_backend = "rpi"
@@ -94,8 +98,21 @@ def inicializar_buzzer():
 
     # 2) Backend gpiozero (Raspberry Pi 5 con lgpio, o sistemas sin RPi.GPIO)
     try:
-        from gpiozero import PWMOutputDevice
-        buzzer_gpiozero = PWMOutputDevice(BUZZER_PIN, frequency=440, initial_value=0)
+        if BUZZER_TYPE == "passive":
+            from gpiozero import PWMOutputDevice
+            buzzer_gpiozero = PWMOutputDevice(
+                BUZZER_PIN,
+                frequency=440,
+                initial_value=0,
+                active_high=BUZZER_ACTIVE_HIGH,
+            )
+        else:
+            from gpiozero import DigitalOutputDevice
+            buzzer_gpiozero = DigitalOutputDevice(
+                BUZZER_PIN,
+                initial_value=False,
+                active_high=BUZZER_ACTIVE_HIGH,
+            )
         buzzer_backend = "gpiozero"
         return
     except Exception as e:
@@ -124,9 +141,9 @@ def _buzzer_on(frecuencia=440):
             buzzer_gpiozero.frequency = frecuencia
             buzzer_gpiozero.value = 0.5
         else:
-            buzzer_gpiozero.value = 1.0
+            buzzer_gpiozero.on()
     elif buzzer_backend == "rpi":
-        GPIO.output(BUZZER_PIN, GPIO.HIGH)
+        GPIO.output(BUZZER_PIN, GPIO.HIGH if BUZZER_ACTIVE_HIGH else GPIO.LOW)
 
 
 def _buzzer_off():
@@ -134,9 +151,9 @@ def _buzzer_off():
     if buzzer_pwm:
         buzzer_pwm.stop()
     elif buzzer_gpiozero:
-        buzzer_gpiozero.value = 0
+        buzzer_gpiozero.off()
     elif buzzer_backend == "rpi":
-        GPIO.output(BUZZER_PIN, GPIO.LOW)
+        GPIO.output(BUZZER_PIN, GPIO.HIGH if not BUZZER_ACTIVE_HIGH else GPIO.LOW)
 
 
 def buzzer_cleanup():

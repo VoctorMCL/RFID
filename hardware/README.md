@@ -68,10 +68,12 @@ pip install spidev mfrc522 RPi.GPIO
 > ```
 >
 > **Buzzer CrowPi 3:** la placa lo rotula como **`PI:IO01`**, que corresponde al
-> **GPIO BCM 18** (pin físico 12 del header de 40 pines). Es un buzzer activo.
+> **GPIO BCM 18** (pin físico 12 del header de 40 pines). Es un buzzer activo en
+> bajo: el nivel `LOW` lo enciende y `HIGH` lo apaga.
 > Puedes probarlo sin arrancar el lector con `python3 hardware/lector_rfid.py --test-buzzer`.
 > Si sigue sin sonar, usa el diagnóstico independiente:
-> `python3 hardware/test_buzzer_crowpi3.py` (prueba RPi.GPIO, polaridad invertida y gpiozero).
+> `python3 hardware/test_buzzer_crowpi3.py` (prueba digital breve con gpiozero/lgpio
+> y polaridad activa en bajo).
 >
 > Recuerda que el **DIP switch de la CrowPi 3 debe estar en la posición 1 (Raspberry Pi)**
 > para que los sensores y el buzzer queden conectados al GPIO de la Pi.
@@ -92,7 +94,7 @@ python3 hardware/lector_rfid.py --server http://192.168.1.100:4000
 python3 hardware/lector_rfid.py --uid
 
 # Probar únicamente el buzzer de la CrowPi 3 (CrowPi PI:IO01 = BCM 18)
-python3 hardware/lector_rfid.py --test-buzzer
+python3 hardware/test_buzzer_crowpi3.py
 
 # Silenciar el buzzer o cambiar su pin/tipo
 python3 hardware/lector_rfid.py --mute
@@ -110,6 +112,10 @@ python3 hardware/lector_rfid.py --buzzer-pin 18 --buzzer-type active
 | `--buzzer-pin <bcm>` | GPIO BCM del buzzer (CrowPi 3: `18` = `PI:IO01`) | `18` (`RFID_BUZZER_PIN`) |
 | `--buzzer-type <tipo>` | `active` (CrowPi 3) o `passive` (requiere PWM) | `active` (`RFID_BUZZER_TYPE`) |
 | `--test-buzzer` | Emite las secuencias de prueba y sale | `false` |
+
+El programa usa salida digital para el buzzer activo y deja PWM únicamente para
+buzzers pasivos. La polaridad activa en bajo puede cambiarse para otro montaje
+con `RFID_BUZZER_ACTIVE_HIGH=1`.
 
 ### Telemetría de Presencia en Segundo Plano (Heartbeat)
 El script `lector_rfid.py` inicia de forma autónoma un hilo en segundo plano (`threading.Thread`) que emite un pulso HTTP cada 8 segundos a:

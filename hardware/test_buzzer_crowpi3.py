@@ -13,6 +13,7 @@ Uso en la Raspberry Pi:
     python3 hardware/test_buzzer_crowpi3.py
     sudo python3 hardware/test_buzzer_crowpi3.py
     python3 hardware/test_buzzer_crowpi3.py --pin 18
+    python3 hardware/test_buzzer_crowpi3.py --active-high
 """
 import argparse
 import os
@@ -27,38 +28,23 @@ def modelo_raspberry():
         return "modelo desconocido"
 
 
-def pitidos_rpi_gpio(pin, activo_en_alto=True):
-    """Prueba con RPi.GPIO. Permite probar polaridad normal e invertida."""
-    import RPi.GPIO as GPIO
+def pitidos_gpiozero(pin, activo_en_alto=False):
+    """Prueba digital segura con gpiozero/lgpio para un buzzer activo."""
+    from gpiozero import DigitalOutputDevice
 
-    activo = GPIO.HIGH if activo_en_alto else GPIO.LOW
-    inactivo = GPIO.LOW if activo_en_alto else GPIO.HIGH
-
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(pin, GPIO.OUT, initial=inactivo)
-
-    for _ in range(3):
-        GPIO.output(pin, activo)
-        time.sleep(0.30)
-        GPIO.output(pin, inactivo)
-        time.sleep(0.30)
-
-    GPIO.cleanup()
-
-
-def pitidos_gpiozero(pin):
-    """Prueba con gpiozero/lgpio (necesario en Raspberry Pi 5)."""
-    from gpiozero import PWMOutputDevice
-
-    buzzer = PWMOutputDevice(pin, frequency=440, initial_value=0)
+    buzzer = DigitalOutputDevice(
+        pin,
+        initial_value=False,
+        active_high=activo_en_alto,
+    )
     try:
-        for _ in range(3):
-            buzzer.value = 1.0
-            time.sleep(0.30)
-            buzzer.value = 0
+        for _ in range(2):
+            buzzer.on()
+            time.sleep(0.20)
+            buzzer.off()
             time.sleep(0.30)
     finally:
+        buzzer.off()
         buzzer.close()
 
 
@@ -77,6 +63,11 @@ def main():
     parser = argparse.ArgumentParser(description="Diagnóstico del buzzer CrowPi 3 (PI:IO01)")
     parser.add_argument("--pin", type=int, default=int(os.environ.get("RFID_BUZZER_PIN", "18")),
                         help="GPIO BCM del buzzer (por defecto 18 = PI:IO01)")
+    parser.add_argument(
+        "--active-high",
+        action="store_true",
+        help="Usar polaridad activa en alto (por defecto: activa en bajo)",
+    )
     args = parser.parse_args()
 
     print("================================================================")
@@ -92,16 +83,13 @@ def main():
 
     resultados = []
 
-    # 1) RPi.GPIO con polaridad normal (la esperada para la CrowPi 3)
-    resultados.append(probar("RPi.GPIO (activo en alto)", lambda: pitidos_rpi_gpio(args.pin, True)))
-    time.sleep(0.4)
-
-    # 2) RPi.GPIO con polaridad invertida, por si el módulo es activo en bajo
-    resultados.append(probar("RPi.GPIO (activo en bajo)", lambda: pitidos_rpi_gpio(args.pin, False)))
-    time.sleep(0.4)
-
-    # 3) gpiozero/lgpio (Raspberry Pi 5)
-    resultados.append(probar("gpiozero / lgpio", lambda: pitidos_gpiozero(args.pin)))
+    polaridad = "alto" if args.active_high else "bajo"
+    resultados.append(
+        probar(
+            f"gpiozero / lgpio (activo en {polaridad})",
+            lambda: pitidos_gpiozero(args.pin, args.active_high),
+        )
+    )
 
     print("\n================================================================")
     if any(resultados):
