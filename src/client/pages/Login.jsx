@@ -12,7 +12,6 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
-  Lock,
   Volume2,
   VolumeX,
   ShieldCheck,
@@ -36,6 +35,7 @@ export const Login = () => {
 
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [clock, setClock] = useState(() => new Date());
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -43,6 +43,11 @@ export const Login = () => {
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
   const toggleFullscreen = () => {
@@ -363,665 +368,253 @@ export const Login = () => {
   const readerKnown = health.reader !== null;
   const readerOnline = health.reader === true;
 
+  const healthItems = [
+    {
+      key: 'db',
+      label: 'Base de datos',
+      value: databaseKnown ? (databaseOnline ? 'En línea' : 'Sin conexión') : 'Verificando',
+      state: databaseKnown ? (databaseOnline ? 'ok' : 'bad') : 'unknown'
+    },
+    {
+      key: 'reader',
+      label: 'Lector',
+      value: readerKnown ? (readerOnline ? 'RC522' : 'Sin señal') : 'Verificando',
+      state: readerKnown ? (readerOnline ? 'ok' : 'bad') : 'unknown'
+    }
+  ];
+
+  const eyebrow =
+    status === 'scanning'
+      ? 'Verificando credencial'
+      : status === 'error'
+      ? 'Acceso denegado'
+      : 'Terminal RFID · Esperando lectura';
+
+  const subtitle =
+    status === 'scanning'
+      ? 'Comprobando credenciales y permisos en el sistema…'
+      : status === 'error'
+      ? errorMessage
+      : 'Aproxime el carnet al lector físico o use el escáner USB. La validación es inmediata.';
+
+  const clockDate = clock.toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' });
+
   return (
-    <div className="radar-login-container">
+    <div className="login-shell" data-status={status}>
 
-      <div className="radar-login-left">
+      {/* ───────────────────────── Terminal RFID (izquierda) ───────────────────────── */}
+      <section className="login-terminal" aria-label="Terminal de ingreso RFID">
 
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `
-            linear-gradient(to right, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(56, 189, 248, 0.04) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-          maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.85) 0%, transparent 80%)',
-          pointerEvents: 'none'
-        }} />
-
-        <div style={{
-          position: 'absolute',
-          top: '40%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '560px',
-          height: '560px',
-          borderRadius: '50%',
-          background: status === 'success'
-            ? 'radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, transparent 65%)'
-            : status === 'error'
-            ? 'radial-gradient(circle, rgba(239, 68, 68, 0.22) 0%, transparent 65%)'
-            : 'radial-gradient(circle, rgba(14, 165, 233, 0.16) 0%, transparent 65%)',
-          pointerEvents: 'none',
-          transition: 'all 0.5s ease'
-        }} />
-
-        <div className="login-left-header" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          position: 'relative',
-          zIndex: 20
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '16px',
-              backgroundColor: 'rgba(56, 189, 248, 0.12)',
-              border: '1.5px solid rgba(56, 189, 248, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 24px rgba(56, 189, 248, 0.3)'
-            }}>
-              <RadarLogo size={42} animated />
+        <header className="login-terminal-head">
+          <div className="login-brand">
+            <div className="login-brand-mark">
+              <RadarLogo size={26} animated />
             </div>
-            <div>
-              <div style={{
-                fontSize: '24px',
-                fontWeight: 900,
-                letterSpacing: '0.8px',
-                color: '#38bdf8',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px'
-              }}>
-                RADAR
-                <span style={{
-                  fontSize: '12.5px',
-                  fontWeight: 700,
-                  padding: '3px 10px',
-                  borderRadius: '20px',
-                  backgroundColor: 'rgba(56, 189, 248, 0.18)',
-                  border: '1px solid rgba(56, 189, 248, 0.35)',
-                  color: '#7dd3fc',
-                  letterSpacing: '0.5px'
-                }}>
-                  v1.0
-                </span>
-              </div>
+            <div className="login-brand-text">
+              <span className="login-brand-name">RADAR</span>
+              <span className="login-brand-sub">Control de acceso</span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="login-head-actions">
             <button
-              onClick={toggleFullscreen}
-              title={isFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla entera (Kiosco / Fullscreen)'}
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                border: `1px solid ${isFullscreen ? 'rgba(56, 189, 248, 0.5)' : 'rgba(148, 163, 184, 0.25)'}`,
-                color: isFullscreen ? '#38bdf8' : '#94a3b8',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: isFullscreen ? '0 0 14px rgba(56, 189, 248, 0.35)' : 'none'
-              }}
-            >
-              {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-            </button>
-
-            <button
+              type="button"
+              className={`login-icon-btn ${soundEnabled ? 'is-on' : ''}`}
               onClick={toggleSound}
               title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                border: `1px solid ${soundEnabled ? 'rgba(56, 189, 248, 0.4)' : 'rgba(148, 163, 184, 0.2)'}`,
-                color: soundEnabled ? '#38bdf8' : '#64748b',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: soundEnabled ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none'
-              }}
+              aria-label={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
             >
-              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+              {soundEnabled ? <Volume2 size={17} /> : <VolumeX size={17} />}
+            </button>
+
+            <button
+              type="button"
+              className={`login-icon-btn ${isFullscreen ? 'is-on' : ''}`}
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Salir de pantalla completa (Esc)' : 'Pantalla completa (kiosco)'}
+              aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            >
+              {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
             </button>
           </div>
-        </div>
-
-        <div style={{
-          position: 'relative',
-          zIndex: 25,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          textAlign: 'center',
-          padding: '24px 0'
-        }}>
-          {status === 'success' && authorizedUser ? (
-
-            <div style={{
-              width: '100%',
-              maxWidth: '560px',
-              animation: 'liquidFadeInContent 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-            }}>
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '8px 22px',
-                borderRadius: '30px',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                color: '#34d399',
-                fontSize: '14px',
-                fontWeight: 700,
-                letterSpacing: '0.8px',
-                marginBottom: 'clamp(16px, 2.6vh, 26px)',
-                boxShadow: '0 0 20px rgba(16, 185, 129, 0.25)'
-              }}>
-                <ShieldCheck size={19} />
-                <span>ACCESO AUTORIZADO</span>
-              </div>
-
-              <div style={{
-                position: 'relative',
-                width: 'clamp(140px, 19vh, 190px)',
-                height: 'clamp(140px, 19vh, 190px)',
-                margin: '0 auto clamp(16px, 2.6vh, 26px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  inset: '-10px',
-                  borderRadius: '50%',
-                  border: `2px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
-                  opacity: 0.85,
-                  animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
-                }} />
-
-                <div style={{
-                  width: 'clamp(132px, 18vh, 180px)',
-                  height: 'clamp(132px, 18vh, 180px)',
-                  borderRadius: '50%',
-                  backgroundColor: '#0b193d',
-                  border: `4px solid ${isAdminRole ? '#38bdf8' : '#34d399'}`,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: `0 0 40px ${isAdminRole ? 'rgba(56, 189, 248, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`
-                }}>
-                  {authorizedUser.photo_url ? (
-                    <img
-                      src={authorizedUser.photo_url}
-                      alt={authorizedUser.first_name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div style={{
-                      fontSize: '56px',
-                      fontWeight: 800,
-                      color: isAdminRole ? '#38bdf8' : '#34d399'
-                    }}>
-                      {initials}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <h2 style={{
-                fontSize: 'clamp(26px, 3.6vh, 36px)',
-                fontWeight: 800,
-                color: '#ffffff',
-                margin: '0 0 10px',
-                letterSpacing: '-0.6px',
-                lineHeight: 1.15
-              }}>
-                {authorizedUser.first_name} {authorizedUser.last_name}
-              </h2>
-
-              <div style={{
-                display: 'inline-block',
-                padding: '7px 20px',
-                borderRadius: '8px',
-                backgroundColor: isAdminRole ? 'rgba(56, 189, 248, 0.15)' : 'rgba(52, 211, 153, 0.15)',
-                border: `1px solid ${isAdminRole ? 'rgba(56, 189, 248, 0.35)' : 'rgba(52, 211, 153, 0.35)'}`,
-                color: isAdminRole ? '#38bdf8' : '#34d399',
-                fontSize: 'clamp(13px, 1.8vh, 15px)',
-                fontWeight: 700,
-                marginBottom: 'clamp(16px, 2.4vh, 24px)'
-              }}>
-                {authorizedUser.role?.display_name || 'Usuario Autorizado'}
-              </div>
-
-              <div style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                borderRadius: '16px',
-                padding: 'clamp(15px, 2.2vh, 22px) clamp(20px, 2vw, 26px)',
-                textAlign: 'left',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 'clamp(12px, 1.8vh, 18px) clamp(18px, 2vw, 24px)',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-                marginBottom: 'clamp(16px, 2.2vh, 22px)'
-              }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
-                    Documento
-                  </div>
-                  <div style={{ fontSize: '17px', fontWeight: 700, color: '#f1f5f9', fontFamily: 'var(--font-mono)' }}>
-                    {authorizedUser.document_id || '—'}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
-                    Tarjeta RFID
-                  </div>
-                  <div style={{ fontSize: '17px', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-                    {authorizedUser.rfid_tag || lastScannedUid}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
-                    Hora de Ingreso
-                  </div>
-                  <div style={{ fontSize: '17px', fontWeight: 600, color: '#f1f5f9' }}>
-                    {entryTimestamp ? entryTimestamp.toLocaleTimeString('es-CO') : 'Ahora'}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '3px' }}>
-                    Programa / Facultad
-                  </div>
-                  <div style={{ fontSize: '17px', fontWeight: 600, color: '#f1f5f9' }}>
-                    {authorizedUser.program || 'General'}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', height: '5px', borderRadius: '4px', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  backgroundColor: '#38bdf8',
-                  borderRadius: '4px',
-                  width: '100%',
-                  animation: 'shimmerGleam 2.4s linear infinite'
-                }} />
-              </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '10px' }}>
-                Cargando datos del sistema...
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <div
-                className="radar-hero-wrapper"
-                style={{
-                  position: 'relative',
-                  width: 'clamp(280px, 46vh, 480px)',
-                  height: 'clamp(280px, 46vh, 480px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 'clamp(18px, 3vh, 32px)'
-                }}
-              >
-                <div style={{
-                  position: 'absolute',
-                  inset: '-20px',
-                  borderRadius: '50%',
-                  border: '2px solid rgba(56, 189, 248, 0.28)',
-                  animation: 'pulseHaloGlow 4s ease-in-out infinite'
-                }} />
-                <div style={{
-                  position: 'absolute',
-                  inset: '-44px',
-                  borderRadius: '50%',
-                  border: '2px dashed rgba(56, 189, 248, 0.18)',
-                  animation: 'radarSweepSpin 20s linear infinite'
-                }} />
-
-                <RadarLogo size={460} animated className="login-hero-logo" style={{ width: '100%', height: '100%' }} />
-              </div>
-
-              <div className="login-status-chips" style={{
-                display: 'flex',
-                gap: '14px',
-                flexWrap: 'wrap',
-                justifyContent: 'center'
-              }}>
-                <div className="login-status-chip" style={{
-                  padding: '12px 24px',
-                  borderRadius: '12px',
-                  backgroundColor: databaseKnown && databaseOnline
-                    ? 'rgba(16, 185, 129, 0.16)'
-                    : databaseKnown
-                    ? 'rgba(239, 68, 68, 0.16)'
-                    : 'rgba(15, 23, 42, 0.7)',
-                  border: `1.5px solid ${
-                    databaseKnown && databaseOnline
-                      ? 'rgba(16, 185, 129, 0.5)'
-                      : databaseKnown
-                      ? 'rgba(239, 68, 68, 0.5)'
-                      : 'rgba(148, 163, 184, 0.3)'
-                  }`,
-                  fontSize: '15.5px',
-                  color: '#94a3b8',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: databaseKnown && databaseOnline ? '#10b981' : databaseKnown ? '#ef4444' : '#64748b',
-                    boxShadow: databaseKnown && databaseOnline
-                      ? '0 0 10px #10b981'
-                      : databaseKnown
-                      ? '0 0 10px rgba(239, 68, 68, 0.7)'
-                      : 'none'
-                  }} />
-                  PostgreSQL:{' '}
-                  <strong style={{
-                    fontSize: '16px',
-                    color: databaseKnown && databaseOnline ? '#34d399' : databaseKnown ? '#f87171' : '#94a3b8'
-                  }}>
-                    {databaseKnown ? (databaseOnline ? 'Conectado' : 'Desconectado') : 'Verificando...'}
-                  </strong>
-                </div>
-
-                <div className="login-status-chip" style={{
-                  padding: '12px 24px',
-                  borderRadius: '12px',
-                  backgroundColor: readerKnown && readerOnline
-                    ? 'rgba(16, 185, 129, 0.16)'
-                    : readerKnown
-                    ? 'rgba(239, 68, 68, 0.16)'
-                    : 'rgba(15, 23, 42, 0.7)',
-                  border: `1.5px solid ${
-                    readerKnown && readerOnline
-                      ? 'rgba(16, 185, 129, 0.5)'
-                      : readerKnown
-                      ? 'rgba(239, 68, 68, 0.5)'
-                      : 'rgba(148, 163, 184, 0.3)'
-                  }`,
-                  fontSize: '15.5px',
-                  color: '#94a3b8',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '10px'
-                }}>
-                  <span style={{
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: readerKnown && readerOnline ? '#10b981' : readerKnown ? '#ef4444' : '#64748b',
-                    boxShadow: readerKnown && readerOnline
-                      ? '0 0 10px #10b981'
-                      : readerKnown
-                      ? '0 0 10px rgba(239, 68, 68, 0.7)'
-                      : 'none'
-                  }} />
-                  Lector:{' '}
-                  <strong style={{
-                    fontSize: '16px',
-                    color: readerKnown && readerOnline ? '#34d399' : readerKnown ? '#f87171' : '#94a3b8'
-                  }}>
-                    {readerKnown ? (readerOnline ? 'RC522 Activo' : 'Desconectado') : 'Verificando...'}
-                  </strong>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div style={{ position: 'relative', zIndex: 20 }}>
-          <h1 style={{
-            fontSize: 'clamp(38px, 5.5vh, 56px)',
-            fontWeight: 900,
-            letterSpacing: '0.8px',
-            color: '#38bdf8',
-            margin: '0 0 6px',
-            textShadow: '0 0 25px rgba(56, 189, 248, 0.4)'
-          }}>
-            RADAR
-          </h1>
-          <p style={{
-            fontSize: 'clamp(16px, 2.3vh, 20px)',
-            fontWeight: 500,
-            color: '#cbd5e1',
-            letterSpacing: '0.4px',
-            margin: 0,
-            maxWidth: '560px',
-            lineHeight: 1.45
-          }}>
-            Radio Detection and Ranging
-          </p>
-        </div>
-      </div>
-
-      <div className="radar-login-right">
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          paddingBottom: '18px'
-        }}>
-          <div>
-            <div style={{ fontSize: '13px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>
-              Terminal de Ingreso
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.3px', marginTop: '2px' }}>
-              Control de Acceso
-            </div>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '8px 18px',
-            borderRadius: '24px',
-            backgroundColor: isWsConnected ? 'rgba(16, 185, 129, 0.14)' : 'rgba(56, 189, 248, 0.14)',
-            border: `1.5px solid ${isWsConnected ? 'rgba(16, 185, 129, 0.45)' : 'rgba(56, 189, 248, 0.4)'}`,
-            fontSize: '14px',
-            fontWeight: 700,
-            color: isWsConnected ? '#34d399' : '#38bdf8'
-          }}>
-            <span style={{
-              width: '9px',
-              height: '9px',
-              borderRadius: '50%',
-              backgroundColor: isWsConnected ? '#10b981' : '#38bdf8',
-              boxShadow: `0 0 10px ${isWsConnected ? '#10b981' : '#38bdf8'}`
-            }} />
-            <span>{isWsConnected ? 'En línea' : 'Sincronizado'}</span>
-          </div>
-        </div>
+        </header>
 
         {hasValidAuthNotice && (
-          <div style={{
-            margin: '18px 0 0',
-            padding: '14px 18px',
-            borderRadius: '12px',
-            backgroundColor: 'rgba(245, 158, 11, 0.14)',
-            border: '1px solid rgba(245, 158, 11, 0.4)',
-            color: '#fbbf24',
-            fontSize: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '14px',
-            lineHeight: 1.45
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <AlertTriangle size={22} style={{ flexShrink: 0 }} />
-              <span>{authNotice}</span>
-            </div>
+          <div className="login-notice" role="alert">
+            <AlertTriangle size={17} />
+            <span>{authNotice}</span>
             <button
+              type="button"
+              className="login-notice-close"
               onClick={clearAuthNotice}
+              aria-label="Cerrar aviso"
               title="Cerrar aviso"
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#fbbf24',
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                opacity: 0.85
-              }}
             >
-              <X size={18} />
+              <X size={15} />
             </button>
           </div>
         )}
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '24px 0' }}>
+        <main className="login-stage">
+          {status === 'success' && authorizedUser ? (
 
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center'
-          }}>
+            <div className="login-success">
+              <div className="login-success-badge">
+                <ShieldCheck size={15} />
+                <span>Acceso autorizado</span>
+              </div>
 
-            <div className="login-scan-pad" style={{
-              position: 'relative',
-              width: 'clamp(260px, 44vh, 440px)',
-              height: 'clamp(260px, 44vh, 440px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 'clamp(20px, 3vh, 32px)'
-            }}>
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                borderRadius: '50%',
-                border: `3px solid ${status === 'error' ? 'rgba(239, 68, 68, 0.45)' : status === 'success' ? 'rgba(16, 185, 129, 0.45)' : 'rgba(56, 189, 248, 0.45)'}`,
-                animation: 'pulseHaloGlow 2.5s ease-in-out infinite'
-              }} />
-              <div style={{
-                position: 'absolute',
-                inset: '-20px',
-                borderRadius: '50%',
-                border: `2px dashed ${status === 'error' ? 'rgba(239, 68, 68, 0.35)' : status === 'success' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(56, 189, 248, 0.3)'}`,
-                animation: 'radarSweepSpin 12s linear infinite'
-              }} />
-
-              <div className="login-scan-core" style={{
-                width: 'clamp(170px, 28vh, 280px)',
-                height: 'clamp(170px, 28vh, 280px)',
-                borderRadius: '50%',
-                backgroundColor: status === 'error'
-                  ? 'rgba(239, 68, 68, 0.18)'
-                  : status === 'success'
-                  ? 'rgba(16, 185, 129, 0.22)'
-                  : 'rgba(15, 23, 42, 0.9)',
-                border: `4px solid ${
-                  status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#38bdf8'
-                }`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: status === 'error'
-                  ? '0 0 45px rgba(239, 68, 68, 0.55)'
-                  : status === 'success'
-                  ? '0 0 55px rgba(16, 185, 129, 0.6)'
-                  : '0 0 45px rgba(56, 189, 248, 0.45)',
-                transition: 'all 0.3s ease'
-              }}>
-                {status === 'scanning' ? (
-                  <Loader2 size={88} className="spinner" style={{ color: '#38bdf8' }} />
-                ) : status === 'success' ? (
-                  <CheckCircle2 size={96} style={{ color: '#10b981' }} />
-                ) : status === 'error' ? (
-                  <XCircle size={96} style={{ color: '#ef4444' }} />
+              <div className={`login-success-avatar ${isAdminRole ? 'is-admin' : ''}`}>
+                {authorizedUser.photo_url ? (
+                  <img src={authorizedUser.photo_url} alt={`${authorizedUser.first_name} ${authorizedUser.last_name}`} />
                 ) : (
-                  <CreditCard size={92} style={{ color: '#38bdf8' }} />
+                  <span>{initials}</span>
+                )}
+                <CheckCircle2 size={22} className="login-success-check" />
+              </div>
+
+              <div className="login-success-identity">
+                <h2 className="login-success-name">
+                  {authorizedUser.first_name} {authorizedUser.last_name}
+                </h2>
+                <span className="login-success-role">
+                  {authorizedUser.role?.display_name || 'Usuario autorizado'}
+                </span>
+              </div>
+
+              <dl className="login-success-meta">
+                <div>
+                  <dt>Documento</dt>
+                  <dd>{authorizedUser.document_id || '—'}</dd>
+                </div>
+                <div>
+                  <dt>Tarjeta RFID</dt>
+                  <dd className="is-accent">{authorizedUser.rfid_tag || lastScannedUid}</dd>
+                </div>
+                <div>
+                  <dt>Hora de ingreso</dt>
+                  <dd>{entryTimestamp ? entryTimestamp.toLocaleTimeString('es-CO') : 'Ahora'}</dd>
+                </div>
+                <div>
+                  <dt>Programa</dt>
+                  <dd>{authorizedUser.program || 'General'}</dd>
+                </div>
+              </dl>
+
+              <div className="login-success-progress">
+                <span />
+              </div>
+              <p className="login-success-hint">Cargando datos del sistema…</p>
+            </div>
+
+          ) : (
+
+            <>
+              <div className="login-reader" aria-hidden="true">
+                <div className="login-reader-halo" />
+                <div className="login-reader-ticks" />
+                <div className="login-reader-sweep" />
+                <div className="login-reader-ring" />
+                <div className="login-reader-core">
+                  <span className="login-reader-scanline" />
+                  {status === 'scanning' ? (
+                    <Loader2 className="login-spin" size={64} />
+                  ) : status === 'error' ? (
+                    <XCircle size={64} />
+                  ) : (
+                    <CreditCard size={64} />
+                  )}
+                </div>
+              </div>
+
+              <div className="login-status" role="status" aria-live="polite">
+                <span className="login-eyebrow">
+                  <span className="login-eyebrow-dot" />
+                  {eyebrow}
+                </span>
+                <h1 className="login-title">{statusMessage}</h1>
+                <p className="login-sub">{subtitle}</p>
+
+                {lastScannedUid && (
+                  <span className="login-uid">
+                    <Radio size={13} />
+                    UID <strong>{lastScannedUid}</strong>
+                  </span>
                 )}
               </div>
-            </div>
 
-            <h2 className="login-status-title" style={{
-              fontSize: 'clamp(32px, 5vh, 48px)',
-              fontWeight: 900,
-              lineHeight: 1.15,
-              color: status === 'error' ? '#ef4444' : status === 'success' ? '#10b981' : '#f8fafc',
-              margin: '0 auto clamp(10px, 1.6vh, 18px)',
-              maxWidth: '640px',
-              letterSpacing: '-0.5px',
-              textWrap: 'balance'
-            }}>
-              {statusMessage}
-            </h2>
+              <ol className="login-steps">
+                <li className="login-step">
+                  <span className="login-step-num">1</span>
+                  Acerque el carnet
+                </li>
+                <li className="login-step-sep" aria-hidden="true" />
+                <li className="login-step">
+                  <span className="login-step-num">2</span>
+                  Validación automática
+                </li>
+                <li className="login-step-sep" aria-hidden="true" />
+                <li className="login-step">
+                  <span className="login-step-num">3</span>
+                  Ingreso al sistema
+                </li>
+              </ol>
+            </>
+          )}
+        </main>
 
-            <p style={{
-              fontSize: 'clamp(17px, 2.5vh, 22px)',
-              color: '#cbd5e1',
-              maxWidth: '580px',
-              margin: '0 auto 20px',
-              lineHeight: 1.5,
-              fontWeight: 450
-            }}>
-              {status === 'idle' && 'Aproxime su tarjeta al lector físico o escáner USB para iniciar sesión.'}
-              {status === 'scanning' && 'Validando carnet en el sistema...'}
-              {status === 'success' && 'Acceso confirmado. Preparando el sistema...'}
-              {status === 'error' && errorMessage}
-            </p>
-
-            {lastScannedUid && (
-              <div style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '8px 18px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                border: '1.5px solid rgba(56, 189, 248, 0.35)',
-                fontSize: '15px',
-                fontFamily: 'var(--font-mono)',
-                color: '#38bdf8'
-              }}>
-                <Radio size={18} style={{ color: '#38bdf8' }} />
-                <span>UID Detectado: <strong>{lastScannedUid}</strong></span>
-              </div>
-            )}
+        <footer className="login-terminal-foot">
+          <div className="login-health">
+            {healthItems.map(item => (
+              <span key={item.key} className={`login-health-chip is-${item.state}`}>
+                <span className="login-health-dot" />
+                <span className="login-health-label">{item.label}</span>
+                <strong>{item.value}</strong>
+              </span>
+            ))}
           </div>
+          <span className="login-foot-version">RADAR v1.0</span>
+        </footer>
+      </section>
+
+      {/* ───────────────────────── Panel de marca (derecha) ───────────────────────── */}
+      <aside className="login-showcase" aria-hidden="true">
+        <div className="login-showcase-head">
+          <span className="login-showcase-pill">Acceso institucional</span>
+          <span className="login-showcase-org">Corporación Universitaria Lasallista</span>
         </div>
 
-        <div>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: '13.5px',
-            color: '#94a3b8',
-            paddingTop: '12px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lock size={15} style={{ color: '#38bdf8' }} />
-              <span>Radio Detection and Ranging</span>
-            </div>
-            <span style={{ fontWeight: 600 }}>RADAR v1.0</span>
+        <div className="login-orbit">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+
+        <div className="login-showcase-center">
+          <div className="login-showcase-mark">
+            <RadarLogo size={160} animated />
+          </div>
+          <h2 className="login-showcase-wordmark">RADAR</h2>
+          <p className="login-showcase-acronym">
+            Red de Acceso y Detección mediante Autenticación RFID
+          </p>
+          <span className="login-showcase-divider" />
+          <p className="login-showcase-desc">
+            Identificación por radiofrecuencia para el control de acceso institucional.
+          </p>
+        </div>
+
+        <div className="login-showcase-foot">
+          <div className="login-showcase-status">
+            <span className={`login-showcase-dot ${isWsConnected ? 'is-ok' : 'is-bad'}`} />
+            <span>{isWsConnected ? 'Sistema en línea' : 'Reconectando…'}</span>
+          </div>
+          <div className="login-clock">
+            <span className="login-clock-date">{clockDate}</span>
           </div>
         </div>
-      </div>
+      </aside>
     </div>
   );
 };
