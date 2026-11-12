@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../api/client';
 import { preloadSystemData } from '../services/systemPreloader';
 import { RadarLogo } from '../components/RadarLogo';
+import { DemoAdminLogin } from '../components/DemoAdminLogin'; // DEMO-ADMIN-LOGIN
 import {
   CreditCard,
   Radio,
@@ -383,6 +384,7 @@ export const Login = () => {
 
   return (
     <div className="login-shell" data-status={status}>
+      <DemoAdminLogin /> {/* DEMO-ADMIN-LOGIN */}
       {terminalDoorId && (
         <div style={{ position: 'fixed', bottom: 6, left: 8, zIndex: 50, fontSize: 11, opacity: 0.6 }}>
           terminal: {terminalDoorId} · {seenInfo}

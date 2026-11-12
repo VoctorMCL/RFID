@@ -261,7 +261,8 @@ input, select, textarea {
 }
 
 .sidebar-header {
-  padding: 22px 20px;
+  flex-shrink: 0;
+  padding: 16px 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -296,11 +297,25 @@ input, select, textarea {
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 12px;
+  min-height: 0;
+  padding: 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  /* Sombras de desplazamiento: se ven solo cuando hay más opciones arriba/abajo */
+  background:
+    linear-gradient(var(--bg-secondary) 30%, transparent) center top,
+    linear-gradient(transparent, var(--bg-secondary) 70%) center bottom,
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, 0.22), transparent) center top,
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.22), transparent) center bottom;
+  background-repeat: no-repeat;
+  background-size: 100% 28px, 100% 28px, 100% 12px, 100% 12px;
+  background-attachment: local, local, scroll, scroll;
+}
+.sidebar-nav > * {
+  flex-shrink: 0;
 }
 
 .nav-link {
@@ -333,11 +348,12 @@ input, select, textarea {
 }
 
 .sidebar-footer {
-  padding: 16px 14px;
+  flex-shrink: 0;
+  padding: 10px 12px;
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   background-color: var(--bg-secondary);
 }
 
@@ -2335,4 +2351,28 @@ input, select, textarea {
   .access-logs-filter-form > select {
     grid-column: auto;
   }
+}
+
+/* Barra lateral: filas compactas del pie (tema, reloj, usuario, salir) */
+.sidebar-footer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sidebar-icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-footer {
+  padding: 8px 0;
+  align-items: center;
+}
+.sidebar.collapsed .sidebar-footer-row {
+  flex-direction: column;
 }

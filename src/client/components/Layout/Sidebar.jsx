@@ -175,47 +175,30 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       </nav>
 
       <div className="sidebar-footer">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+        <div className="sidebar-footer-row">
           <button
             onClick={cycleTheme}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm sidebar-icon-btn"
             title={themeTitle}
             aria-label={themeTitle}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              flexShrink: 0,
-              padding: '8px 10px'
-            }}
           >
-            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
-            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
-            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
-            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
+            {themeMode === 'auto' && <Laptop size={16} style={{ color: 'var(--accent)' }} />}
+            {themeMode === 'light' && <Sun size={16} style={{ color: '#d97706' }} />}
+            {themeMode === 'dark' && <Moon size={16} style={{ color: '#38bdf8' }} />}
           </button>
           <SimulatedClock isCollapsed={isCollapsed} />
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: isCollapsed ? 'column' : 'row',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
+        <div className="sidebar-footer-row">
           {user && (
             <div
               className="user-badge"
               title={`${user.first_name} ${user.last_name} (${user.role?.display_name || 'Personal'})`}
               style={{
-                flex: 1,
+                flex: isCollapsed ? '0 0 auto' : 1,
                 minWidth: 0,
-                width: isCollapsed ? '100%' : undefined,
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
-                padding: isCollapsed ? '8px 0' : '8px 10px'
+                padding: isCollapsed ? '4px' : '6px 8px'
               }}
             >
               <div className="user-avatar" style={{ flexShrink: 0 }}>
@@ -226,26 +209,23 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
                   <div className="user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {user.first_name} {user.last_name}
                   </div>
-                  <div className="user-role-label">{user.role?.display_name || 'Personal'}</div>
+                  <div className="user-role-label" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.role?.display_name || 'Personal'}
+                  </div>
                 </div>
               )}
             </div>
           )}
-        </div>
 
-        <button
-          onClick={() => logout()}
-          className="btn btn-secondary btn-sm"
-          style={{
-            width: '100%',
-            justifyContent: 'center',
-            padding: isCollapsed ? '8px 0' : '8px 12px'
-          }}
-          title="Cerrar sesión"
-        >
-          <LogOut size={15} style={{ flexShrink: 0 }} />
-          {!isCollapsed && <span>Cerrar Sesión</span>}
-        </button>
+          <button
+            onClick={() => logout()}
+            className="btn btn-secondary btn-sm sidebar-icon-btn"
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
     </aside>
   );

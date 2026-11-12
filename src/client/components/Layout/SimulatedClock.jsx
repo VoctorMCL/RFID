@@ -54,7 +54,8 @@ export const SimulatedClock = ({ isCollapsed }) => {
         className="btn btn-secondary btn-sm"
         title={simulated ? 'Hora SIMULADA para pruebas de horarios' : 'Hora del sistema (clic para simular otra)'}
         style={{
-          flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 10px',
+          flex: isCollapsed ? '0 0 auto' : 1, minWidth: 0, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+          padding: isCollapsed ? 0 : '0 10px', width: isCollapsed ? 36 : undefined,
           ...(simulated ? { borderColor: '#d97706', color: '#d97706' } : {})
         }}
       >
