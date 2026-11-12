@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useWebSocket } from '../hooks/useWebSocket';
 import { apiClient } from '../api/client';
 import { preloadSystemData } from '../services/systemPreloader';
 import { RadarLogo } from '../components/RadarLogo';
@@ -61,26 +60,6 @@ export const Login = () => {
   };
 
   const [health, setHealth] = useState({ database: null, reader: null });
-
-  const lastProcessedIdRef = useRef((() => {
-    try {
-      const saved = sessionStorage.getItem('rfid_last_processed_scan');
-      return saved || null;
-    } catch (e) {
-      return null;
-    }
-  })());
-
-  // Registra la lectura ya consumida también en sessionStorage: así, si la
-  // página se recarga tras cerrar sesión o expirar el token, la misma lectura
-  // no vuelve a iniciar sesión automáticamente (evita bucles entre puestos).
-  const markScanProcessed = useCallback((scanId) => {
-    const normalized = scanId == null ? null : String(scanId);
-    lastProcessedIdRef.current = normalized;
-    try {
-      if (normalized) sessionStorage.setItem('rfid_last_processed_scan', normalized);
-    } catch (e) {}
-  }, []);
 
   const isProcessingRef = useRef(false);
   const redirectTimerRef = useRef(null);
@@ -306,43 +285,6 @@ export const Login = () => {
       }, 3200);
     }
   }, [loginWithCard, navigate, playSound]);
-
-  const handleWsEvent = useCallback((event) => {
-    if (isProcessingRef.current) return;
-
-    if (event.type === 'access_attempt' && event.data?.uid) {
-      const scanUid = event.data.uid;
-      const logId = event.data.logId || event.data.id;
-      if (logId && String(logId) === String(lastProcessedIdRef.current)) return;
-      markScanProcessed(logId);
-      handleCardAuthentication(scanUid);
-    }
-  }, [handleCardAuthentication, markScanProcessed]);
-
-  const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
-
-  useEffect(() => {
-    const pollInterval = setInterval(async () => {
-      if (isProcessingRef.current || (typeof document !== 'undefined' && document.hidden)) return;
-
-      try {
-        const res = await apiClient('/access/latest');
-        if (res.success && res.data && res.data.uid) {
-          const scan = res.data;
-          const scanTime = new Date(scan.timestamp).getTime();
-          const isFresh = (Date.now() - scanTime) < 3000;
-          const alreadyProcessed = scan.id != null && String(scan.id) === String(lastProcessedIdRef.current);
-
-          if (isFresh && !alreadyProcessed) {
-            markScanProcessed(scan.id);
-            handleCardAuthentication(scan.uid);
-          }
-        }
-      } catch (e) {}
-    }, 1500);
-
-    return () => clearInterval(pollInterval);
-  }, [handleCardAuthentication]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -627,8 +569,8 @@ export const Login = () => {
 
         <div className="login-showcase-foot">
           <div className="login-showcase-status">
-            <span className={`login-showcase-dot ${isWsConnected ? 'is-ok' : 'is-bad'}`} />
-            <span>{isWsConnected ? 'Sistema en línea' : 'Reconectando…'}</span>
+            <span className="login-showcase-dot is-ok" />
+            <span>Lector local listo</span>
           </div>
           <div className="login-clock">
             <span className="login-clock-date">{clockDate}</span>

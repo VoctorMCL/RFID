@@ -156,6 +156,14 @@ def _buzzer_off():
         GPIO.output(BUZZER_PIN, GPIO.HIGH if not BUZZER_ACTIVE_HIGH else GPIO.LOW)
 
 
+def silenciar_buzzer():
+    """Apaga inmediatamente cualquier tono activo recibido desde el backend."""
+    try:
+        _buzzer_off()
+    except Exception as e:
+        print(f"  ⚠️ No se pudo silenciar el buzzer: {e}")
+
+
 def buzzer_cleanup():
     """Libera el pin y el backend del buzzer."""
     global buzzer_pwm, buzzer_gpiozero, buzzer_backend
@@ -271,7 +279,11 @@ def bucle_heartbeat(api_url, door_id):
                 method="POST"
             )
             with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
-                pass
+                body = resp.read().decode("utf-8")
+                response = json.loads(body) if body else {}
+                commands = response.get("commands", [])
+                if any(command.get("type") == "silence_buzzer" for command in commands):
+                    silenciar_buzzer()
         except Exception:
             pass
         time.sleep(8)

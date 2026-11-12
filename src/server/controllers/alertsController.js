@@ -74,7 +74,7 @@ const resolveAlert = async (req, res) => {
            resolved_at = NOW(),
            resolution_note = $2
        WHERE id = $3
-       RETURNING *`,
+       RETURNING *, room_id`,
       [userId, resolution_note || 'Alerta resuelta por personal de seguridad', id]
     );
 
@@ -83,6 +83,16 @@ const resolveAlert = async (req, res) => {
     }
 
     const resolved = result.rows[0];
+    if (resolved.room_id) {
+      await db.query(
+        `UPDATE rooms SET security_status = 'normal' WHERE id = $1`,
+        [resolved.room_id]
+      );
+      wsService.broadcast('room_security_change', {
+        roomId: resolved.room_id,
+        status: 'normal'
+      });
+    }
     wsService.broadcast('alert_resolved', { alertId: id, resolvedBy: userId });
     return res.json({ success: true, data: resolved });
   } catch (error) {

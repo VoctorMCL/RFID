@@ -72,6 +72,10 @@ de acceso por rol. Las páginas principales son:
 Las llamadas HTTP pasan por `src/client/api/client.js`. La URL puede
 configurarse con `VITE_API_URL` o mediante `rfid_api_url` en el navegador.
 Los eventos en vivo se manejan en `src/client/hooks/useWebSocket.js`.
+La pantalla `/login` solo autentica lecturas del lector local (incluido un
+lector USB que actúa como teclado); no consume lecturas RFID globales de
+otras puertas o Raspberry Pi, para evitar iniciar sesión accidentalmente en
+otro equipo.
 
 ### Persistencia
 

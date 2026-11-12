@@ -157,7 +157,11 @@ const heartbeat = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const result = await db.query(
-      `UPDATE doors SET status = 'online', last_heartbeat = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE doors
+       SET status = 'online', last_heartbeat = NOW()
+       WHERE id = $1
+       RETURNING *,
+                 (SELECT security_status FROM rooms WHERE rooms.id = doors.room_id) AS room_security_status`,
       [id]
     );
 
@@ -171,7 +175,14 @@ const heartbeat = async (req, res) => {
       status: 'online',
       timestamp: new Date().toISOString()
     });
-    return res.json({ success: true, data: result.rows[0] });
+    const door = result.rows[0];
+    return res.json({
+      success: true,
+      data: door,
+      commands: door.room_security_status === 'normal'
+        ? [{ type: 'silence_buzzer', reason: 'room_disarmed' }]
+        : []
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Error al registrar heartbeat: ' + error.message });
   }
