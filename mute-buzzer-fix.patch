@@ -1,0 +1,284 @@
+diff --git a/hardware/lector_rfid.py b/hardware/lector_rfid.py
+index 068c533..0c240bd 100755
+--- a/hardware/lector_rfid.py
++++ b/hardware/lector_rfid.py
+@@ -54,6 +54,7 @@ buzzer_pwm = None        # Backend RPi.GPIO (PWM), solo para buzzer pasivo
+ buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
+ buzzer_backend = None    # "rpi" | "gpiozero"
+ buzzer_habilitado = True # Controlable con --mute
++buzzer_silenciado_remoto = False  # Botón de silencio de la plataforma web (vía backend)
+ 
+ 
+ def _modelo_raspberry():
+@@ -128,9 +129,24 @@ def inicializar_buzzer():
+ 
+ 
+ def buzzer_disponible():
++    if buzzer_silenciado_remoto:
++        return False
+     return bool(buzzer_habilitado and (buzzer_pwm or buzzer_gpiozero or buzzer_backend == "rpi"))
+ 
+ 
++def aplicar_mute_remoto(valor):
++    """Sincroniza el silencio pedido desde la web. None = el backend no lo informó."""
++    global buzzer_silenciado_remoto
++    if valor is None:
++        return
++    valor = bool(valor)
++    if valor != buzzer_silenciado_remoto:
++        buzzer_silenciado_remoto = valor
++        print("  🔇 Buzzer silenciado desde la plataforma" if valor else "  🔊 Buzzer reactivado desde la plataforma")
++        if valor:
++            silenciar_buzzer()
++
++
+ def _buzzer_on(frecuencia=440):
+     """Enciende el buzzer con la frecuencia indicada según el backend activo."""
+     if buzzer_pwm:
+@@ -281,6 +297,7 @@ def bucle_heartbeat(api_url, door_id):
+             with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
+                 body = resp.read().decode("utf-8")
+                 response = json.loads(body) if body else {}
++                aplicar_mute_remoto(response.get("buzzer_muted"))
+                 commands = response.get("commands", [])
+                 if any(command.get("type") == "silence_buzzer" for command in commands):
+                     silenciar_buzzer()
+@@ -325,6 +342,8 @@ def procesar_respuesta_backend(result):
+         door = d.get("door", {})
+         room = d.get("room", {})
+         user_name = f"{user.get('first_name')} {user.get('last_name')}" if user else "Desconocido"
++        # El estado de silencio viaja en la misma respuesta: se aplica ANTES de pitar.
++        aplicar_mute_remoto(door.get("buzzer_muted"))
+ 
+         if granted:
+             print(f"  🟢 [ACCESO CONCEDIDO] Puerta: {door.get('name', 'Principal')} ({room.get('name', 'Sala')})")
+diff --git a/src/client/components/GlobalAccessModal.jsx b/src/client/components/GlobalAccessModal.jsx
+index ae731e4..47e4aff 100644
+--- a/src/client/components/GlobalAccessModal.jsx
++++ b/src/client/components/GlobalAccessModal.jsx
+@@ -1,6 +1,7 @@
+ import React, { useState, useEffect, useRef } from 'react';
+ import { useLocation } from 'react-router-dom';
+ import { useWebSocket } from '../hooks/useWebSocket';
++import { useBuzzerMute } from '../hooks/useBuzzerMute';
+ import { apiClient } from '../api/client';
+ import {
+   CheckCircle2,
+@@ -28,7 +29,7 @@ export const GlobalAccessModal = () => {
+   const location = useLocation();
+   const [scanEvent, setScanEvent] = useState(null);
+   const [isVisible, setIsVisible] = useState(false);
+-  const [soundEnabled, setSoundEnabled] = useState(true);
++  const { soundEnabled, toggle: toggleSound } = useBuzzerMute();
+   const [progress, setProgress] = useState(100);
+   const [isPaused, setIsPaused] = useState(false);
+   const [queueCount, setQueueCount] = useState(0);
+@@ -456,7 +457,7 @@ export const GlobalAccessModal = () => {
+ 
+           <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '8px' }}>
+             <button
+-              onClick={() => setSoundEnabled(!soundEnabled)}
++              onClick={toggleSound}
+               title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
+               style={{
+                 background: 'rgba(255, 255, 255, 0.2)',
+diff --git a/src/client/hooks/useBuzzerMute.js b/src/client/hooks/useBuzzerMute.js
+new file mode 100644
+index 0000000..ac088e6
+--- /dev/null
++++ b/src/client/hooks/useBuzzerMute.js
+@@ -0,0 +1,44 @@
++import { useCallback, useEffect, useState } from 'react';
++import { apiClient } from '../api/client';
++import { useWebSocket } from './useWebSocket';
++
++// Estado de silencio compartido: lo guarda el servidor y lo respetan tanto el
++// audio del navegador como el buzzer físico de la CrowPi.
++export const useBuzzerMute = (pollMs = 5000) => {
++  const [muted, setMuted] = useState(false);
++
++  const refresh = useCallback(async () => {
++    try {
++      const res = await apiClient('/doors/buzzer-mute');
++      if (res?.data && typeof res.data.muted === 'boolean') setMuted(res.data.muted);
++    } catch (e) {}
++  }, []);
++
++  useWebSocket((event) => {
++    if (event.type === 'buzzer_mute_change' && typeof event.data?.muted === 'boolean') {
++      setMuted(event.data.muted);
++    }
++  });
++
++  // En la nube el WebSocket está deshabilitado, así que también se consulta por polling.
++  useEffect(() => {
++    refresh();
++    const id = setInterval(() => {
++      if (typeof document !== 'undefined' && document.hidden) return;
++      refresh();
++    }, pollMs);
++    return () => clearInterval(id);
++  }, [refresh, pollMs]);
++
++  const toggle = useCallback(async () => {
++    const next = !muted;
++    setMuted(next); // optimista
++    try {
++      await apiClient('/doors/buzzer-mute', { method: 'PUT', body: { muted: next } });
++    } catch (e) {
++      setMuted(!next);
++    }
++  }, [muted]);
++
++  return { muted, soundEnabled: !muted, toggle };
++};
+diff --git a/src/client/pages/Monitor.jsx b/src/client/pages/Monitor.jsx
+index 44f7870..6ada2b3 100644
+--- a/src/client/pages/Monitor.jsx
++++ b/src/client/pages/Monitor.jsx
+@@ -1,6 +1,7 @@
+ import React, { useState, useEffect, useRef } from 'react';
+ import { apiClient } from '../api/client';
+ import { useWebSocket } from '../hooks/useWebSocket';
++import { useBuzzerMute } from '../hooks/useBuzzerMute';
+ import {
+   Radio,
+   XCircle,
+@@ -50,7 +51,7 @@ export const Monitor = () => {
+   const [selectedDoorId, setSelectedDoorId] = useState('');
+   const [lastScan, setLastScan] = useState(null);
+   const [liveStream, setLiveStream] = useState(loadLiveStream);
+-  const [soundEnabled, setSoundEnabled] = useState(true);
++  const { soundEnabled, toggle: toggleSound } = useBuzzerMute();
+   const [isProcessing, setIsProcessing] = useState(false);
+   const [isVibrating, setIsVibrating] = useState(false);
+ 
+@@ -488,7 +489,7 @@ export const Monitor = () => {
+         </div>
+         <div style={{ display: 'flex', gap: '8px' }}>
+           <button
+-            onClick={() => setSoundEnabled(!soundEnabled)}
++            onClick={toggleSound}
+             className="btn btn-secondary btn-sm"
+             title="Activar/desactivar audio"
+           >
+diff --git a/src/server/config/schema.sql b/src/server/config/schema.sql
+index 61aa883..0460120 100644
+--- a/src/server/config/schema.sql
++++ b/src/server/config/schema.sql
+@@ -119,6 +119,7 @@ CREATE TABLE doors (
+     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
+     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
+     is_locked BOOLEAN DEFAULT TRUE,
++    buzzer_muted BOOLEAN NOT NULL DEFAULT FALSE,
+     last_heartbeat TIMESTAMPTZ DEFAULT NOW(),
+     created_at TIMESTAMPTZ DEFAULT NOW()
+ );
+diff --git a/src/server/controllers/accessController.js b/src/server/controllers/accessController.js
+index f923d10..57415a7 100644
+--- a/src/server/controllers/accessController.js
++++ b/src/server/controllers/accessController.js
+@@ -263,7 +263,8 @@ const validateAccess = async (req, res) => {
+       door: {
+         id: door.id,
+         name: door.name,
+-        status: 'online'
++        status: 'online',
++        buzzer_muted: Boolean(door.buzzer_muted)
+       },
+       room: {
+         id: door.room_id,
+diff --git a/src/server/controllers/doorsController.js b/src/server/controllers/doorsController.js
+index 6cb7594..924762b 100644
+--- a/src/server/controllers/doorsController.js
++++ b/src/server/controllers/doorsController.js
+@@ -176,19 +176,53 @@ const heartbeat = async (req, res) => {
+       timestamp: new Date().toISOString()
+     });
+     const door = result.rows[0];
++    const muted = Boolean(door.buzzer_muted);
++    const commands = [];
++    if (door.room_security_status === 'normal') {
++      commands.push({ type: 'silence_buzzer', reason: 'room_disarmed' });
++    }
++    if (muted) {
++      commands.push({ type: 'silence_buzzer', reason: 'muted_by_user' });
++    }
+     return res.json({
+       success: true,
+       data: door,
+-      commands: door.room_security_status === 'normal'
+-        ? [{ type: 'silence_buzzer', reason: 'room_disarmed' }]
+-        : []
++      buzzer_muted: muted,
++      commands
+     });
+   } catch (error) {
+     return res.status(500).json({ success: false, error: 'Error al registrar heartbeat: ' + error.message });
+   }
+ };
+ 
++// Estado global de silencio del buzzer físico (todas las puertas).
++// Lo leen las CrowPi en cada heartbeat y en cada respuesta de /access/validate.
++const getBuzzerMute = async (req, res) => {
++  try {
++    const result = await db.query(`SELECT BOOL_AND(buzzer_muted) AS muted FROM doors`);
++    return res.json({ success: true, data: { muted: Boolean(result.rows[0]?.muted) } });
++  } catch (error) {
++    return res.status(500).json({ success: false, error: 'Error al consultar el silencio del buzzer: ' + error.message });
++  }
++};
++
++const setBuzzerMute = async (req, res) => {
++  try {
++    if (typeof req.body?.muted !== 'boolean') {
++      return res.status(400).json({ success: false, error: 'El campo "muted" debe ser true o false' });
++    }
++    const muted = req.body.muted;
++    await db.query(`UPDATE doors SET buzzer_muted = $1`, [muted]);
++    wsService.broadcast('buzzer_mute_change', { muted });
++    return res.json({ success: true, data: { muted } });
++  } catch (error) {
++    return res.status(500).json({ success: false, error: 'Error al cambiar el silencio del buzzer: ' + error.message });
++  }
++};
++
+ module.exports = {
++  getBuzzerMute,
++  setBuzzerMute,
+   getDoors,
+   getDoorById,
+   createDoor,
+diff --git a/src/server/routes/index.js b/src/server/routes/index.js
+index d547ab7..71c9cf3 100644
+--- a/src/server/routes/index.js
++++ b/src/server/routes/index.js
+@@ -55,6 +55,8 @@ router.post('/rooms', authorize('admin'), roomsController.createRoom);
+ router.put('/rooms/:id', authorize('admin'), roomsController.updateRoom);
+ router.delete('/rooms/:id', authorize('admin'), roomsController.deleteRoom);
+ 
++router.get('/doors/buzzer-mute', doorsController.getBuzzerMute);
++router.put('/doors/buzzer-mute', doorsController.setBuzzerMute);
+ router.get('/doors', doorsController.getDoors);
+ router.get('/doors/:id', doorsController.getDoorById);
+ router.post('/doors', authorize('admin'), doorsController.createDoor);
+diff --git a/src/server/seeds/migration_buzzer_muted.sql b/src/server/seeds/migration_buzzer_muted.sql
+new file mode 100644
+index 0000000..fadcd05
+--- /dev/null
++++ b/src/server/seeds/migration_buzzer_muted.sql
+@@ -0,0 +1,2 @@
++-- Ejecutar UNA vez en la BD existente (Supabase / PostgreSQL local):
++ALTER TABLE doors ADD COLUMN IF NOT EXISTS buzzer_muted BOOLEAN NOT NULL DEFAULT FALSE;
+diff --git a/supabase_schema.sql b/supabase_schema.sql
+index 131e0f2..09696e4 100644
+--- a/supabase_schema.sql
++++ b/supabase_schema.sql
+@@ -119,6 +119,7 @@ CREATE TABLE doors (
+     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
+     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
+     is_locked BOOLEAN DEFAULT TRUE,
++    buzzer_muted BOOLEAN NOT NULL DEFAULT FALSE,
+     last_heartbeat TIMESTAMPTZ DEFAULT NOW(),
+     created_at TIMESTAMPTZ DEFAULT NOW()
+ );

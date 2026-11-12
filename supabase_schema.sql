@@ -119,6 +119,7 @@ CREATE TABLE doors (
     mac_address VARCHAR(17) DEFAULT 'AA:BB:CC:DD:EE:01',
     status VARCHAR(20) DEFAULT 'online' CHECK (status IN ('online', 'offline', 'maintenance', 'alarm')),
     is_locked BOOLEAN DEFAULT TRUE,
+    buzzer_muted BOOLEAN NOT NULL DEFAULT FALSE,
     last_heartbeat TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

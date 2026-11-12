@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiClient } from '../api/client';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useBuzzerMute } from '../hooks/useBuzzerMute';
 import {
   Radio,
   XCircle,
@@ -50,7 +51,7 @@ export const Monitor = () => {
   const [selectedDoorId, setSelectedDoorId] = useState('');
   const [lastScan, setLastScan] = useState(null);
   const [liveStream, setLiveStream] = useState(loadLiveStream);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const { soundEnabled, toggle: toggleSound } = useBuzzerMute();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVibrating, setIsVibrating] = useState(false);
 
@@ -488,7 +489,7 @@ export const Monitor = () => {
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={toggleSound}
             className="btn btn-secondary btn-sm"
             title="Activar/desactivar audio"
           >

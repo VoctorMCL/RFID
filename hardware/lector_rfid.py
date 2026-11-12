@@ -54,6 +54,7 @@ buzzer_pwm = None        # Backend RPi.GPIO (PWM), solo para buzzer pasivo
 buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
 buzzer_backend = None    # "rpi" | "gpiozero"
 buzzer_habilitado = True # Controlable con --mute
+buzzer_silenciado_remoto = False  # Botón de silencio de la plataforma web (vía backend)
 
 
 def _modelo_raspberry():
@@ -128,7 +129,22 @@ def inicializar_buzzer():
 
 
 def buzzer_disponible():
+    if buzzer_silenciado_remoto:
+        return False
     return bool(buzzer_habilitado and (buzzer_pwm or buzzer_gpiozero or buzzer_backend == "rpi"))
+
+
+def aplicar_mute_remoto(valor):
+    """Sincroniza el silencio pedido desde la web. None = el backend no lo informó."""
+    global buzzer_silenciado_remoto
+    if valor is None:
+        return
+    valor = bool(valor)
+    if valor != buzzer_silenciado_remoto:
+        buzzer_silenciado_remoto = valor
+        print("  🔇 Buzzer silenciado desde la plataforma" if valor else "  🔊 Buzzer reactivado desde la plataforma")
+        if valor:
+            silenciar_buzzer()
 
 
 def _buzzer_on(frecuencia=440):
@@ -281,6 +297,7 @@ def bucle_heartbeat(api_url, door_id):
             with urllib.request.urlopen(req, timeout=4, context=ssl_ctx) as resp:
                 body = resp.read().decode("utf-8")
                 response = json.loads(body) if body else {}
+                aplicar_mute_remoto(response.get("buzzer_muted"))
                 commands = response.get("commands", [])
                 if any(command.get("type") == "silence_buzzer" for command in commands):
                     silenciar_buzzer()
@@ -325,6 +342,8 @@ def procesar_respuesta_backend(result):
         door = d.get("door", {})
         room = d.get("room", {})
         user_name = f"{user.get('first_name')} {user.get('last_name')}" if user else "Desconocido"
+        # El estado de silencio viaja en la misma respuesta: se aplica ANTES de pitar.
+        aplicar_mute_remoto(door.get("buzzer_muted"))
 
         if granted:
             print(f"  🟢 [ACCESO CONCEDIDO] Puerta: {door.get('name', 'Principal')} ({room.get('name', 'Sala')})")

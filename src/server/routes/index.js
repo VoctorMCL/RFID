@@ -55,6 +55,8 @@ router.post('/rooms', authorize('admin'), roomsController.createRoom);
 router.put('/rooms/:id', authorize('admin'), roomsController.updateRoom);
 router.delete('/rooms/:id', authorize('admin'), roomsController.deleteRoom);
 
+router.get('/doors/buzzer-mute', doorsController.getBuzzerMute);
+router.put('/doors/buzzer-mute', doorsController.setBuzzerMute);
 router.get('/doors', doorsController.getDoors);
 router.get('/doors/:id', doorsController.getDoorById);
 router.post('/doors', authorize('admin'), doorsController.createDoor);

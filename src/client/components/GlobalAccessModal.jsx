@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useBuzzerMute } from '../hooks/useBuzzerMute';
 import { apiClient } from '../api/client';
 import {
   CheckCircle2,
@@ -28,7 +29,7 @@ export const GlobalAccessModal = () => {
   const location = useLocation();
   const [scanEvent, setScanEvent] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const { soundEnabled, toggle: toggleSound } = useBuzzerMute();
   const [progress, setProgress] = useState(100);
   const [isPaused, setIsPaused] = useState(false);
   const [queueCount, setQueueCount] = useState(0);
@@ -456,7 +457,7 @@ export const GlobalAccessModal = () => {
 
           <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '8px' }}>
             <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={toggleSound}
               title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
               style={{
                 background: 'rgba(255, 255, 255, 0.2)',

@@ -263,7 +263,8 @@ const validateAccess = async (req, res) => {
       door: {
         id: door.id,
         name: door.name,
-        status: 'online'
+        status: 'online',
+        buzzer_muted: Boolean(door.buzzer_muted)
       },
       room: {
         id: door.room_id,

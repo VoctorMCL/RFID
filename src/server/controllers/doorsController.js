@@ -176,19 +176,53 @@ const heartbeat = async (req, res) => {
       timestamp: new Date().toISOString()
     });
     const door = result.rows[0];
+    const muted = Boolean(door.buzzer_muted);
+    const commands = [];
+    if (door.room_security_status === 'normal') {
+      commands.push({ type: 'silence_buzzer', reason: 'room_disarmed' });
+    }
+    if (muted) {
+      commands.push({ type: 'silence_buzzer', reason: 'muted_by_user' });
+    }
     return res.json({
       success: true,
       data: door,
-      commands: door.room_security_status === 'normal'
-        ? [{ type: 'silence_buzzer', reason: 'room_disarmed' }]
-        : []
+      buzzer_muted: muted,
+      commands
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Error al registrar heartbeat: ' + error.message });
   }
 };
 
+// Estado global de silencio del buzzer físico (todas las puertas).
+// Lo leen las CrowPi en cada heartbeat y en cada respuesta de /access/validate.
+const getBuzzerMute = async (req, res) => {
+  try {
+    const result = await db.query(`SELECT BOOL_AND(buzzer_muted) AS muted FROM doors`);
+    return res.json({ success: true, data: { muted: Boolean(result.rows[0]?.muted) } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al consultar el silencio del buzzer: ' + error.message });
+  }
+};
+
+const setBuzzerMute = async (req, res) => {
+  try {
+    if (typeof req.body?.muted !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'El campo "muted" debe ser true o false' });
+    }
+    const muted = req.body.muted;
+    await db.query(`UPDATE doors SET buzzer_muted = $1`, [muted]);
+    wsService.broadcast('buzzer_mute_change', { muted });
+    return res.json({ success: true, data: { muted } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al cambiar el silencio del buzzer: ' + error.message });
+  }
+};
+
 module.exports = {
+  getBuzzerMute,
+  setBuzzerMute,
   getDoors,
   getDoorById,
   createDoor,
