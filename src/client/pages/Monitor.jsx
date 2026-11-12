@@ -59,6 +59,14 @@ export const Monitor = () => {
 
   const selectedDoorRef = useRef(null);
 
+  // Cambia el espacio de prueba y se lo comunica al servidor para que el lector físico valide ahí.
+  const handleDoorChange = (value) => {
+    setSelectedDoorId(value);
+    const door = doors.find(d => d.id.toString() === value);
+    const doorId = door && !isEntranceDoor(door) ? door.id : null;
+    apiClient('/doors/reader-target', { method: 'PUT', body: { door_id: doorId } }).catch(() => {});
+  };
+
   const resetTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
   const lastSeenLogIdRef = useRef(null);
@@ -360,13 +368,29 @@ export const Monitor = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let targetSynced = false;
+    let preferredDoorId = null;
     const fetchDoorsAndStatus = async () => {
       try {
         const res = await apiClient('/doors');
         if (!isMounted) return;
         if (res.success && res.data.length > 0) {
+          if (!targetSynced) {
+            targetSynced = true;
+            try {
+              const t = await apiClient('/doors/reader-target');
+              const tid = t?.data?.door_id;
+              if (tid && res.data.some(d => d.id === tid)) preferredDoorId = String(tid);
+            } catch (e) {}
+            if (!isMounted) return;
+          }
           setDoors(res.data);
           setSelectedDoorId(prev => {
+            if (preferredDoorId) {
+              const chosen = preferredDoorId;
+              preferredDoorId = null;
+              return chosen;
+            }
             if (prev && res.data.some(d => d.id.toString() === prev)) return prev;
             const entrance = res.data.find(isEntranceDoor);
             return (entrance || res.data[0]).id.toString();
@@ -525,7 +549,7 @@ export const Monitor = () => {
                   id="access-destination"
                   className="form-select"
                   value={selectedDoorId}
-                  onChange={(e) => setSelectedDoorId(e.target.value)}
+                  onChange={(e) => handleDoorChange(e.target.value)}
                   disabled={doors.length === 0}
                 >
                   {selectedDoorId === '' && <option value="">Cargando espacios...</option>}
@@ -537,6 +561,9 @@ export const Monitor = () => {
                     </optgroup>
                   ))}
                 </select>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  El lector físico (CrowPi) y el lector USB validan en este espacio. Elige «{ENTRANCE_NAME}» para volver al modo entrada.
+                </div>
               </div>
             </div>
           </div>

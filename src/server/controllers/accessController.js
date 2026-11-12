@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
+const settingsService = require('../services/settingsService');
 const clockService = require('../services/clockService');
 
 let latestScanEvent = null;
@@ -70,9 +71,17 @@ const validateAccess = async (req, res) => {
         if (Number.isFinite(from) && Number.isFinite(to)) map[from] = to;
         return map;
       }, {});
-    const doorId = access_method === 'rfid' && readerDoorMap[requestedDoorId]
+    let doorId = access_method === 'rfid' && readerDoorMap[requestedDoorId]
       ? readerDoorMap[requestedDoorId]
       : requestedDoorId;
+
+    // El lector físico valida contra el espacio elegido en el Monitor (si hay uno elegido).
+    if (access_method === 'rfid') {
+      try {
+        const override = parseInt(await settingsService.getSetting('reader_door_override'), 10);
+        if (Number.isFinite(override)) doorId = override;
+      } catch (e) {}
+    }
 
     const [doorQuery, cardQuery] = await Promise.all([
       db.query(

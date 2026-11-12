@@ -1,0 +1,207 @@
+diff --git a/src/client/pages/Monitor.jsx b/src/client/pages/Monitor.jsx
+index 6ada2b3..a4f39aa 100644
+--- a/src/client/pages/Monitor.jsx
++++ b/src/client/pages/Monitor.jsx
+@@ -59,6 +59,14 @@ export const Monitor = () => {
+ 
+   const selectedDoorRef = useRef(null);
+ 
++  // Cambia el espacio de prueba y se lo comunica al servidor para que el lector físico valide ahí.
++  const handleDoorChange = (value) => {
++    setSelectedDoorId(value);
++    const door = doors.find(d => d.id.toString() === value);
++    const doorId = door && !isEntranceDoor(door) ? door.id : null;
++    apiClient('/doors/reader-target', { method: 'PUT', body: { door_id: doorId } }).catch(() => {});
++  };
++
+   const resetTimerRef = useRef(null);
+   const audioCtxRef = useRef(null);
+   const lastSeenLogIdRef = useRef(null);
+@@ -360,13 +368,29 @@ export const Monitor = () => {
+ 
+   useEffect(() => {
+     let isMounted = true;
++    let targetSynced = false;
++    let preferredDoorId = null;
+     const fetchDoorsAndStatus = async () => {
+       try {
+         const res = await apiClient('/doors');
+         if (!isMounted) return;
+         if (res.success && res.data.length > 0) {
++          if (!targetSynced) {
++            targetSynced = true;
++            try {
++              const t = await apiClient('/doors/reader-target');
++              const tid = t?.data?.door_id;
++              if (tid && res.data.some(d => d.id === tid)) preferredDoorId = String(tid);
++            } catch (e) {}
++            if (!isMounted) return;
++          }
+           setDoors(res.data);
+           setSelectedDoorId(prev => {
++            if (preferredDoorId) {
++              const chosen = preferredDoorId;
++              preferredDoorId = null;
++              return chosen;
++            }
+             if (prev && res.data.some(d => d.id.toString() === prev)) return prev;
+             const entrance = res.data.find(isEntranceDoor);
+             return (entrance || res.data[0]).id.toString();
+@@ -525,7 +549,7 @@ export const Monitor = () => {
+                   id="access-destination"
+                   className="form-select"
+                   value={selectedDoorId}
+-                  onChange={(e) => setSelectedDoorId(e.target.value)}
++                  onChange={(e) => handleDoorChange(e.target.value)}
+                   disabled={doors.length === 0}
+                 >
+                   {selectedDoorId === '' && <option value="">Cargando espacios...</option>}
+@@ -537,6 +561,9 @@ export const Monitor = () => {
+                     </optgroup>
+                   ))}
+                 </select>
++                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '6px' }}>
++                  El lector físico (CrowPi) y el lector USB validan en este espacio. Elige «{ENTRANCE_NAME}» para volver al modo entrada.
++                </div>
+               </div>
+             </div>
+           </div>
+diff --git a/src/server/controllers/accessController.js b/src/server/controllers/accessController.js
+index 95c9cfe..193528a 100644
+--- a/src/server/controllers/accessController.js
++++ b/src/server/controllers/accessController.js
+@@ -1,6 +1,7 @@
+ const db = require('../config/db');
+ const wsService = require('../services/wsService');
+ const emailService = require('../services/emailService');
++const settingsService = require('../services/settingsService');
+ const clockService = require('../services/clockService');
+ 
+ let latestScanEvent = null;
+@@ -70,10 +71,18 @@ const validateAccess = async (req, res) => {
+         if (Number.isFinite(from) && Number.isFinite(to)) map[from] = to;
+         return map;
+       }, {});
+-    const doorId = access_method === 'rfid' && readerDoorMap[requestedDoorId]
++    let doorId = access_method === 'rfid' && readerDoorMap[requestedDoorId]
+       ? readerDoorMap[requestedDoorId]
+       : requestedDoorId;
+ 
++    // El lector físico valida contra el espacio elegido en el Monitor (si hay uno elegido).
++    if (access_method === 'rfid') {
++      try {
++        const override = parseInt(await settingsService.getSetting('reader_door_override'), 10);
++        if (Number.isFinite(override)) doorId = override;
++      } catch (e) {}
++    }
++
+     const [doorQuery, cardQuery] = await Promise.all([
+       db.query(
+         `SELECT d.*, r.id as room_id, r.name as room_name, r.room_type, r.has_alarm, r.security_status, b.name as block_name
+diff --git a/src/server/controllers/doorsController.js b/src/server/controllers/doorsController.js
+index 924762b..8952646 100644
+--- a/src/server/controllers/doorsController.js
++++ b/src/server/controllers/doorsController.js
+@@ -1,5 +1,8 @@
+ const db = require('../config/db');
+ const wsService = require('../services/wsService');
++const settingsService = require('../services/settingsService');
++
++const READER_TARGET_KEY = 'reader_door_override';
+ 
+ const getDoors = async (req, res) => {
+   try {
+@@ -220,7 +223,38 @@ const setBuzzerMute = async (req, res) => {
+   }
+ };
+ 
++// Puerta/espacio contra el que se valida el lector físico (CrowPi). Sin valor = la puerta que
++// envía el propio lector (normalmente la entrada, donde todo carnet activo pasa).
++const getReaderTarget = async (req, res) => {
++  try {
++    const raw = await settingsService.getSetting(READER_TARGET_KEY);
++    const id = raw ? parseInt(raw, 10) : null;
++    return res.json({ success: true, data: { door_id: Number.isFinite(id) ? id : null } });
++  } catch (error) {
++    return res.status(500).json({ success: false, error: 'Error al consultar la puerta del lector: ' + error.message });
++  }
++};
++
++const setReaderTarget = async (req, res) => {
++  try {
++    const doorId = req.body?.door_id == null ? null : parseInt(req.body.door_id, 10);
++    if (doorId !== null) {
++      if (!Number.isFinite(doorId)) {
++        return res.status(400).json({ success: false, error: 'door_id inválido' });
++      }
++      const exists = await db.query(`SELECT 1 FROM doors WHERE id = $1`, [doorId]);
++      if (!exists.rows.length) return res.status(404).json({ success: false, error: 'Puerta no encontrada' });
++    }
++    await settingsService.setSetting(READER_TARGET_KEY, doorId);
++    return res.json({ success: true, data: { door_id: doorId } });
++  } catch (error) {
++    return res.status(500).json({ success: false, error: 'Error al cambiar la puerta del lector: ' + error.message });
++  }
++};
++
+ module.exports = {
++  getReaderTarget,
++  setReaderTarget,
+   getBuzzerMute,
+   setBuzzerMute,
+   getDoors,
+diff --git a/src/server/routes/index.js b/src/server/routes/index.js
+index 27ffa74..1fa4c6d 100644
+--- a/src/server/routes/index.js
++++ b/src/server/routes/index.js
+@@ -59,6 +59,8 @@ router.post('/rooms', authorize('admin'), roomsController.createRoom);
+ router.put('/rooms/:id', authorize('admin'), roomsController.updateRoom);
+ router.delete('/rooms/:id', authorize('admin'), roomsController.deleteRoom);
+ 
++router.get('/doors/reader-target', doorsController.getReaderTarget);
++router.put('/doors/reader-target', doorsController.setReaderTarget);
+ router.get('/doors/buzzer-mute', doorsController.getBuzzerMute);
+ router.put('/doors/buzzer-mute', doorsController.setBuzzerMute);
+ router.get('/doors', doorsController.getDoors);
+diff --git a/src/server/services/settingsService.js b/src/server/services/settingsService.js
+new file mode 100644
+index 0000000..a6039d2
+--- /dev/null
++++ b/src/server/services/settingsService.js
+@@ -0,0 +1,36 @@
++const db = require('../config/db');
++
++// Ajustes clave/valor compartidos entre instancias serverless (tabla system_settings).
++let tableReady = false;
++const ensureTable = async () => {
++  if (tableReady) return;
++  await db.query(
++    `CREATE TABLE IF NOT EXISTS system_settings (
++       key TEXT PRIMARY KEY,
++       value TEXT NOT NULL,
++       updated_at TIMESTAMPTZ DEFAULT NOW()
++     )`
++  );
++  tableReady = true;
++};
++
++const getSetting = async (key) => {
++  await ensureTable();
++  const r = await db.query(`SELECT value FROM system_settings WHERE key = $1`, [key]);
++  return r.rows.length ? r.rows[0].value : null;
++};
++
++const setSetting = async (key, value) => {
++  await ensureTable();
++  if (value == null) {
++    await db.query(`DELETE FROM system_settings WHERE key = $1`, [key]);
++    return;
++  }
++  await db.query(
++    `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW())
++     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
++    [key, String(value)]
++  );
++};
++
++module.exports = { getSetting, setSetting };

@@ -1,5 +1,8 @@
 const db = require('../config/db');
 const wsService = require('../services/wsService');
+const settingsService = require('../services/settingsService');
+
+const READER_TARGET_KEY = 'reader_door_override';
 
 const getDoors = async (req, res) => {
   try {
@@ -220,7 +223,38 @@ const setBuzzerMute = async (req, res) => {
   }
 };
 
+// Puerta/espacio contra el que se valida el lector físico (CrowPi). Sin valor = la puerta que
+// envía el propio lector (normalmente la entrada, donde todo carnet activo pasa).
+const getReaderTarget = async (req, res) => {
+  try {
+    const raw = await settingsService.getSetting(READER_TARGET_KEY);
+    const id = raw ? parseInt(raw, 10) : null;
+    return res.json({ success: true, data: { door_id: Number.isFinite(id) ? id : null } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al consultar la puerta del lector: ' + error.message });
+  }
+};
+
+const setReaderTarget = async (req, res) => {
+  try {
+    const doorId = req.body?.door_id == null ? null : parseInt(req.body.door_id, 10);
+    if (doorId !== null) {
+      if (!Number.isFinite(doorId)) {
+        return res.status(400).json({ success: false, error: 'door_id inválido' });
+      }
+      const exists = await db.query(`SELECT 1 FROM doors WHERE id = $1`, [doorId]);
+      if (!exists.rows.length) return res.status(404).json({ success: false, error: 'Puerta no encontrada' });
+    }
+    await settingsService.setSetting(READER_TARGET_KEY, doorId);
+    return res.json({ success: true, data: { door_id: doorId } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'Error al cambiar la puerta del lector: ' + error.message });
+  }
+};
+
 module.exports = {
+  getReaderTarget,
+  setReaderTarget,
   getBuzzerMute,
   setBuzzerMute,
   getDoors,
