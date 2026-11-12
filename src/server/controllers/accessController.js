@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const wsService = require('../services/wsService');
 const emailService = require('../services/emailService');
+const clockService = require('../services/clockService');
 
 let latestScanEvent = null;
 let cachedLatestScanResult = null;
@@ -60,6 +61,7 @@ const validateAccess = async (req, res) => {
     }
 
     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
+    const { date: effectiveNow } = await clockService.getNow();
     const requestedDoorId = parseInt(door_id, 10);
     const readerDoorMap = String(process.env.READER_DOOR_MAP || '')
       .split(',')
@@ -155,7 +157,7 @@ const validateAccess = async (req, res) => {
         denialReason = 'denegado_sin_usuario_asignado';
       } else if (card.user_status !== 'active') {
         denialReason = 'denegado_usuario_inactivo';
-      } else if (card.access_expiry && new Date(card.access_expiry) < new Date()) {
+      } else if (card.access_expiry && new Date(card.access_expiry) < effectiveNow) {
         denialReason = 'denegado_acceso_expirado';
       } else {
         if (card.global_access || card.card_type === 'master') {
@@ -169,9 +171,7 @@ const validateAccess = async (req, res) => {
             denialReason = 'denegado_area_no_autorizada';
           }
         } else {
-          const now = new Date();
-          const currentDay = now.getDay();
-          const currentHour = now.toTimeString().split(' ')[0];
+          const { day: currentDay, time: currentHour } = clockService.bogotaParts(effectiveNow);
 
           const schedResult = await db.query(
             `SELECT * FROM schedules

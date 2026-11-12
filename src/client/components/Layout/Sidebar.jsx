@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { RadarLogo } from '../RadarLogo';
+import { SimulatedClock } from './SimulatedClock';
 import {
   LayoutDashboard,
   Radio,
@@ -174,6 +175,29 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
       </nav>
 
       <div className="sidebar-footer">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+          <button
+            onClick={cycleTheme}
+            className="btn btn-secondary btn-sm"
+            title={themeTitle}
+            aria-label={themeTitle}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              flexShrink: 0,
+              padding: '8px 10px'
+            }}
+          >
+            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
+            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
+            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
+            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
+          </button>
+          <SimulatedClock isCollapsed={isCollapsed} />
+        </div>
+
         <div
           style={{
             display: 'flex',
@@ -207,26 +231,6 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
               )}
             </div>
           )}
-
-          <button
-            onClick={cycleTheme}
-            className="btn btn-secondary btn-sm"
-            title={themeTitle}
-            aria-label={themeTitle}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              flexShrink: 0,
-              padding: '8px 10px'
-            }}
-          >
-            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
-            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
-            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
-            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
-          </button>
         </div>
 
         <button

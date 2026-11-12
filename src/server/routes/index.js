@@ -17,6 +17,7 @@ const alertsController = require('../controllers/alertsController');
 const visitorPassesController = require('../controllers/visitorPassesController');
 const programsController = require('../controllers/programsController');
 const healthController = require('../controllers/healthController');
+const clockController = require('../controllers/clockController');
 
 router.get('/health', healthController.getHealth);
 
@@ -29,6 +30,9 @@ router.get('/access/latest', accessController.getLatestScan);
 router.post('/doors/:id/heartbeat', doorsController.heartbeat);
 
 router.use(authenticate);
+
+router.get('/clock', clockController.getClock);
+router.put('/clock', authorize('admin'), clockController.setClock);
 
 router.get('/auth/me', authController.me);
 router.post('/auth/logout', authController.logout);

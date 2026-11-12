@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { getJwtSecret } = require('../config/security');
 const sessionStore = require('../config/sessionStore');
+const wsService = require('../services/wsService');
 
 const normalizeDeviceId = (value) => {
   const raw = typeof value === 'string' ? value.trim() : '';
@@ -154,6 +155,11 @@ const logout = async (req, res) => {
          WHERE id = $1 AND active_session_id = $2`,
         [req.user.id, req.user.sessionId || '']
       );
+      // El silencio solo vale dentro de la sesión: al salir, el login vuelve a pitar.
+      try {
+        const r = await db.query(`UPDATE doors SET buzzer_muted = FALSE WHERE buzzer_muted = TRUE`);
+        if (r.rowCount) wsService.broadcast('buzzer_mute_change', { muted: false });
+      } catch (e) {}
     }
     return res.json({ success: true, message: 'Sesión finalizada exitosamente.' });
   } catch (error) {

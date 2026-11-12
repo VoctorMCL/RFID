@@ -11,8 +11,6 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
-  Volume2,
-  VolumeX,
   ShieldCheck,
   X,
   Maximize2,
@@ -32,7 +30,8 @@ export const Login = () => {
   const [authorizedUser, setAuthorizedUser] = useState(null);
   const [entryTimestamp, setEntryTimestamp] = useState(null);
 
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
+  // El login SIEMPRE suena: el silencio solo aplica dentro de la plataforma.
+  const soundEnabled = true;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
@@ -154,32 +153,6 @@ export const Login = () => {
       window.removeEventListener('touchstart', unlock);
     };
   }, []);
-
-  const toggleSound = () => {
-    setSoundEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('rfid_sound_enabled', String(next));
-      if (next) {
-        getAudioContext().then(ctx => {
-          if (ctx && ctx.state === 'running') {
-            const now = ctx.currentTime;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, now);
-            gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-            osc.start(now);
-            osc.stop(now + 0.2);
-          }
-        }).catch(() => {});
-      }
-      return next;
-    });
-  };
 
   const playSound = useCallback(async (granted) => {
     if (!soundEnabled) return;
@@ -431,16 +404,6 @@ export const Login = () => {
           </div>
 
           <div className="login-head-actions">
-            <button
-              type="button"
-              className={`login-icon-btn ${soundEnabled ? 'is-on' : ''}`}
-              onClick={toggleSound}
-              title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
-              aria-label={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
-            >
-              {soundEnabled ? <Volume2 size={17} /> : <VolumeX size={17} />}
-            </button>
-
             <button
               type="button"
               className={`login-icon-btn ${isFullscreen ? 'is-on' : ''}`}

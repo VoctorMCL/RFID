@@ -1,0 +1,498 @@
+diff --git a/src/client/components/Layout/Sidebar.jsx b/src/client/components/Layout/Sidebar.jsx
+index defeb82..45864b2 100644
+--- a/src/client/components/Layout/Sidebar.jsx
++++ b/src/client/components/Layout/Sidebar.jsx
+@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
+ import { NavLink } from 'react-router-dom';
+ import { useAuth } from '../../context/AuthContext';
+ import { RadarLogo } from '../RadarLogo';
++import { SimulatedClock } from './SimulatedClock';
+ import {
+   LayoutDashboard,
+   Radio,
+@@ -174,6 +175,29 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
+       </nav>
+ 
+       <div className="sidebar-footer">
++        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
++          <button
++            onClick={cycleTheme}
++            className="btn btn-secondary btn-sm"
++            title={themeTitle}
++            aria-label={themeTitle}
++            style={{
++              display: 'inline-flex',
++              alignItems: 'center',
++              justifyContent: 'center',
++              gap: '6px',
++              flexShrink: 0,
++              padding: '8px 10px'
++            }}
++          >
++            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
++            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
++            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
++            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
++          </button>
++          <SimulatedClock isCollapsed={isCollapsed} />
++        </div>
++
+         <div
+           style={{
+             display: 'flex',
+@@ -207,26 +231,6 @@ export const Sidebar = ({ isCollapsed, onToggle }) => {
+               )}
+             </div>
+           )}
+-
+-          <button
+-            onClick={cycleTheme}
+-            className="btn btn-secondary btn-sm"
+-            title={themeTitle}
+-            aria-label={themeTitle}
+-            style={{
+-              display: 'inline-flex',
+-              alignItems: 'center',
+-              justifyContent: 'center',
+-              gap: '6px',
+-              flexShrink: 0,
+-              padding: '8px 10px'
+-            }}
+-          >
+-            {themeMode === 'auto' && <Laptop size={15} style={{ color: 'var(--accent)' }} />}
+-            {themeMode === 'light' && <Sun size={15} style={{ color: '#d97706' }} />}
+-            {themeMode === 'dark' && <Moon size={15} style={{ color: '#38bdf8' }} />}
+-            {!isCollapsed && <span style={{ textTransform: 'capitalize' }}>{themeLabel}</span>}
+-          </button>
+         </div>
+ 
+         <button
+diff --git a/src/client/components/Layout/SimulatedClock.jsx b/src/client/components/Layout/SimulatedClock.jsx
+new file mode 100644
+index 0000000..420115f
+--- /dev/null
++++ b/src/client/components/Layout/SimulatedClock.jsx
+@@ -0,0 +1,109 @@
++import React, { useRef, useState } from 'react';
++import { Clock } from 'lucide-react';
++import { useAuth } from '../../context/AuthContext';
++import { useSimulatedClock } from '../../hooks/useSimulatedClock';
++
++const TZ = 'America/Bogota';
++
++const toInputValue = (date) =>
++  date.toLocaleString('sv-SE', { timeZone: TZ }).replace(' ', 'T').slice(0, 16);
++
++const fmtTime = (date) =>
++  date.toLocaleTimeString('es-CO', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
++const fmtDate = (date) =>
++  date.toLocaleDateString('es-CO', { timeZone: TZ, weekday: 'short', day: '2-digit', month: 'short' });
++
++export const SimulatedClock = ({ isCollapsed }) => {
++  const { isAdmin } = useAuth();
++  const { now, simulated, setSimulation } = useSimulatedClock();
++  const [open, setOpen] = useState(false);
++  const [value, setValue] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++  const btnRef = useRef(null);
++  const [pos, setPos] = useState({ left: 0, bottom: 0 });
++
++  const toggle = () => {
++    if (!open) {
++      setValue(toInputValue(now));
++      setError('');
++      const r = btnRef.current?.getBoundingClientRect();
++      if (r) setPos({ left: r.left, bottom: Math.max(8, window.innerHeight - r.top + 8) });
++    }
++    setOpen(!open);
++  };
++
++  const run = async (dt) => {
++    setBusy(true);
++    setError('');
++    try {
++      await setSimulation(dt);
++      setOpen(false);
++    } catch (e) {
++      setError(e.message || 'No se pudo cambiar la hora');
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  return (
++    <>
++      <button
++        ref={btnRef}
++        onClick={toggle}
++        className="btn btn-secondary btn-sm"
++        title={simulated ? 'Hora SIMULADA para pruebas de horarios' : 'Hora del sistema (clic para simular otra)'}
++        style={{
++          flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px 10px',
++          ...(simulated ? { borderColor: '#d97706', color: '#d97706' } : {})
++        }}
++      >
++        <Clock size={15} style={{ flexShrink: 0 }} />
++        {!isCollapsed && (
++          <span style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
++            {fmtTime(now)} · {fmtDate(now)}
++          </span>
++        )}
++      </button>
++
++      {open && (
++        <div
++          style={{
++            position: 'fixed', left: pos.left, bottom: pos.bottom, zIndex: 1000, width: 270, padding: 14,
++            background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10,
++            boxShadow: '0 10px 30px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column', gap: 10
++          }}
++        >
++          <div style={{ fontSize: 12, fontWeight: 700 }}>
++            {simulated ? 'Hora simulada activa' : 'Simular fecha y hora'}
++          </div>
++          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
++            Afecta la validación de horarios de acceso (zona Bogotá). La hora sigue avanzando desde el momento elegido.
++          </div>
++          {isAdmin ? (
++            <>
++              <input
++                type="datetime-local"
++                value={value}
++                onChange={(e) => setValue(e.target.value)}
++                className="form-input"
++                style={{ width: '100%' }}
++              />
++              {error && <div style={{ fontSize: 11, color: '#ef4444' }}>{error}</div>}
++              <div style={{ display: 'flex', gap: 8 }}>
++                <button className="btn btn-primary btn-sm" disabled={busy || !value} onClick={() => run(value)} style={{ flex: 1 }}>
++                  Aplicar
++                </button>
++                <button className="btn btn-secondary btn-sm" disabled={busy || !simulated} onClick={() => run(null)} style={{ flex: 1 }}>
++                  Hora real
++                </button>
++              </div>
++            </>
++          ) : (
++            <div style={{ fontSize: 11 }}>Solo un administrador puede cambiar la hora.</div>
++          )}
++        </div>
++      )}
++    </>
++  );
++};
+diff --git a/src/client/hooks/useSimulatedClock.js b/src/client/hooks/useSimulatedClock.js
+new file mode 100644
+index 0000000..790993b
+--- /dev/null
++++ b/src/client/hooks/useSimulatedClock.js
+@@ -0,0 +1,40 @@
++import { useCallback, useEffect, useState } from 'react';
++import { apiClient } from '../api/client';
++
++// Hora efectiva del sistema (real o simulada) tal como la usa el servidor para validar horarios.
++export const useSimulatedClock = () => {
++  const [state, setState] = useState({ simulated: false, offsetMs: 0, loaded: false });
++  const [nowMs, setNowMs] = useState(() => Date.now());
++
++  const refresh = useCallback(async () => {
++    try {
++      const res = await apiClient('/clock');
++      if (res?.data?.now) {
++        setState({
++          simulated: Boolean(res.data.simulated),
++          offsetMs: new Date(res.data.now).getTime() - Date.now(),
++          loaded: true
++        });
++      }
++    } catch (e) {}
++  }, []);
++
++  useEffect(() => {
++    refresh();
++    const poll = setInterval(refresh, 30000);
++    return () => clearInterval(poll);
++  }, [refresh]);
++
++  useEffect(() => {
++    const tick = setInterval(() => setNowMs(Date.now() + state.offsetMs), 1000);
++    setNowMs(Date.now() + state.offsetMs);
++    return () => clearInterval(tick);
++  }, [state.offsetMs]);
++
++  const setSimulation = useCallback(async (localDateTime) => {
++    await apiClient('/clock', { method: 'PUT', body: { datetime: localDateTime || null } });
++    await refresh();
++  }, [refresh]);
++
++  return { now: new Date(nowMs), simulated: state.simulated, loaded: state.loaded, setSimulation };
++};
+diff --git a/src/client/pages/Login.jsx b/src/client/pages/Login.jsx
+index 90c7d05..aaf5056 100644
+--- a/src/client/pages/Login.jsx
++++ b/src/client/pages/Login.jsx
+@@ -11,8 +11,6 @@ import {
+   XCircle,
+   AlertTriangle,
+   Loader2,
+-  Volume2,
+-  VolumeX,
+   ShieldCheck,
+   X,
+   Maximize2,
+@@ -32,7 +30,8 @@ export const Login = () => {
+   const [authorizedUser, setAuthorizedUser] = useState(null);
+   const [entryTimestamp, setEntryTimestamp] = useState(null);
+ 
+-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('rfid_sound_enabled') !== 'false');
++  // El login SIEMPRE suena: el silencio solo aplica dentro de la plataforma.
++  const soundEnabled = true;
+   const [isFullscreen, setIsFullscreen] = useState(false);
+   const [clock, setClock] = useState(() => new Date());
+ 
+@@ -155,32 +154,6 @@ export const Login = () => {
+     };
+   }, []);
+ 
+-  const toggleSound = () => {
+-    setSoundEnabled(prev => {
+-      const next = !prev;
+-      localStorage.setItem('rfid_sound_enabled', String(next));
+-      if (next) {
+-        getAudioContext().then(ctx => {
+-          if (ctx && ctx.state === 'running') {
+-            const now = ctx.currentTime;
+-            const osc = ctx.createOscillator();
+-            const gain = ctx.createGain();
+-            osc.connect(gain);
+-            gain.connect(ctx.destination);
+-            osc.type = 'sine';
+-            osc.frequency.setValueAtTime(880, now);
+-            gain.gain.setValueAtTime(0.0001, now);
+-            gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+-            osc.start(now);
+-            osc.stop(now + 0.2);
+-          }
+-        }).catch(() => {});
+-      }
+-      return next;
+-    });
+-  };
+-
+   const playSound = useCallback(async (granted) => {
+     if (!soundEnabled) return;
+     try {
+@@ -421,16 +394,6 @@ export const Login = () => {
+           </div>
+ 
+           <div className="login-head-actions">
+-            <button
+-              type="button"
+-              className={`login-icon-btn ${soundEnabled ? 'is-on' : ''}`}
+-              onClick={toggleSound}
+-              title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
+-              aria-label={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
+-            >
+-              {soundEnabled ? <Volume2 size={17} /> : <VolumeX size={17} />}
+-            </button>
+-
+             <button
+               type="button"
+               className={`login-icon-btn ${isFullscreen ? 'is-on' : ''}`}
+diff --git a/src/server/controllers/accessController.js b/src/server/controllers/accessController.js
+index 57415a7..95c9cfe 100644
+--- a/src/server/controllers/accessController.js
++++ b/src/server/controllers/accessController.js
+@@ -1,6 +1,7 @@
+ const db = require('../config/db');
+ const wsService = require('../services/wsService');
+ const emailService = require('../services/emailService');
++const clockService = require('../services/clockService');
+ 
+ let latestScanEvent = null;
+ let cachedLatestScanResult = null;
+@@ -60,6 +61,7 @@ const validateAccess = async (req, res) => {
+     }
+ 
+     const cleanUid = rfid_uid.trim().replace(/[\s:\-]/g, '').toUpperCase();
++    const { date: effectiveNow } = await clockService.getNow();
+     const requestedDoorId = parseInt(door_id, 10);
+     const readerDoorMap = String(process.env.READER_DOOR_MAP || '')
+       .split(',')
+@@ -155,7 +157,7 @@ const validateAccess = async (req, res) => {
+         denialReason = 'denegado_sin_usuario_asignado';
+       } else if (card.user_status !== 'active') {
+         denialReason = 'denegado_usuario_inactivo';
+-      } else if (card.access_expiry && new Date(card.access_expiry) < new Date()) {
++      } else if (card.access_expiry && new Date(card.access_expiry) < effectiveNow) {
+         denialReason = 'denegado_acceso_expirado';
+       } else {
+         if (card.global_access || card.card_type === 'master') {
+@@ -169,9 +171,7 @@ const validateAccess = async (req, res) => {
+             denialReason = 'denegado_area_no_autorizada';
+           }
+         } else {
+-          const now = new Date();
+-          const currentDay = now.getDay();
+-          const currentHour = now.toTimeString().split(' ')[0];
++          const { day: currentDay, time: currentHour } = clockService.bogotaParts(effectiveNow);
+ 
+           const schedResult = await db.query(
+             `SELECT * FROM schedules
+diff --git a/src/server/controllers/authController.js b/src/server/controllers/authController.js
+index 718e187..305ed07 100644
+--- a/src/server/controllers/authController.js
++++ b/src/server/controllers/authController.js
+@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
+ const db = require('../config/db');
+ const { getJwtSecret } = require('../config/security');
+ const sessionStore = require('../config/sessionStore');
++const wsService = require('../services/wsService');
+ 
+ const normalizeDeviceId = (value) => {
+   const raw = typeof value === 'string' ? value.trim() : '';
+@@ -154,6 +155,11 @@ const logout = async (req, res) => {
+          WHERE id = $1 AND active_session_id = $2`,
+         [req.user.id, req.user.sessionId || '']
+       );
++      // El silencio solo vale dentro de la sesión: al salir, el login vuelve a pitar.
++      try {
++        const r = await db.query(`UPDATE doors SET buzzer_muted = FALSE WHERE buzzer_muted = TRUE`);
++        if (r.rowCount) wsService.broadcast('buzzer_mute_change', { muted: false });
++      } catch (e) {}
+     }
+     return res.json({ success: true, message: 'Sesión finalizada exitosamente.' });
+   } catch (error) {
+diff --git a/src/server/controllers/clockController.js b/src/server/controllers/clockController.js
+new file mode 100644
+index 0000000..dc81f09
+--- /dev/null
++++ b/src/server/controllers/clockController.js
+@@ -0,0 +1,22 @@
++const clockService = require('../services/clockService');
++
++const getClock = async (req, res) => {
++  try {
++    const { date, simulated } = await clockService.getNow();
++    return res.json({ success: true, data: { now: date.toISOString(), simulated, real_now: new Date().toISOString() } });
++  } catch (error) {
++    return res.status(500).json({ success: false, error: 'Error al consultar el reloj: ' + error.message });
++  }
++};
++
++const setClock = async (req, res) => {
++  try {
++    await clockService.setSimulation(req.body?.datetime ?? null);
++    const { date, simulated } = await clockService.getNow();
++    return res.json({ success: true, data: { now: date.toISOString(), simulated, real_now: new Date().toISOString() } });
++  } catch (error) {
++    return res.status(400).json({ success: false, error: error.message });
++  }
++};
++
++module.exports = { getClock, setClock };
+diff --git a/src/server/routes/index.js b/src/server/routes/index.js
+index 71c9cf3..27ffa74 100644
+--- a/src/server/routes/index.js
++++ b/src/server/routes/index.js
+@@ -17,6 +17,7 @@ const alertsController = require('../controllers/alertsController');
+ const visitorPassesController = require('../controllers/visitorPassesController');
+ const programsController = require('../controllers/programsController');
+ const healthController = require('../controllers/healthController');
++const clockController = require('../controllers/clockController');
+ 
+ router.get('/health', healthController.getHealth);
+ 
+@@ -30,6 +31,9 @@ router.post('/doors/:id/heartbeat', doorsController.heartbeat);
+ 
+ router.use(authenticate);
+ 
++router.get('/clock', clockController.getClock);
++router.put('/clock', authorize('admin'), clockController.setClock);
++
+ router.get('/auth/me', authController.me);
+ router.post('/auth/logout', authController.logout);
+ 
+diff --git a/src/server/services/clockService.js b/src/server/services/clockService.js
+new file mode 100644
+index 0000000..1f093a0
+--- /dev/null
++++ b/src/server/services/clockService.js
+@@ -0,0 +1,75 @@
++const db = require('../config/db');
++
++// Reloj simulado para pruebas de horarios. Se guarda en la BD (system_settings)
++// para que lo compartan todas las instancias serverless de Vercel.
++const TZ = 'America/Bogota';
++const KEY = 'simulated_clock';
++let tableReady = false;
++
++const ensureTable = async () => {
++  if (tableReady) return;
++  await db.query(
++    `CREATE TABLE IF NOT EXISTS system_settings (
++       key TEXT PRIMARY KEY,
++       value TEXT NOT NULL,
++       updated_at TIMESTAMPTZ DEFAULT NOW()
++     )`
++  );
++  tableReady = true;
++};
++
++const readSimulation = async () => {
++  await ensureTable();
++  const r = await db.query(`SELECT value FROM system_settings WHERE key = $1`, [KEY]);
++  if (!r.rows.length) return null;
++  try {
++    const { simulated_at, set_at } = JSON.parse(r.rows[0].value);
++    if (!Number.isFinite(simulated_at) || !Number.isFinite(set_at)) return null;
++    return { simulated_at, set_at };
++  } catch (e) {
++    return null;
++  }
++};
++
++// Hora "efectiva" del sistema: simulada (y avanzando) o real.
++const getNow = async () => {
++  try {
++    const sim = await readSimulation();
++    if (sim) return { date: new Date(sim.simulated_at + (Date.now() - sim.set_at)), simulated: true };
++  } catch (e) {
++    console.error('clockService.getNow:', e.message);
++  }
++  return { date: new Date(), simulated: false };
++};
++
++// Entrada: 'YYYY-MM-DDTHH:mm' en hora de Bogotá (UTC-5, sin horario de verano) o null para volver a la real.
++const setSimulation = async (localDateTime) => {
++  await ensureTable();
++  if (localDateTime == null || localDateTime === '') {
++    await db.query(`DELETE FROM system_settings WHERE key = $1`, [KEY]);
++    return null;
++  }
++  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(localDateTime)) {
++    throw new Error('Formato de fecha inválido (use YYYY-MM-DDTHH:mm)');
++  }
++  const ms = new Date(`${localDateTime}:00-05:00`).getTime();
++  if (!Number.isFinite(ms)) throw new Error('Fecha inválida');
++  await db.query(
++    `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW())
++     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
++    [KEY, JSON.stringify({ simulated_at: ms, set_at: Date.now() })]
++  );
++  return ms;
++};
++
++const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
++
++// Día de la semana (0=domingo) y hora HH:MM:SS en Bogotá, sin depender de la zona del servidor.
++const bogotaParts = (date) => {
++  const parts = new Intl.DateTimeFormat('en-US', {
++    timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
++  }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
++  return { day: DOW[parts.weekday], time: `${parts.hour}:${parts.minute}:${parts.second}` };
++};
++
++module.exports = { getNow, setSimulation, bogotaParts, TZ };
