@@ -1,0 +1,78 @@
+diff --git a/hardware/lector_rfid.py b/hardware/lector_rfid.py
+index 0c240bd..73258a3 100755
+--- a/hardware/lector_rfid.py
++++ b/hardware/lector_rfid.py
+@@ -55,6 +55,7 @@ buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
+ buzzer_backend = None    # "rpi" | "gpiozero"
+ buzzer_habilitado = True # Controlable con --mute
+ buzzer_silenciado_remoto = False  # Botón de silencio de la plataforma web (vía backend)
++LECTOR_VERSION = "mute-v2 (2026-11-11)"
+ 
+ 
+ def _modelo_raspberry():
+@@ -343,6 +344,7 @@ def procesar_respuesta_backend(result):
+         room = d.get("room", {})
+         user_name = f"{user.get('first_name')} {user.get('last_name')}" if user else "Desconocido"
+         # El estado de silencio viaja en la misma respuesta: se aplica ANTES de pitar.
++        print(f"  🔈 Servidor envió buzzer_muted={door.get('buzzer_muted')!r} (None = el backend no manda ese dato)")
+         aplicar_mute_remoto(door.get("buzzer_muted"))
+ 
+         if granted:
+@@ -437,7 +439,7 @@ def main():
+     BUZZER_TYPE = args.buzzer_type
+ 
+     print("================================================================")
+-    print("🔒 Cliente de Lectura RFID (Hardware MFRC522)")
++    print(f"🔒 Cliente de Lectura RFID (Hardware MFRC522) — versión {LECTOR_VERSION}")
+     print(f"📡 Backend: {args.server}")
+     print(f"🚪 Puerta ID: {args.door}")
+     print("================================================================")
+diff --git a/src/client/pages/Login.jsx b/src/client/pages/Login.jsx
+index 90c7d05..3d51f31 100644
+--- a/src/client/pages/Login.jsx
++++ b/src/client/pages/Login.jsx
+@@ -294,8 +294,9 @@ export const Login = () => {
+       const params = new URLSearchParams(window.location.search);
+       const fromUrl = params.get('door');
+       if (fromUrl === 'off') localStorage.removeItem('rfid_terminal_door');
+-      else if (fromUrl && /^\d+$/.test(fromUrl)) localStorage.setItem('rfid_terminal_door', fromUrl);
++      else if (fromUrl && (fromUrl === 'any' || /^\d+$/.test(fromUrl))) localStorage.setItem('rfid_terminal_door', fromUrl);
+       const saved = localStorage.getItem('rfid_terminal_door');
++      if (saved === 'any') return 'any';
+       return saved ? parseInt(saved, 10) : null;
+     } catch (e) {
+       return null;
+@@ -306,6 +307,8 @@ export const Login = () => {
+     try { return sessionStorage.getItem('rfid_last_processed_scan'); } catch (e) { return null; }
+   })());
+ 
++  const [seenInfo, setSeenInfo] = useState('esperando lectura…');
++
+   useEffect(() => {
+     if (!terminalDoorId) return;
+ 
+@@ -315,8 +318,10 @@ export const Login = () => {
+         const res = await apiClient('/access/latest');
+         const scan = res?.data;
+         if (!res?.success || !scan?.uid || scan.id == null) return;
+-        if (Number(scan.door?.id) !== terminalDoorId) return;
+-        if (Date.now() - new Date(scan.timestamp).getTime() > 4000) return;
++        const ageS = Math.round((Date.now() - new Date(scan.timestamp).getTime()) / 1000);
++        setSeenInfo(`última lectura #${scan.id} · puerta ${scan.door?.id} · hace ${ageS}s`);
++        if (terminalDoorId !== 'any' && Number(scan.door?.id) !== terminalDoorId) return;
++        if (ageS > 6) return;
+         if (String(scan.id) === String(lastProcessedScanRef.current)) return;
+ 
+         lastProcessedScanRef.current = String(scan.id);
+@@ -405,6 +410,11 @@ export const Login = () => {
+ 
+   return (
+     <div className="login-shell" data-status={status}>
++      {terminalDoorId && (
++        <div style={{ position: 'fixed', bottom: 6, left: 8, zIndex: 50, fontSize: 11, opacity: 0.6 }}>
++          terminal: {terminalDoorId} · {seenInfo}
++        </div>
++      )}
+ 
+       {/* ───────────────────────── Terminal RFID (izquierda) ───────────────────────── */}
+       <section className="login-terminal" aria-label="Terminal de ingreso RFID">

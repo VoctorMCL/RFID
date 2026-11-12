@@ -294,8 +294,9 @@ export const Login = () => {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get('door');
       if (fromUrl === 'off') localStorage.removeItem('rfid_terminal_door');
-      else if (fromUrl && /^\d+$/.test(fromUrl)) localStorage.setItem('rfid_terminal_door', fromUrl);
+      else if (fromUrl && (fromUrl === 'any' || /^\d+$/.test(fromUrl))) localStorage.setItem('rfid_terminal_door', fromUrl);
       const saved = localStorage.getItem('rfid_terminal_door');
+      if (saved === 'any') return 'any';
       return saved ? parseInt(saved, 10) : null;
     } catch (e) {
       return null;
@@ -306,6 +307,8 @@ export const Login = () => {
     try { return sessionStorage.getItem('rfid_last_processed_scan'); } catch (e) { return null; }
   })());
 
+  const [seenInfo, setSeenInfo] = useState('esperando lectura…');
+
   useEffect(() => {
     if (!terminalDoorId) return;
 
@@ -315,8 +318,10 @@ export const Login = () => {
         const res = await apiClient('/access/latest');
         const scan = res?.data;
         if (!res?.success || !scan?.uid || scan.id == null) return;
-        if (Number(scan.door?.id) !== terminalDoorId) return;
-        if (Date.now() - new Date(scan.timestamp).getTime() > 4000) return;
+        const ageS = Math.round((Date.now() - new Date(scan.timestamp).getTime()) / 1000);
+        setSeenInfo(`última lectura #${scan.id} · puerta ${scan.door?.id} · hace ${ageS}s`);
+        if (terminalDoorId !== 'any' && Number(scan.door?.id) !== terminalDoorId) return;
+        if (ageS > 6) return;
         if (String(scan.id) === String(lastProcessedScanRef.current)) return;
 
         lastProcessedScanRef.current = String(scan.id);
@@ -405,6 +410,11 @@ export const Login = () => {
 
   return (
     <div className="login-shell" data-status={status}>
+      {terminalDoorId && (
+        <div style={{ position: 'fixed', bottom: 6, left: 8, zIndex: 50, fontSize: 11, opacity: 0.6 }}>
+          terminal: {terminalDoorId} · {seenInfo}
+        </div>
+      )}
 
       {/* ───────────────────────── Terminal RFID (izquierda) ───────────────────────── */}
       <section className="login-terminal" aria-label="Terminal de ingreso RFID">

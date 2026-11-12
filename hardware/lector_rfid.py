@@ -55,6 +55,7 @@ buzzer_gpiozero = None   # Backend gpiozero/lgpio (Raspberry Pi 5)
 buzzer_backend = None    # "rpi" | "gpiozero"
 buzzer_habilitado = True # Controlable con --mute
 buzzer_silenciado_remoto = False  # Botón de silencio de la plataforma web (vía backend)
+LECTOR_VERSION = "mute-v2 (2026-11-11)"
 
 
 def _modelo_raspberry():
@@ -343,6 +344,7 @@ def procesar_respuesta_backend(result):
         room = d.get("room", {})
         user_name = f"{user.get('first_name')} {user.get('last_name')}" if user else "Desconocido"
         # El estado de silencio viaja en la misma respuesta: se aplica ANTES de pitar.
+        print(f"  🔈 Servidor envió buzzer_muted={door.get('buzzer_muted')!r} (None = el backend no manda ese dato)")
         aplicar_mute_remoto(door.get("buzzer_muted"))
 
         if granted:
@@ -437,7 +439,7 @@ def main():
     BUZZER_TYPE = args.buzzer_type
 
     print("================================================================")
-    print("🔒 Cliente de Lectura RFID (Hardware MFRC522)")
+    print(f"🔒 Cliente de Lectura RFID (Hardware MFRC522) — versión {LECTOR_VERSION}")
     print(f"📡 Backend: {args.server}")
     print(f"🚪 Puerta ID: {args.door}")
     print("================================================================")
