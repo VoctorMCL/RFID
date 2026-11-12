@@ -212,9 +212,9 @@ const validateAccess = async (req, res) => {
 
         const alertInsert = await db.query(
           `INSERT INTO alerts (door_id, room_id, sensor_type, severity, message, timestamp, is_resolved)
-           VALUES ($1, $2, 'alarm_triggered', 'critical', $3, NOW(), false)
+           VALUES ($1, $2, 'alarm_triggered', 'critical', $3, $4, false)
            RETURNING *`,
-          [door.id, door.room_id, alertMessage]
+          [door.id, door.room_id, alertMessage, effectiveNow]
         );
 
         alarmDetails = alertInsert.rows[0];
@@ -243,13 +243,16 @@ const validateAccess = async (req, res) => {
 
     const logInsert = await db.query(
       `INSERT INTO access_logs (user_id, door_id, rfid_card_id, rfid_uid_raw, timestamp, access_method, granted, denial_reason, notes)
-       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         user ? user.id : null,
         door.id,
         card ? card.id : null,
         cleanUid,
+        // El registro queda en la fecha/hora efectiva para que las gráficas
+        // del día simulado incluyan los accesos hechos durante la simulación.
+        effectiveNow,
         access_method,
         granted,
         denialReason,
@@ -410,6 +413,12 @@ const getAccessLogs = async (req, res) => {
 
 const getStats = async (req, res) => {
   try {
+    // Las métricas "de hoy" deben seguir el reloj efectivo (real o simulado),
+    // igual que la validación de horarios.
+    const { date: effectiveNow } = await clockService.getNow();
+    const now = effectiveNow.toISOString();
+    const queryToday = (sql) => db.query(sql, [now]);
+
     const [
       totalToday,
       grantedToday,
@@ -423,35 +432,36 @@ const getStats = async (req, res) => {
       byRoleRes,
       byReasonRes
     ] = await Promise.all([
-      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date`),
-      db.query(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = true`),
+      queryToday(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date`),
+      queryToday(`SELECT COUNT(*)::int as count FROM access_logs WHERE (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date AND granted = true`),
       db.query(`SELECT COUNT(*)::int as count FROM users WHERE status = 'active'`),
       db.query(`SELECT COUNT(*)::int as count FROM alerts WHERE is_resolved = false`),
       db.query(`SELECT COUNT(*)::int as count FROM doors`),
       db.query(`SELECT COUNT(*)::int as count FROM rooms`),
       db.query(`SELECT COUNT(*)::int as count FROM blocks`),
+      // La liveness de las puertas usa la hora real del servidor, no la simulada.
       db.query(`SELECT COUNT(*)::int as count FROM doors WHERE last_heartbeat IS NOT NULL AND last_heartbeat > NOW() - INTERVAL '90 seconds'`),
-      db.query(`
+      queryToday(`
         SELECT b.id, b.name, COUNT(l.id)::int as count
         FROM blocks b
         LEFT JOIN rooms r ON r.block_id = b.id
         LEFT JOIN doors d ON d.room_id = r.id
-        LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+        LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
         GROUP BY b.id, b.name
         ORDER BY b.id ASC
       `),
-      db.query(`
+      queryToday(`
         SELECT r.id, r.name, r.display_name, COUNT(l.id)::int as count
         FROM roles r
         LEFT JOIN users u ON u.role_id = r.id
-        LEFT JOIN access_logs l ON l.user_id = u.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+        LEFT JOIN access_logs l ON l.user_id = u.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
         GROUP BY r.id, r.name, r.display_name
         ORDER BY count DESC
       `),
-      db.query(`
+      queryToday(`
         SELECT COALESCE(denial_reason, 'Horario no permitido') as reason, COUNT(*)::int as count
         FROM access_logs
-        WHERE granted = false AND (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+        WHERE granted = false AND (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
         GROUP BY denial_reason
         ORDER BY count DESC
         LIMIT 5
@@ -578,31 +588,37 @@ const getLatestScan = async (req, res) => {
 
 const getAnalytics = async (req, res) => {
   try {
-    const hourlyQuery = await db.query(`
+    // La analítica se calcula sobre el día efectivo del sistema: si hay una
+    // hora simulada activa, las gráficas muestran ese día y no el día real.
+    const { date: effectiveNow } = await clockService.getNow();
+    const now = effectiveNow.toISOString();
+    const queryEffective = (sql) => db.query(sql, [now]);
+
+    const hourlyQuery = await queryEffective(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:00') as time_slot,
         COUNT(*)::int as total,
         COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
         COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
       FROM access_logs l
-      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:00')
       ORDER BY time_slot ASC
     `);
 
-    const minuteQuery = await db.query(`
+    const minuteQuery = await queryEffective(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:MI') as time_slot,
         COUNT(*)::int as total,
         COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
         COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
       FROM access_logs l
-      WHERE l.timestamp >= NOW() - INTERVAL '60 minutes'
+      WHERE l.timestamp >= $1::timestamptz - INTERVAL '60 minutes'
       GROUP BY TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'HH24:MI')
       ORDER BY time_slot ASC
     `);
 
-    const studentsByProgramQuery = await db.query(`
+    const studentsByProgramQuery = await queryEffective(`
       WITH last_student_access AS (
         SELECT DISTINCT ON (l.user_id)
           l.user_id,
@@ -613,7 +629,7 @@ const getAnalytics = async (req, res) => {
         JOIN users u ON u.id = l.user_id
         JOIN roles r ON r.id = u.role_id
         WHERE r.name = 'student'
-          AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+          AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
         ORDER BY l.user_id, l.timestamp DESC
       )
       SELECT
@@ -625,7 +641,7 @@ const getAnalytics = async (req, res) => {
       ORDER BY active_students DESC
     `);
 
-    const weeklyByProgramQuery = await db.query(`
+    const weeklyByProgramQuery = await queryEffective(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'Dy') as day_label,
@@ -634,12 +650,12 @@ const getAnalytics = async (req, res) => {
       FROM access_logs l
       JOIN users u ON u.id = l.user_id
       WHERE l.granted = true
-        AND (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
+        AND (l.timestamp AT TIME ZONE 'America/Bogota')::date >= ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
       GROUP BY date_str, day_label, program
       ORDER BY date_str ASC, count DESC
     `);
 
-    const byBlockQuery = await db.query(`
+    const byBlockQuery = await queryEffective(`
       SELECT
         b.id,
         b.name as block_name,
@@ -647,23 +663,23 @@ const getAnalytics = async (req, res) => {
       FROM blocks b
       LEFT JOIN rooms r ON r.block_id = b.id
       LEFT JOIN doors d ON d.room_id = r.id
-      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY b.id, b.name
       ORDER BY b.id ASC
     `);
 
-    const heatmapQuery = await db.query(`
+    const heatmapQuery = await queryEffective(`
       SELECT
         EXTRACT(DOW FROM l.timestamp AT TIME ZONE 'America/Bogota')::int as dow,
         EXTRACT(HOUR FROM l.timestamp AT TIME ZONE 'America/Bogota')::int as hour,
         COUNT(*)::int as count
       FROM access_logs l
-      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '14 days'
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '14 days'
       GROUP BY dow, hour
       ORDER BY dow, hour
     `);
 
-    const topDoorsQuery = await db.query(`
+    const topDoorsQuery = await queryEffective(`
       SELECT
         d.id,
         d.name as door_name,
@@ -673,13 +689,13 @@ const getAnalytics = async (req, res) => {
       FROM doors d
       JOIN rooms rm ON rm.id = d.room_id
       JOIN blocks b ON b.id = rm.block_id
-      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY d.id, d.name, rm.name, b.name
       ORDER BY count DESC
       LIMIT 6
     `);
 
-    const weeklyVolumeQuery = await db.query(`
+    const weeklyVolumeQuery = await queryEffective(`
       SELECT
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') as date_str,
         TO_CHAR(l.timestamp AT TIME ZONE 'America/Bogota', 'Dy DD/MM') as day_label,
@@ -687,7 +703,7 @@ const getAnalytics = async (req, res) => {
         COUNT(CASE WHEN l.granted = true THEN 1 END)::int as granted,
         COUNT(CASE WHEN l.granted = false THEN 1 END)::int as denied
       FROM access_logs l
-      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date >= ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '6 days'
       GROUP BY date_str, day_label
       ORDER BY date_str ASC
     `);
@@ -703,19 +719,19 @@ const getAnalytics = async (req, res) => {
       LIMIT 6
     `);
 
-    const rolesDistQuery = await db.query(`
+    const rolesDistQuery = await queryEffective(`
       SELECT
         COALESCE(r.display_name, 'No Asignado') as role_name,
         COUNT(l.id)::int as count
       FROM access_logs l
       LEFT JOIN users u ON u.id = l.user_id
       LEFT JOIN roles r ON r.id = u.role_id
-      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY r.display_name
       ORDER BY count DESC
     `);
 
-    const topRoomsQuery = await db.query(`
+    const topRoomsQuery = await queryEffective(`
       SELECT
         rm.id,
         rm.name as room_name,
@@ -725,25 +741,25 @@ const getAnalytics = async (req, res) => {
       FROM rooms rm
       JOIN blocks b ON b.id = rm.block_id
       JOIN doors d ON d.room_id = rm.id
-      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      LEFT JOIN access_logs l ON l.door_id = d.id AND (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY rm.id, rm.name, b.name
       ORDER BY count DESC
       LIMIT 6
     `);
 
-    const comparisonQuery = await db.query(`
+    const comparisonQuery = await queryEffective(`
       SELECT
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date THEN 1 END)::int as today_total,
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' THEN 1 END)::int as yesterday_total,
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = true THEN 1 END)::int as today_granted,
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = true THEN 1 END)::int as yesterday_granted,
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date AND granted = false THEN 1 END)::int as today_denied,
-        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = false THEN 1 END)::int as yesterday_denied
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date THEN 1 END)::int as today_total,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' THEN 1 END)::int as yesterday_total,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date AND granted = true THEN 1 END)::int as today_granted,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = true THEN 1 END)::int as yesterday_granted,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date AND granted = false THEN 1 END)::int as today_denied,
+        COUNT(CASE WHEN (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day' AND granted = false THEN 1 END)::int as yesterday_denied
       FROM access_logs
-      WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= (NOW() AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day'
+      WHERE (timestamp AT TIME ZONE 'America/Bogota')::date >= ($1::timestamptz AT TIME ZONE 'America/Bogota')::date - INTERVAL '1 day'
     `);
 
-    const spaceTypesQuery = await db.query(`
+    const spaceTypesQuery = await queryEffective(`
       SELECT
         CASE
           WHEN LOWER(rm.name) LIKE '%lab%' OR LOWER(rm.name) LIKE '%cómputo%' OR LOWER(rm.name) LIKE '%hardware%' THEN 'Laboratorios Especializados'
@@ -756,12 +772,12 @@ const getAnalytics = async (req, res) => {
       JOIN doors d ON d.id = l.door_id
       JOIN rooms rm ON rm.id = d.room_id
       JOIN blocks b ON b.id = rm.block_id
-      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+      WHERE (l.timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
       GROUP BY space_category
       ORDER BY count DESC
     `);
 
-    const avgStayQuery = await db.query(`
+    const avgStayQuery = await queryEffective(`
       WITH user_daily_spans AS (
         SELECT
           user_id,
@@ -770,7 +786,7 @@ const getAnalytics = async (req, res) => {
           EXTRACT(EPOCH FROM (MAX(timestamp) - MIN(timestamp))) / 3600.0 as hours_diff
         FROM access_logs
         WHERE user_id IS NOT NULL
-          AND (timestamp AT TIME ZONE 'America/Bogota')::date = (NOW() AT TIME ZONE 'America/Bogota')::date
+          AND (timestamp AT TIME ZONE 'America/Bogota')::date = ($1::timestamptz AT TIME ZONE 'America/Bogota')::date
         GROUP BY user_id
         HAVING COUNT(*) > 1
       )

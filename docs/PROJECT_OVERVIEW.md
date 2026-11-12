@@ -10,7 +10,7 @@ administradores y personal de seguridad.
 El sistema combina tres superficies:
 
 - **Consola web:** SPA React para autenticación, monitoreo, administración
-  institucional, tarjetas, horarios, alertas y reportes.
+  institucional, tarjetas, horarios, alertas y reportes.docs
 - **API y tiempo real:** backend Express con endpoints REST y WebSocket para
   validar accesos, recibir heartbeats y notificar lecturas o alarmas.
 - **Dispositivos físicos:** firmware ESP32 y lector Python para Raspberry

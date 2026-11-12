@@ -79,7 +79,7 @@ export const SimulatedClock = ({ isCollapsed }) => {
             {simulated ? 'Hora simulada activa' : 'Simular fecha y hora'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Afecta la validación de horarios de acceso (zona Bogotá). La hora sigue avanzando desde el momento elegido.
+            Afecta la validación de horarios, las gráficas del dashboard y la fecha de los nuevos accesos (zona Bogotá). La hora sigue avanzando desde el momento elegido.
           </div>
           {isAdmin ? (
             <>
