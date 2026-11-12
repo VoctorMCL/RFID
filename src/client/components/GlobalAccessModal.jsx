@@ -1,0 +1,822 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { apiClient } from '../api/client';
+import {
+  CheckCircle2,
+  XCircle,
+  X,
+  CreditCard,
+  DoorClosed,
+  GraduationCap,
+  IdCard,
+  Clock,
+  AlertTriangle,
+  MapPin,
+  Volume2,
+  VolumeX,
+  ShieldCheck,
+  ShieldAlert
+} from 'lucide-react';
+
+const DURATION_MS = 6500;
+
+const DUPLICATE_UID_WINDOW_MS = 1500;
+const SCANNER_DESTINATION_STORAGE_KEY = 'radar_scanner_destination';
+
+export const GlobalAccessModal = () => {
+  const location = useLocation();
+  const [scanEvent, setScanEvent] = useState(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [progress, setProgress] = useState(100);
+  const [isPaused, setIsPaused] = useState(false);
+  const [queueCount, setQueueCount] = useState(0);
+
+  const progressIntervalRef = useRef(null);
+  const startTimeRef = useRef(0);
+  const remainingTimeRef = useRef(DURATION_MS);
+  const audioCtxRef = useRef(null);
+  const lastSeenLogIdRef = useRef(null);
+  const soundEnabledRef = useRef(true);
+
+  const queueRef = useRef([]);
+  const isShowingRef = useRef(false);
+  const isPausedRef = useRef(false);
+  const shownIdsRef = useRef(new Set());
+  const lastUidRef = useRef({ uid: null, at: 0 });
+  const enrollmentActiveRef = useRef(false);
+
+  const playSound = (granted) => {
+    if (!soundEnabledRef.current) return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const now = ctx.currentTime;
+
+      if (granted) {
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now + 0.15);
+        osc1.frequency.setValueAtTime(880.00, now + 0.27);
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.linearRampToValueAtTime(0.14, now + 0.17);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.53);
+        osc1.start(now + 0.15);
+        osc1.stop(now + 0.53);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1174.66, now + 0.20);
+        osc2.frequency.setValueAtTime(1760.00, now + 0.30);
+        gain2.gain.setValueAtTime(0.0001, now);
+        gain2.gain.linearRampToValueAtTime(0.04, now + 0.22);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.50);
+        osc2.start(now + 0.20);
+        osc2.stop(now + 0.50);
+      } else {
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(220.00, now + 0.05);
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.linearRampToValueAtTime(0.16, now + 0.07);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+        osc1.start(now + 0.05);
+        osc1.stop(now + 0.20);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.type = 'sawtooth';
+        osc2.frequency.setValueAtTime(164.81, now + 0.24);
+        gain2.gain.setValueAtTime(0.0001, now);
+        gain2.gain.linearRampToValueAtTime(0.14, now + 0.26);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
+        osc2.start(now + 0.24);
+        osc2.stop(now + 0.40);
+
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.connect(gain3);
+        gain3.connect(ctx.destination);
+        osc3.type = 'sawtooth';
+        osc3.frequency.setValueAtTime(130.81, now + 0.44);
+        gain3.gain.setValueAtTime(0.0001, now);
+        gain3.gain.linearRampToValueAtTime(0.12, now + 0.46);
+        gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.60);
+        osc3.start(now + 0.44);
+        osc3.stop(now + 0.60);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  const stopCountdown = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  const startCountdown = () => {
+    stopCountdown();
+    progressIntervalRef.current = setInterval(() => {
+      if (isPausedRef.current) return;
+
+      const elapsed = Date.now() - startTimeRef.current;
+      const remaining = Math.max(0, DURATION_MS - elapsed);
+      remainingTimeRef.current = remaining;
+      setProgress((remaining / DURATION_MS) * 100);
+
+      if (remaining <= 0) {
+        finishCurrent();
+      }
+    }, 40);
+  };
+
+  const showNext = () => {
+    if (isShowingRef.current) return;
+
+    const next = queueRef.current.shift();
+    setQueueCount(queueRef.current.length);
+
+    if (!next) {
+      setIsVisible(false);
+      setScanEvent(null);
+      return;
+    }
+
+    isShowingRef.current = true;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    setScanEvent(next);
+    setIsVisible(true);
+    setProgress(100);
+    remainingTimeRef.current = DURATION_MS;
+    startTimeRef.current = Date.now();
+
+    playSound(Boolean(next.granted));
+    startCountdown();
+  };
+
+  const finishCurrent = () => {
+    stopCountdown();
+    if (!isShowingRef.current) return;
+
+    isShowingRef.current = false;
+    remainingTimeRef.current = DURATION_MS;
+    showNext();
+  };
+
+  useEffect(() => {
+    const handleEnrollmentState = (event) => {
+      const active = Boolean(event?.detail?.active);
+      enrollmentActiveRef.current = active;
+      if (!active) return;
+
+      queueRef.current = [];
+      setQueueCount(0);
+      stopCountdown();
+      isShowingRef.current = false;
+      isPausedRef.current = false;
+      setIsPaused(false);
+      remainingTimeRef.current = DURATION_MS;
+      setIsVisible(false);
+      setScanEvent(null);
+    };
+
+    window.addEventListener('radar-enrollment-state', handleEnrollmentState);
+    return () => window.removeEventListener('radar-enrollment-state', handleEnrollmentState);
+  }, []);
+
+  const enqueueEvent = (data) => {
+    const eventId = data.id ?? data.logId;
+
+    if (eventId !== undefined && eventId !== null) {
+      const idKey = String(eventId);
+      if (shownIdsRef.current.has(idKey)) return;
+      shownIdsRef.current.add(idKey);
+
+      if (shownIdsRef.current.size > 250) {
+        const oldest = shownIdsRef.current.values().next().value;
+        shownIdsRef.current.delete(oldest);
+      }
+    }
+
+    if (enrollmentActiveRef.current) return;
+
+    const uid = data.uid ? String(data.uid).trim().toUpperCase() : null;
+    if (uid) {
+      const now = Date.now();
+      const last = lastUidRef.current;
+      if (last.uid === uid && now - last.at < DUPLICATE_UID_WINDOW_MS) return;
+      lastUidRef.current = { uid, at: now };
+    }
+
+    queueRef.current.push(data);
+    setQueueCount(queueRef.current.length);
+    showNext();
+  };
+
+  const handleClose = () => {
+    finishCurrent();
+  };
+
+  const handlePause = () => {
+    if (isPausedRef.current) return;
+    isPausedRef.current = true;
+    setIsPaused(true);
+  };
+
+  const handleResume = () => {
+    if (!isPausedRef.current) return;
+    isPausedRef.current = false;
+    setIsPaused(false);
+    startTimeRef.current = Date.now() - (DURATION_MS - remainingTimeRef.current);
+  };
+
+  const handleWsEvent = (event) => {
+    if (event.type === 'access_attempt' && event.data) {
+      const d = event.data;
+      lastSeenLogIdRef.current = d.logId || d.id;
+      enqueueEvent({
+        id: d.logId || d.id,
+        granted: Boolean(d.granted),
+        denial_reason: d.denialReason || d.denial_reason,
+        timestamp: d.timestamp || new Date().toISOString(),
+        uid: d.uid,
+        user: d.user,
+        door: d.door,
+        room: d.room,
+        alarm_triggered: Boolean(d.alarmTriggered || d.alarm_triggered)
+      });
+    }
+  };
+
+  const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
+
+  useEffect(() => {
+    if (isWsConnected) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const poll = async () => {
+      if (inFlight || cancelled || (typeof document !== 'undefined' && document.hidden)) return;
+      inFlight = true;
+
+      try {
+        const res = await apiClient('/access/latest');
+        if (cancelled) return;
+
+        if (res.success && res.data && res.data.id) {
+          const scan = res.data;
+          if (lastSeenLogIdRef.current === null) {
+            lastSeenLogIdRef.current = scan.id;
+            return;
+          }
+          if (scan.id !== lastSeenLogIdRef.current) {
+            lastSeenLogIdRef.current = scan.id;
+            const scanTime = new Date(scan.timestamp).getTime();
+
+            if (Date.now() - scanTime < 20000) {
+              enqueueEvent({
+                id: scan.id,
+                granted: Boolean(scan.granted),
+                denial_reason: scan.denial_reason,
+                timestamp: scan.timestamp,
+                uid: scan.uid,
+                user: scan.user,
+                door: scan.door,
+                room: scan.room,
+                alarm_triggered: Boolean(scan.alarm_triggered)
+              });
+            }
+          }
+        }
+      } catch (err) {
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = setInterval(poll, 1500);
+    poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isWsConnected]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isVisible) {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible]);
+
+  if (!isVisible || !scanEvent) return null;
+
+  const granted = Boolean(scanEvent.granted);
+  const user = scanEvent.user;
+  const door = scanEvent.door;
+  const room = scanEvent.room;
+  const isVisitor = Boolean(user?.is_visitor || user?.role_name === 'visitor');
+
+  const scannerDestination = (() => {
+    if (location.pathname !== '/monitor') return null;
+    try {
+      const stored = sessionStorage.getItem(SCANNER_DESTINATION_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      return null;
+    }
+  })();
+
+  const accessDoorName = scannerDestination?.doorName || door?.name || `Puerta #${door?.id || '—'}`;
+  const accessRoomName = scannerDestination?.roomName || room?.name;
+  const accessBlockName = scannerDestination ? '' : room?.block_name;
+
+  const formatTime = (ts) => {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    } catch (e) {
+      return '--:--:--';
+    }
+  };
+
+  const getDenialText = (reason) => {
+    switch (reason) {
+      case 'denegado_no_registrado':
+        return 'Tarjeta RFID no registrada en la base de datos institucional';
+      case 'denegado_tarjeta_inactiva':
+        return 'Tarjeta deshabilitada o revocada por administración';
+      case 'denegado_sin_usuario_asignado':
+        return 'Tarjeta activa pero sin estudiante ni usuario asignado';
+      case 'denegado_usuario_inactivo':
+        return 'Estudiante o usuario suspendido temporalmente por decanatura';
+      case 'denegado_acceso_expirado':
+        return 'Vigencia de acceso institucional expirada';
+      case 'denegado_area_no_autorizada':
+        return 'Área no autorizada para el rol institucional';
+      case 'denegado_horario_no_valido':
+        return 'Fuera del horario de clases asignado en la articulación horaria';
+      default:
+        return reason || 'Acceso denegado por políticas de seguridad';
+    }
+  };
+
+  const getInitials = (first, last) => {
+    const f = (first || '?')[0];
+    const l = (last || '')[0] || '';
+    return (f + l).toUpperCase();
+  };
+
+  const studentName = user ? (user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()) : 'Usuario no Registrado';
+  const avatarUrl = user?.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=${granted ? '065f46' : '991b1b'}&color=ffffff&size=200&bold=true`;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        backgroundColor: 'rgba(10, 16, 30, 0.72)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        animation: 'fadeIn 0.2s ease-out'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        onMouseEnter={handlePause}
+        onMouseLeave={handleResume}
+        style={{
+          width: '100%',
+          maxWidth: '560px',
+          maxHeight: '92vh',
+          overflowY: 'auto',
+          backgroundColor: 'var(--bg-card, #ffffff)',
+          borderRadius: '16px',
+          boxShadow: granted
+            ? '0 25px 60px -15px rgba(16, 185, 129, 0.4), 0 0 0 1px rgba(16, 185, 129, 0.25)'
+            : '0 25px 60px -15px rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239, 68, 68, 0.25)',
+          border: `2px solid ${granted ? '#10b981' : '#ef4444'}`,
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          animation: 'popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+      >
+
+        <div
+          style={{
+            background: granted
+              ? 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
+              : 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+            color: '#ffffff',
+            padding: '24px 24px 20px 24px',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center'
+          }}
+        >
+
+          <div style={{ position: 'absolute', top: '14px', right: '14px', display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? 'Silenciar alertas' : 'Activar sonido'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.15s ease'
+              }}
+            >
+              {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
+            <button
+              onClick={handleClose}
+              title="Cerrar pop-up (Esc)"
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                color: '#ffffff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.15s ease'
+              }}
+            >
+              <X size={18} strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <div
+            style={{
+              width: '74px',
+              height: '74px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(255, 255, 255, 0.22)',
+              border: '3px solid rgba(255, 255, 255, 0.85)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '12px',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)'
+            }}
+          >
+            {granted ? (
+              <CheckCircle2 size={46} color="#ffffff" strokeWidth={2.6} />
+            ) : (
+              <XCircle size={46} color="#ffffff" strokeWidth={2.6} />
+            )}
+          </div>
+
+          <h1
+            style={{
+              fontSize: '28px',
+              fontWeight: 900,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              margin: '0 0 6px 0',
+              lineHeight: 1.1,
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.25)'
+            }}
+          >
+            {granted ? 'ACCESO CONCEDIDO' : 'ACCESO DENEGADO'}
+          </h1>
+
+          <div
+            style={{
+              fontSize: '13.5px',
+              fontWeight: 600,
+              opacity: 0.95,
+              maxWidth: '440px',
+              lineHeight: 1.35
+            }}
+          >
+            {granted
+              ? 'Apertura electromecánica autorizada · Cerradura desbloqueada'
+              : getDenialText(scanEvent.denial_reason)}
+          </div>
+
+          {queueCount > 0 && (
+            <div
+              style={{
+                marginTop: '10px',
+                padding: '3px 10px',
+                borderRadius: '9999px',
+                backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                letterSpacing: '0.02em'
+              }}
+            >
+              {queueCount} {queueCount === 1 ? 'escaneo en espera' : 'escaneos en espera'}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '22px 24px', backgroundColor: 'var(--bg-card, #ffffff)' }}>
+          {user ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '18px',
+                padding: '16px',
+                borderRadius: '12px',
+                backgroundColor: 'var(--bg-tertiary, #f8fafc)',
+                border: '1px solid var(--border, #e2e8f0)',
+                marginBottom: '16px'
+              }}
+            >
+
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <img
+                  src={avatarUrl}
+                  alt={studentName}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=002855&color=ffffff&size=200&bold=true`;
+                  }}
+                  style={{
+                    width: '84px',
+                    height: '84px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: `3px solid ${granted ? '#10b981' : '#ef4444'}`,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: '-2px',
+                    right: '-2px',
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backgroundColor: granted ? '#16a34a' : '#dc2626',
+                    color: '#ffffff',
+                    border: '2px solid var(--bg-card, #ffffff)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                  }}
+                >
+                  {granted ? 'Válido' : 'Rechazo'}
+                </span>
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: 'var(--accent-soft, rgba(0, 40, 85, 0.08))',
+                      color: 'var(--accent, #002855)'
+                    }}
+                  >
+                    {user.role || 'Estudiante'}
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>·</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                    C.C. {user.document_id || '—'}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '20px',
+                    fontWeight: 800,
+                    color: 'var(--text-primary, #0f172a)',
+                    lineHeight: 1.25,
+                    marginBottom: '4px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={studentName}
+                >
+                  {studentName}
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: 'var(--accent, #002855)'
+                  }}
+                >
+                  {isVisitor ? <MapPin size={16} /> : <GraduationCap size={16} />}
+                  <span>{isVisitor ? (user.destination || 'Visitante en campus') : (user.program || 'Programa Académico General')}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '16px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                marginBottom: '16px'
+              }}
+            >
+              <div
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0
+                }}
+              >
+                <ShieldAlert size={28} />
+              </div>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 800, color: '#dc2626' }}>
+                  Carnet no asignado a ningún estudiante
+                </div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary, #334155)', marginTop: '2px' }}>
+                  El UID escaneado no pertenece a la Corporación Universitaria Lasallista o fue bloqueado preventivamente.
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div
+            className="form-row-2col"
+            style={{
+              gap: '10px',
+              fontSize: '12px'
+            }}
+          >
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-tertiary, #f8fafc)',
+                border: '1px solid var(--border, #e2e8f0)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}
+            >
+              <CreditCard size={18} style={{ color: 'var(--accent, #002855)', flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  UID de tarjeta RFID
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '13.5px', color: 'var(--text-primary)' }}>
+                  {scanEvent.uid || '—'}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-tertiary, #f8fafc)',
+                border: '1px solid var(--border, #e2e8f0)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}
+            >
+              <Clock size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Hora de ingreso
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatTime(scanEvent.timestamp)}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-tertiary, #f8fafc)',
+                border: '1px solid var(--border, #e2e8f0)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px'
+              }}
+            >
+              <DoorClosed size={18} style={{ color: 'var(--accent, #002855)', flexShrink: 0 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  Punto de acceso institucional
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--text-primary)', marginTop: '1px' }}>
+                  {accessDoorName}
+                  {accessRoomName && (
+                    <span style={{ fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                      · {accessRoomName} {accessBlockName ? `(${accessBlockName})` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {scanEvent.alarm_triggered && (
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                color: '#991b1b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: '12px',
+                fontWeight: 700
+              }}
+            >
+              <AlertTriangle size={18} color="#dc2626" />
+              <span>Alerta perimetral activada: la sala tiene alarma armada y se reportó el incidente.</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: '4px', width: '100%', backgroundColor: 'var(--border, #e2e8f0)', overflow: 'hidden' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${progress}%`,
+              backgroundColor: granted ? '#10b981' : '#ef4444',
+              transition: isPaused ? 'none' : 'width 0.05s linear'
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
