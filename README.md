@@ -62,7 +62,7 @@ RFID/
 │   │   └── main.jsx             # Punto de montaje React
 │   │
 │   └── server/                  # Backend Node.js + Express + WebSockets (puerto 4000)
-│       ├── config/              # db.js (Pool PostgreSQL / Supabase) y schema.sql
+│       ├── config/              # db.js, schema.sql y sessionStore.js (gestor de sesiones por equipo)
 │       ├── controllers/         # auth, access, alerts, blocks, doors, rfidCards, rooms, schedules, users, visitorPasses
 │       ├── middleware/          # auth.js (JWT, validación de sesión por PC y roles)
 │       ├── routes/              # Endpoints de la API REST (/api)
@@ -162,11 +162,17 @@ pkill -f "node src/server/server.js"
 
 ## ⚡ Aspectos Clave Implementados
 
-1. **Terminal RADAR Inmersiva:** Split-screen con ondas líquidas, telemetría de sesión, audio institucional de validación y detección automática de tarjetas físicas.
-2. **Barra Lateral Comprimible (Sidebar):** Ubicada a la izquierda con botón de toggle para expandir (250px) o comprimir (68px en modo iconos compactos).
-3. **Detección Dinámica de Sensor RFID:**
+1. **Terminal RADAR Inmersiva:** Split-screen con ondas líquidas, telemetría de sesión, audio institucional de validación y detección automática de tarjetas físicas (WebSocket, polling de contingencia y teclado cuña USB).
+2. **Sesión Independiente por Puesto / PC (`user_sessions`):**
+   - Cada navegador/terminal genera y preserva un identificador persistente (`rfid_device_id`).
+   - Múltiples puestos de trabajo (portería peatonal, vehicular, rectoría, soporte) pueden permanecer autenticados de forma simultánea con el mismo o diferentes usuarios sin revocaciones cruzadas.
+   - El cierre de sesión (`logout`) o el temporizador de inactividad (15 min) solo revoca la sesión del equipo actual.
+   - Deduplicación inteligente de lecturas en frontend (`sessionStorage`) para prevenir bucles de login automático tras refrescar o cerrar sesión.
+3. **Barra Lateral Comprimible (Sidebar):** Ubicada a la izquierda con botón de toggle para expandir (250px) o comprimir (68px en modo iconos compactos) con persistencia en `localStorage`.
+4. **Detección Dinámica de Sensor RFID:**
    - Si no hay lector conectado o activo: muestra en **ROJO** `🔴 Sensor RFID No Detectado`.
    - Cuando se detecta o comprueba la comunicación: cambia a **VERDE** `🟢 Sensor RFID Conectado / Confirmado`.
    - Botón interactivo para comprobar o simular el enlace de hardware directamente en pantalla.
-4. **Animación de Vibraciones en Errores:** En accesos denegados, tarjetas no registradas o violaciones de horario, el módulo visual ejecuta una vibración lateral (`@keyframes vibrate-shake`) acompañada de vibración háptica con la API `navigator.vibrate`.
-5. **Resistencia a Fallos de Red y Base de Datos:** Conexión directa a PostgreSQL / Supabase con reconexión resiliente, verificación SSL y soporte serverless en Vercel.
+5. **Animación de Vibraciones en Errores:** En accesos denegados, tarjetas no registradas o violaciones de horario, el módulo visual ejecuta una vibración lateral (`@keyframes vibrate-shake`) acompañada de vibración háptica con la API `navigator.vibrate`.
+6. **Módulo de Pases de Visitantes y Préstamos Temporales:** Registro con vinculación obligatoria de tarjeta física, motivo, seguimiento de destino, control de devolución y liberación inmediata de tarjetas.
+7. **Resistencia a Fallos de Red y Base de Datos:** Conexión directa a PostgreSQL / Supabase con reconexión resiliente, auto-creación bajo demanda de tablas requeridas (`user_sessions`), verificación SSL y soporte serverless en Vercel.
