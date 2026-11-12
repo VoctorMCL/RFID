@@ -1,0 +1,68 @@
+diff --git a/src/client/pages/Login.jsx b/src/client/pages/Login.jsx
+index 22db199..90c7d05 100644
+--- a/src/client/pages/Login.jsx
++++ b/src/client/pages/Login.jsx
+@@ -1,4 +1,4 @@
+-import React, { useState, useEffect, useRef, useCallback } from 'react';
++import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+ import { useNavigate } from 'react-router-dom';
+ import { useAuth } from '../context/AuthContext';
+ import { apiClient } from '../api/client';
+@@ -286,6 +286,48 @@ export const Login = () => {
+     }
+   }, [loginWithCard, navigate, playSound]);
+ 
++  // Terminal emparejado: solo las lecturas de la puerta con la que este navegador
++  // fue emparejado (abrir una vez /login?door=ID) pueden iniciar sesión aquí.
++  // Un navegador sin emparejar (p. ej. la laptop) ignora las lecturas de la CrowPi.
++  const terminalDoorId = useMemo(() => {
++    try {
++      const params = new URLSearchParams(window.location.search);
++      const fromUrl = params.get('door');
++      if (fromUrl === 'off') localStorage.removeItem('rfid_terminal_door');
++      else if (fromUrl && /^\d+$/.test(fromUrl)) localStorage.setItem('rfid_terminal_door', fromUrl);
++      const saved = localStorage.getItem('rfid_terminal_door');
++      return saved ? parseInt(saved, 10) : null;
++    } catch (e) {
++      return null;
++    }
++  }, []);
++
++  const lastProcessedScanRef = useRef((() => {
++    try { return sessionStorage.getItem('rfid_last_processed_scan'); } catch (e) { return null; }
++  })());
++
++  useEffect(() => {
++    if (!terminalDoorId) return;
++
++    const interval = setInterval(async () => {
++      if (isProcessingRef.current || (typeof document !== 'undefined' && document.hidden)) return;
++      try {
++        const res = await apiClient('/access/latest');
++        const scan = res?.data;
++        if (!res?.success || !scan?.uid || scan.id == null) return;
++        if (Number(scan.door?.id) !== terminalDoorId) return;
++        if (Date.now() - new Date(scan.timestamp).getTime() > 4000) return;
++        if (String(scan.id) === String(lastProcessedScanRef.current)) return;
++
++        lastProcessedScanRef.current = String(scan.id);
++        try { sessionStorage.setItem('rfid_last_processed_scan', String(scan.id)); } catch (e) {}
++        handleCardAuthentication(scan.uid);
++      } catch (e) {}
++    }, 1500);
++
++    return () => clearInterval(interval);
++  }, [terminalDoorId, handleCardAuthentication]);
++
+   useEffect(() => {
+     const handleKeyDown = (e) => {
+       if (e.ctrlKey || e.altKey || e.metaKey) return;
+@@ -570,7 +612,7 @@ export const Login = () => {
+         <div className="login-showcase-foot">
+           <div className="login-showcase-status">
+             <span className="login-showcase-dot is-ok" />
+-            <span>Lector local listo</span>
++            <span>{terminalDoorId ? `Terminal emparejada · puerta ${terminalDoorId}` : 'Lector local listo'}</span>
+           </div>
+           <div className="login-clock">
+             <span className="login-clock-date">{clockDate}</span>
