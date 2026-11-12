@@ -24,6 +24,7 @@ erDiagram
     USERS ||--o{ SCHEDULES : "tiene asignado"
     USERS ||--o{ ACCESS_LOGS : "genera intentos"
     USERS ||--o{ VISITOR_PASSES : "emite pase a"
+    USERS ||--o{ USER_SESSIONS : "mantiene por equipo"
     
     BLOCKS ||--o{ ROOMS : "contiene"
     ROOMS ||--o{ DOORS : "tiene instaladas"
@@ -62,6 +63,16 @@ erDiagram
         text last_login_device
         timestamp created_at
         timestamp updated_at
+    }
+
+    USER_SESSIONS {
+        uuid id PK
+        int user_id FK
+        string device_id
+        text device_info
+        string ip_address
+        timestamp expires_at
+        timestamp revoked_at
     }
 
     BLOCKS {

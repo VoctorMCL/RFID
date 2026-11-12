@@ -17,7 +17,7 @@ Documentación técnica, arquitectónica y de usuario del **Ecosistema Inteligen
 | [🗄️ Base de Datos y Persistencia](./DATABASE.md) | DBAs, Desarrolladores | Modelo relacional PostgreSQL / Supabase, entidades (incluyendo `visitor_passes`), diagrama ER en Mermaid, índices y triggers. |
 | [📖 Diccionario de Datos](./DATA-DICTIONARY.md) | DBAs, Integradores | Especificación exhaustiva campo por campo de todas las tablas con tipos, restricciones y valores de ejemplo. |
 | [📡 Referencia de Endpoints API](./ENDPOINTS.md) | Integradores, Frontend | Documentación completa de rutas REST (`/api/*`), payloads JSON, pases de visitantes, analítica para Grafana y eventos WebSocket. |
-| [🔐 Autenticación y RBAC](./AUTH.md) | Seguridad, Devs | Terminal RADAR, inicio de sesión físico por tarjeta RFID, sesión única por dispositivo (`active_session_id`), JWT y control de inactividad. |
+| [🔐 Autenticación y RBAC](./AUTH.md) | Seguridad, Devs | Terminal RADAR, inicio de sesión físico por tarjeta RFID, una sesión independiente por PC/navegador (`user_sessions`), JWT y control de inactividad. |
 | [🛡️ Seguridad Física y Alarmas](./SECURITY.md) | Seguridad, Mantenimiento | Protocolo de alarma en Sala de Informática 1, fichas maestras, desarme exclusivo de central, notificación por correo y Ley 1581. |
 | [🔌 Integración de Hardware](./HARDWARE.md) | Técnicos de Hardware, IoT | Lector MFRC522 (13.56 MHz), conexión SPI en Raspberry Pi 5 / CrowPi 3, heartbeat de telemetría, firmware ESP32 con relé y buzzer. |
 | [🚀 Despliegue y Operación](./DEPLOYMENT.md) | DevOps, SysAdmins | Puesta en producción, configuración de variables `.env`, scripts `start.sh` y `setup-db.sh`, servicio systemd. |

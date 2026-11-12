@@ -3,6 +3,24 @@ import { apiClient } from '../api/client';
 
 const AuthContext = createContext(null);
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+const DEVICE_ID_STORAGE_KEY = 'rfid_device_id';
+
+const getDeviceId = () => {
+  if (typeof window === 'undefined') return 'server';
+  try {
+    let deviceId = localStorage.getItem(DEVICE_ID_STORAGE_KEY);
+    if (!deviceId) {
+      const generated = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      deviceId = generated;
+      localStorage.setItem(DEVICE_ID_STORAGE_KEY, deviceId);
+    }
+    return deviceId;
+  } catch (e) {
+    return 'terminal-sin-identificar';
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -90,6 +108,7 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         body: {
           rfid_uid: rfidUid,
+          device_id: getDeviceId(),
           device_info: navigator.userAgent
         }
       });

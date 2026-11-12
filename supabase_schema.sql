@@ -9,6 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Limpieza limpia de tablas previas si existen
+DROP TABLE IF EXISTS user_sessions CASCADE;
 DROP TABLE IF EXISTS alerts CASCADE;
 DROP TABLE IF EXISTS access_logs CASCADE;
 DROP TABLE IF EXISTS schedules CASCADE;
@@ -57,6 +58,24 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role_id);
 CREATE INDEX idx_users_document ON users(document_id);
+
+-- =============================================================================
+-- 2b. TABLA: SESIONES POR DISPOSITIVO (una sesión activa por PC/navegador)
+-- =============================================================================
+CREATE TABLE user_sessions (
+    id UUID PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device_id VARCHAR(128) NOT NULL,
+    device_info TEXT,
+    ip_address VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_user_sessions_user_device ON user_sessions(user_id, device_id);
+CREATE INDEX idx_user_sessions_active ON user_sessions(user_id, expires_at) WHERE revoked_at IS NULL;
 
 -- =============================================================================
 -- 3. TABLA: BLOQUES DEL CAMPUS (4 Bloques Institucionales)

@@ -17,7 +17,7 @@ Content-Type: application/json
 
 - **Rutas Públicas:** No requieren token (`/auth/rfid-login`, `/auth/login`, `/access/validate`, `/access/latest`, `/doors/:id/heartbeat`, `/health`).
 - **Rutas Protegidas:** Exigen token JWT emitido a roles autorizados (`admin`, `rector`, `security`, `celador`, `admin_staff`).
-- **Control de Sesión Única:** El token JWT vincula un `sessionId` que debe coincidir con `users.active_session_id`. Si se inicia sesión desde otra estación, el token anterior es revocado de inmediato con código `SESSION_TERMINATED`.
+- **Sesión Independiente por PC:** El token JWT incluye un `sessionId` registrado en la tabla `user_sessions` junto al `device_id` del equipo. Cada PC valida su propia sesión, por lo que dos puestos pueden permanecer autenticados a la vez; solo se revoca la sesión del equipo que cierra sesión o vuelve a ingresar.
 
 ---
 
@@ -197,7 +197,7 @@ Permite a clientes en Vercel o sin WebSockets obtener instantáneamente el últi
 
 ### 3.1 Perfil y Seguridad de Usuario
 - `GET /api/auth/me` — Retorna el perfil completo del usuario autenticado, su rol y su tarjeta física activa.
-- `POST /api/auth/logout` — Cierra la sesión activa en el servidor y limpia `active_session_id`.
+- `POST /api/auth/logout` — Revoca únicamente la sesión del equipo actual en `user_sessions` y limpia el marcador de último ingreso.
 - `PUT /api/auth/change-password` — Permite al usuario actualizar su contraseña (`currentPassword`, `newPassword`).
 
 ### 3.2 Analítica Avanzada y Telemetría para Grafana (`/api/access/analytics`)

@@ -64,7 +64,7 @@ Content-Type: application/json
 
 ---
 
-## 4. Métodos de Inicio de Sesión y Control de Sesión Única
+## 4. Métodos de Inicio de Sesión y Sesión Independiente por Puesto
 
 ### 4.1 Autenticación Física Directa por Tarjeta RFID (`POST /api/auth/rfid-login`)
 Es el método preferente en el **Terminal RADAR**:
@@ -72,14 +72,17 @@ Es el método preferente en el **Terminal RADAR**:
 2. El sistema captura el UID hexadecimal y lo envía al endpoint `/api/auth/rfid-login`.
 3. El backend verifica la existencia de la tarjeta en `rfid_cards` y valida que el usuario titular tenga rol `admin`, `rector`, `celador` o `security`.
 4. Si la tarjeta pertenece a un rol no administrativo (estudiante/docente), se deniega con código 403.
-5. Si es autorizado, se genera un identificador de sesión único (`active_session_id`), se revoca cualquier sesión previa y se emite el token JWT con expiración estricta de 4 horas.
+5. Si es autorizado, se registra una sesión nueva en la tabla `user_sessions` asociada al identificador del equipo (`device_id`) y se emite el token JWT con expiración estricta de 4 horas.
 
-### 4.2 Control Estricto de Sesión Única por Puesto (`active_session_id`)
-Para prevenir suplantaciones y uso compartido no auditado de terminales de portería:
-- Cada inicio de sesión exitoso genera un UUID criptográfico registrado en la columna `users.active_session_id` de PostgreSQL.
-- Dicho identificador viaja embebido dentro del payload del JWT.
-- En cada petición HTTP, el middleware `authenticate` coteja que `decoded.sessionId === user.active_session_id`.
-- Si el celador o administrador inicia sesión en otra estación, la sesión anterior finaliza instantáneamente con el error `SESSION_TERMINATED`.
+### 4.2 Una Sesión Activa por PC / Navegador (`user_sessions`)
+Cada puesto de trabajo mantiene su propia sesión independiente:
+- El navegador genera un `device_id` estable y lo guarda en `localStorage` (clave `rfid_device_id`).
+- Cada inicio de sesión crea un UUID criptográfico en la tabla `user_sessions`, ligado al usuario y a ese `device_id`.
+- El identificador de sesión viaja embebido dentro del payload del JWT.
+- En cada petición HTTP, el middleware `authenticate` valida que la sesión exista, no esté revocada y no haya expirado.
+- **Dos PCs pueden estar autenticados al mismo tiempo con el mismo usuario.** Cerrar sesión o volver a ingresar en uno de ellos no afecta al otro.
+- Si el mismo equipo vuelve a iniciar sesión, solo se revoca la sesión anterior de ese mismo equipo.
+- La columna `users.active_session_id` se conserva únicamente como marcador del último ingreso (telemetría), no como mecanismo de bloqueo.
 
 ### 4.3 Cierre Automático por Inactividad (15 Minutos)
 El contexto `AuthContext.jsx` escucha eventos de interacción (`mousemove`, `keydown`, `touchstart`, `scroll`). Si transcurren 15 minutos continuos sin actividad:
@@ -87,8 +90,7 @@ El contexto `AuthContext.jsx` escucha eventos de interacción (`mousemove`, `key
 2. Se notifica al backend vía `POST /api/auth/logout`.
 3. El sistema redirige automáticamente a la pantalla de acceso con el aviso: *"Su sesión ha finalizado automáticamente por 15 minutos de inactividad"*.
 
-### 4.4 Botón de Demostración para Pruebas Rápidas
-En la interfaz del Terminal RADAR se incluye el botón **Entrar como administrador (demo)**, que permite a docentes, evaluadores y desarrolladores ingresar a la consola administrativa de forma instantánea sin requerir un hardware de lectura RFID conectado.
+> **Nota de despliegue:** la tabla `user_sessions` se crea automáticamente en el primer inicio de sesión (`CREATE TABLE IF NOT EXISTS`), por lo que no requiere migración manual. Los tokens emitidos antes de este cambio no tienen una fila de sesión asociada: cada usuario deberá aproximar su carnet una vez después del despliegue.
 
 ---
 
@@ -119,17 +121,18 @@ sequenceDiagram
         AuthCtrl-->>Web: 403 Forbidden (Solo validan en puertas físicas)
         Web->>User: Muestra tarjeta roja + onda de advertencia
     else Rol es Administrador o Celador
-        AuthCtrl->>DB: UPDATE users SET active_session_id = $newSession
-        AuthCtrl->>AuthCtrl: Genera JWT (HS256, 4 horas, sessionId)
-        AuthCtrl-->>Web: 200 OK { token, sessionId, user }
+        AuthCtrl->>DB: INSERT INTO user_sessions (user_id, device_id, sessionId)
+        AuthCtrl->>DB: UPDATE users SET active_session_id = último ingreso
+        AuthCtrl->>AuthCtrl: Genera JWT (HS256, 4 horas, sessionId, deviceId)
+        AuthCtrl-->>Web: 200 OK { token, sessionId, deviceId, user }
         Web->>Web: Guarda token en localStorage e inicia temporizador de inactividad
         Web-->>User: Animación líquida + Redirección a Monitor / Dashboard
     end
 
     Note over Web,Middleware: En solicitudes protegidas posteriores:
     Web->>Middleware: GET /api/doors [Authorization: Bearer <token>]
-    Middleware->>DB: Comprueba active_session_id == decoded.sessionId
-    DB-->>Middleware: Sesión válida coincidente
+    Middleware->>DB: Comprueba user_sessions(sessionId) activa y vigente
+    DB-->>Middleware: Sesión válida para este equipo
     Middleware-->>Web: 200 OK [Datos protegidos]
 ```
 

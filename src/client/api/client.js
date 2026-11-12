@@ -12,11 +12,13 @@ export const ALLOWED_WEB_ROLES = ['admin', 'celador', 'security', 'rector'];
 
 export const apiClient = async (endpoint, options = {}) => {
   const token = localStorage.getItem('rfid_token');
+  const deviceId = localStorage.getItem('rfid_device_id');
 
   const headers = {
     'Content-Type': 'application/json',
     'Bypass-Tunnel-Reminder': 'true',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(deviceId ? { 'X-Device-Id': deviceId } : {}),
     ...options.headers,
   };
 

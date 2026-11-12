@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { getJwtSecret } = require('../config/security');
+const sessionStore = require('../config/sessionStore');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -37,7 +38,7 @@ const authenticate = async (req, res, next) => {
     let user = null;
     try {
       const result = await db.query(
-        `SELECT u.id, u.email, u.role_id, u.status, u.active_session_id,
+        `SELECT u.id, u.email, u.role_id, u.status,
                 r.name AS role_name, r.global_access
          FROM users u
          JOIN roles r ON u.role_id = r.id
@@ -71,12 +72,27 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    if (decoded.sessionId && user.active_session_id && decoded.sessionId !== user.active_session_id) {
+    let sessionActive = false;
+    try {
+      sessionActive = await sessionStore.isSessionActive(decoded.sessionId, user.id);
+    } catch (sessionError) {
+      console.error('Error verificando sesión por dispositivo:', sessionError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Error consultando las sesiones activas del sistema.',
+      });
+    }
+
+    if (!sessionActive) {
       return res.status(401).json({
         success: false,
         code: 'SESSION_TERMINATED',
-        error: 'Sesión finalizada: Se ha iniciado sesión desde otro dispositivo o puesto de control.',
+        error: 'Sesión finalizada o expirada en este equipo. Aproxime su tarjeta RFID para ingresar nuevamente.',
       });
+    }
+
+    if (decoded.sessionId) {
+      sessionStore.touchSession(decoded.sessionId);
     }
 
     req.user = {
@@ -85,7 +101,8 @@ const authenticate = async (req, res, next) => {
       role_id: user.role_id,
       role_name: user.role_name,
       global_access: user.global_access,
-      sessionId: decoded.sessionId || user.active_session_id,
+      sessionId: decoded.sessionId,
+      deviceId: decoded.deviceId || null,
     };
 
     next();

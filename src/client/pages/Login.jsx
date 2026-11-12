@@ -62,7 +62,26 @@ export const Login = () => {
 
   const [health, setHealth] = useState({ database: null, reader: null });
 
-  const lastProcessedIdRef = useRef(null);
+  const lastProcessedIdRef = useRef((() => {
+    try {
+      const saved = sessionStorage.getItem('rfid_last_processed_scan');
+      return saved || null;
+    } catch (e) {
+      return null;
+    }
+  })());
+
+  // Registra la lectura ya consumida también en sessionStorage: así, si la
+  // página se recarga tras cerrar sesión o expirar el token, la misma lectura
+  // no vuelve a iniciar sesión automáticamente (evita bucles entre puestos).
+  const markScanProcessed = useCallback((scanId) => {
+    const normalized = scanId == null ? null : String(scanId);
+    lastProcessedIdRef.current = normalized;
+    try {
+      if (normalized) sessionStorage.setItem('rfid_last_processed_scan', normalized);
+    } catch (e) {}
+  }, []);
+
   const isProcessingRef = useRef(false);
   const redirectTimerRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -294,11 +313,11 @@ export const Login = () => {
     if (event.type === 'access_attempt' && event.data?.uid) {
       const scanUid = event.data.uid;
       const logId = event.data.logId || event.data.id;
-      if (logId && logId === lastProcessedIdRef.current) return;
-      lastProcessedIdRef.current = logId;
+      if (logId && String(logId) === String(lastProcessedIdRef.current)) return;
+      markScanProcessed(logId);
       handleCardAuthentication(scanUid);
     }
-  }, [handleCardAuthentication]);
+  }, [handleCardAuthentication, markScanProcessed]);
 
   const { isConnected: isWsConnected } = useWebSocket(handleWsEvent);
 
@@ -312,9 +331,10 @@ export const Login = () => {
           const scan = res.data;
           const scanTime = new Date(scan.timestamp).getTime();
           const isFresh = (Date.now() - scanTime) < 3000;
+          const alreadyProcessed = scan.id != null && String(scan.id) === String(lastProcessedIdRef.current);
 
-          if (isFresh && scan.id !== lastProcessedIdRef.current) {
-            lastProcessedIdRef.current = scan.id;
+          if (isFresh && !alreadyProcessed) {
+            markScanProcessed(scan.id);
             handleCardAuthentication(scan.uid);
           }
         }
@@ -597,11 +617,11 @@ export const Login = () => {
           </div>
           <h2 className="login-showcase-wordmark">RADAR</h2>
           <p className="login-showcase-acronym">
-            Red de Acceso y Detección mediante Autenticación RFID
+            Control de acceso RFID institucional
           </p>
           <span className="login-showcase-divider" />
           <p className="login-showcase-desc">
-            Identificación por radiofrecuencia para el control de acceso institucional.
+            Identificación por radiofrecuencia, control de puertas y monitoreo del acceso en tiempo real.
           </p>
         </div>
 

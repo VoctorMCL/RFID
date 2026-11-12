@@ -27,7 +27,7 @@ El sistema es un ecosistema inteligente de control de acceso físico, telemetrí
    - **Rectora / Alta Administración:** Acceso total e irrestricto a todas las puertas del campus en cualquier momento.
    - **Profesores:** Acceso condicionado a los horarios de clase programados en las salas específicas mediante carnet RFID (no ingresan a la plataforma web).
    - **Estudiantes:** Acceso a espacios autorizados en franjas horarias válidas mediante carnet RFID (no ingresan a la plataforma web).
-   - **Política de Sesión Única:** Solo 1 sesión activa simultánea por estación de trabajo (`active_session_id`).
+   - **Sesión Independiente por PC:** Cada puesto de trabajo mantiene su propia sesión (`user_sessions` + `device_id`); iniciar o cerrar sesión en un equipo no afecta a los demás.
    - **Cierre por Inactividad:** Cierre de sesión automático tras 15 minutos sin interacción del usuario.
 6. **Telemetría Avanzada y Dashboard en Grafana:**
    - Endpoint dedicado de analítica institucional (`/api/access/analytics`).
@@ -45,7 +45,7 @@ RFID/
 ├── src/
 │   ├── client/                  # Frontend SPA React 19 + Vite
 │   │   ├── api/client.js        # Cliente HTTP con inyección JWT y tolerancia a fallos
-│   │   ├── context/AuthContext  # Manejador de sesión única, inactividad y roles
+│   │   ├── context/AuthContext  # Sesión independiente por PC, inactividad y roles
 │   │   ├── components/Layout/   # Barra lateral comprimible (Sidebar) y Topbar
 │   │   ├── pages/
 │   │   │   ├── Login.jsx        # Terminal RADAR split-screen con lectura RFID y botón demo
@@ -64,7 +64,7 @@ RFID/
 │   └── server/                  # Backend Node.js + Express + WebSockets (puerto 4000)
 │       ├── config/              # db.js (Pool PostgreSQL / Supabase) y schema.sql
 │       ├── controllers/         # auth, access, alerts, blocks, doors, rfidCards, rooms, schedules, users, visitorPasses
-│       ├── middleware/          # auth.js (JWT, sesión única & verificación de roles)
+│       ├── middleware/          # auth.js (JWT, validación de sesión por PC y roles)
 │       ├── routes/              # Endpoints de la API REST (/api)
 │       ├── seeds/               # Semillas SQL institucionales con usuarios demo (seed.sql)
 │       ├── services/            # wsService.js (WebSockets) y emailService.js (alertas)

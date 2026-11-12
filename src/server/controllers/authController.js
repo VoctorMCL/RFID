@@ -1,11 +1,16 @@
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { getJwtSecret } = require('../config/security');
+const sessionStore = require('../config/sessionStore');
+
+const normalizeDeviceId = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return raw.slice(0, 128) || 'terminal-sin-identificar';
+};
 
 const loginWithCard = async (req, res) => {
   try {
-    const { rfid_uid, device_info } = req.body;
+    const { rfid_uid, device_info, device_id } = req.body;
 
     if (!rfid_uid || !rfid_uid.trim()) {
       return res.status(400).json({
@@ -60,8 +65,20 @@ const loginWithCard = async (req, res) => {
       });
     }
 
-    const newSessionId = crypto.randomUUID();
+    const deviceId = normalizeDeviceId(device_id || req.headers['x-device-id']);
     const deviceString = device_info || req.headers['user-agent'] || 'Terminal Web';
+    const clientIp = (req.headers['x-forwarded-for'] || req.ip || '')
+      .toString()
+      .split(',')[0]
+      .trim()
+      .slice(0, 64);
+
+    const { sessionId: newSessionId } = await sessionStore.createSession({
+      userId: user.user_id,
+      deviceId,
+      deviceInfo: deviceString,
+      ipAddress: clientIp
+    });
 
     await db.query(
       `UPDATE users
@@ -80,10 +97,11 @@ const loginWithCard = async (req, res) => {
         role_id: user.role_id,
         role_name: user.role_name,
         global_access: user.global_access,
-        sessionId: newSessionId
+        sessionId: newSessionId,
+        deviceId
       },
       getJwtSecret(),
-      { expiresIn: '4h' }
+      { expiresIn: sessionStore.SESSION_TTL_MS / 1000 }
     );
 
     return res.json({
@@ -92,6 +110,7 @@ const loginWithCard = async (req, res) => {
       data: {
         token,
         sessionId: newSessionId,
+        deviceId,
         user: {
           id: user.user_id,
           first_name: user.first_name,
@@ -124,7 +143,17 @@ const loginWithCard = async (req, res) => {
 const logout = async (req, res) => {
   try {
     if (req.user?.id) {
-      await db.query(`UPDATE users SET active_session_id = NULL WHERE id = $1`, [req.user.id]);
+      if (req.user.sessionId) {
+        await sessionStore.revokeSession(req.user.sessionId, req.user.id);
+      }
+      // Solo limpiamos el marcador de "último ingreso" si pertenece a esta
+      // misma sesión; nunca pisamos la sesión vigente de otro equipo.
+      await db.query(
+        `UPDATE users
+         SET active_session_id = NULL
+         WHERE id = $1 AND active_session_id = $2`,
+        [req.user.id, req.user.sessionId || '']
+      );
     }
     return res.json({ success: true, message: 'Sesión finalizada exitosamente.' });
   } catch (error) {
